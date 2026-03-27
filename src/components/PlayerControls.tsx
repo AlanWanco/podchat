@@ -1,23 +1,41 @@
 
-import { Play, Pause, SquareSquare, RotateCcw, Volume1 } from 'lucide-react';
+import { Play, Pause, SquareSquare, RotateCcw, Volume1, Repeat, Settings2 } from 'lucide-react';
 
 interface PlayerControlsProps {
   currentTime: number;
-  duration: number; // mock duration for now
+  duration: number;
   isPlaying: boolean;
+  loop: boolean;
+  playbackRate: number;
   onPlayPause: () => void;
   onReset: () => void;
   onSeek: (time: number) => void;
+  onLoopChange: (loop: boolean) => void;
+  onRateChange: (rate: number) => void;
 }
 
-export function PlayerControls({ currentTime, duration, isPlaying, onPlayPause, onReset, onSeek }: PlayerControlsProps) {
+export function PlayerControls({ 
+  currentTime, 
+  duration, 
+  isPlaying, 
+  loop,
+  playbackRate,
+  onPlayPause, 
+  onReset, 
+  onSeek,
+  onLoopChange,
+  onRateChange
+}: PlayerControlsProps) {
   
   const formatTime = (seconds: number) => {
+    if (isNaN(seconds) || !isFinite(seconds)) return "00:00.0";
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     const ms = Math.floor((seconds % 1) * 10);
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
   };
+
+  const rates = [0.5, 1.0, 1.25, 1.5, 2.0];
 
   return (
     <div className="h-24 bg-gray-900 border-t border-gray-800 flex flex-col px-6 py-2 shrink-0 z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
@@ -30,7 +48,6 @@ export function PlayerControls({ currentTime, duration, isPlaying, onPlayPause, 
       }}>
         {/* Background Track */}
         <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden flex relative">
-          {/* Mock Waveform / Event marks could go here */}
           <div className="absolute inset-0 flex items-center justify-between px-1 opacity-20">
             {Array.from({length: 20}).map((_, i) => (
               <div key={i} className="h-full w-0.5 bg-gray-500"></div>
@@ -40,14 +57,14 @@ export function PlayerControls({ currentTime, duration, isPlaying, onPlayPause, 
           {/* Progress Fill */}
           <div 
             className="h-full bg-blue-500 transition-all duration-75 ease-linear"
-            style={{ width: `${(currentTime / duration) * 100}%` }}
+            style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
           />
         </div>
         
         {/* Playhead thumb */}
         <div 
           className="absolute h-4 w-1.5 bg-white rounded-sm shadow-md transition-all duration-75 ease-linear"
-          style={{ left: `calc(${(currentTime / duration) * 100}% - 3px)` }}
+          style={{ left: `calc(${duration > 0 ? (currentTime / duration) * 100 : 0}% - 3px)` }}
         />
       </div>
 
@@ -86,8 +103,38 @@ export function PlayerControls({ currentTime, duration, isPlaying, onPlayPause, 
           </button>
         </div>
 
-        <div className="flex items-center justify-end gap-3 w-1/3">
-          <div className="flex items-center gap-2 text-gray-400">
+        <div className="flex items-center justify-end gap-4 w-1/3 text-gray-400">
+          
+          {/* Loop Toggle */}
+          <button 
+            onClick={() => onLoopChange(!loop)}
+            className={`p-1.5 rounded transition-colors ${loop ? 'text-blue-400 bg-blue-400/10' : 'hover:text-white hover:bg-gray-800'}`}
+            title="循环播放"
+          >
+            <Repeat size={16} />
+          </button>
+
+          {/* Speed Control */}
+          <div className="relative group flex items-center">
+            <button className="flex items-center gap-1 p-1.5 text-xs font-mono font-bold hover:text-white rounded hover:bg-gray-800 transition-colors">
+              <Settings2 size={14} />
+              {playbackRate.toFixed(1)}x
+            </button>
+            <div className="absolute bottom-full right-0 mb-1 hidden group-hover:flex flex-col bg-gray-800 border border-gray-700 rounded shadow-xl overflow-hidden">
+              {rates.map(r => (
+                <button 
+                  key={r}
+                  onClick={() => onRateChange(r)}
+                  className={`px-3 py-1.5 text-xs font-mono text-left hover:bg-gray-700 ${playbackRate === r ? 'text-blue-400 bg-gray-900' : 'text-gray-300'}`}
+                >
+                  {r.toFixed(1)}x
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Volume Control - Mock for now */}
+          <div className="flex items-center gap-2">
             <Volume1 size={16} />
             <input type="range" className="w-20 accent-gray-500 h-1" defaultValue={80} />
           </div>
