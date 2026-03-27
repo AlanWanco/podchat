@@ -3,6 +3,11 @@ export const demoConfig = {
   projectTitle: "横版测试 Demo",
   fps: 60,
   dimensions: { width: 1920, height: 1080 },
+  chatLayout: {
+    paddingTop: 48,
+    paddingBottom: 120, // 底部留白，控制新气泡出现的高度
+    paddingX: 48
+  },
   audioPath: "/projects/demo/assets/test_audio.aac",
   assPath: "/projects/demo/assets/ass_test.ass",
   background: {
@@ -14,19 +19,46 @@ export const demoConfig = {
       name: "主播A", 
       avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=A", 
       side: "left", 
-      style: { bgColor: "#2563eb", textColor: "#ffffff", borderRadius: 32 }
+      style: { 
+        bgColor: "#2563eb", 
+        textColor: "#ffffff", 
+        borderRadius: 32,
+        opacity: 0.9,
+        blur: 4,
+        borderWidth: 0,
+        borderColor: "#ffffff",
+        borderOpacity: 1.0,
+        margin: 16,
+        paddingX: 24,
+        paddingY: 16,
+        fontFamily: "system-ui",
+        fontSize: 20,
+        fontWeight: "normal",
+        scale: 1.0
+      }
     },
     "B": { 
       name: "嘉宾B", 
       avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=B", 
       side: "right", 
-      style: { bgColor: "#f3f4f6", textColor: "#111827", borderRadius: 32 }
+      style: { 
+        bgColor: "#f3f4f6", 
+        textColor: "#111827", 
+        borderRadius: 32,
+        opacity: 0.9,
+        blur: 4,
+        borderWidth: 0,
+        borderColor: "#ffffff",
+        borderOpacity: 1.0,
+        margin: 16,
+        paddingX: 24,
+        paddingY: 16,
+        fontFamily: "system-ui",
+        fontSize: 20,
+        fontWeight: "normal",
+        scale: 1.0
+      }
     }
   },
-  content: [
-    // This will eventually be replaced by the parsed ASS file data
-    { start: 0.5, end: 2.1, speaker: "A", type: "text", text: "测试一下横版视频效果！" },
-    { start: 2.2, end: 4.5, speaker: "B", type: "text", text: "好的，横版的空间更大了。" },
-    { start: 4.6, end: 6.0, speaker: "A", type: "text", text: "接下来我们来接入这个音频和 ASS 文件。" },
-  ]
+  content: []
 };

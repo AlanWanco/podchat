@@ -9,7 +9,7 @@ export interface SubtitleItem {
   style: string;
   actor: string;
   text: string;
-  speakerId: string; // Mapped to our config
+  speakerId: string;
 }
 
 export function useAssSubtitle(assPath: string, speakerConfig: any) {
@@ -30,14 +30,11 @@ export function useAssSubtitle(assPath: string, speakerConfig: any) {
         const parsed = parse(text);
         const dialogues = parsed.events.dialogue;
         
-        // Very basic mapping: find a speaker key by name, or fallback to 'A'
         const mapActorToSpeaker = (actorName: string) => {
           const keys = Object.keys(speakerConfig);
-          // Try to match by actor name first
           for (const key of keys) {
             if (speakerConfig[key].name === actorName) return key;
           }
-          // If no match, let's alternate based on some logic, or just return first key
           return keys[0] || 'A';
         };
 
@@ -48,7 +45,7 @@ export function useAssSubtitle(assPath: string, speakerConfig: any) {
           duration: Number((d.End - d.Start).toFixed(2)),
           style: d.Style,
           actor: d.Name || d.Style,
-          text: d.Text.combined.replace(/\\N/g, '\n'), // Handle newlines
+          text: d.Text.combined.replace(/\\N/g, '\n'),
           speakerId: mapActorToSpeaker(d.Name)
         }));
 
@@ -64,5 +61,5 @@ export function useAssSubtitle(assPath: string, speakerConfig: any) {
       });
   }, [assPath, speakerConfig]);
 
-  return { subtitles, loading, error };
+  return { subtitles, setSubtitles, loading, error };
 }
