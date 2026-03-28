@@ -128,7 +128,16 @@ ipcMain.handle('export-video', async (_event, config) => {
 
   try {
     const workerPath = path.join(process.env.APP_ROOT || process.cwd(), 'electron', 'remotion-worker.cjs');
+    if (!fs.existsSync(workerPath)) {
+      return {
+        success: false,
+        error: `Export worker not found: ${workerPath}`,
+      };
+    }
     const result = await new Promise<any>((resolve, reject) => {
+      let workerStdErr = '';
+      let workerStdOut = '';
+
       const worker = fork(workerPath, [], {
         stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
         env: {
@@ -136,6 +145,14 @@ ipcMain.handle('export-video', async (_event, config) => {
           APP_ROOT: process.env.APP_ROOT || process.cwd(),
           VITE_PUBLIC: process.env.VITE_PUBLIC || '',
         },
+      });
+
+      worker.stdout?.on('data', (chunk) => {
+        workerStdOut += chunk.toString();
+      });
+
+      worker.stderr?.on('data', (chunk) => {
+        workerStdErr += chunk.toString();
       });
 
       // Set timeout for export (5 hours max)
@@ -160,7 +177,8 @@ ipcMain.handle('export-video', async (_event, config) => {
 
         if (message.type === 'error') {
           clearTimeout(timeout);
-          reject(new Error(message.payload?.message || 'Export failed'));
+          const detail = [message.payload?.message, workerStdErr.trim() || '', workerStdOut.trim() || ''].filter(Boolean).join('\n');
+          reject(new Error(detail || 'Export failed'));
           worker.kill();
         }
       });
@@ -173,7 +191,12 @@ ipcMain.handle('export-video', async (_event, config) => {
       worker.on('exit', (code) => {
         clearTimeout(timeout);
         if (code && code !== 0) {
-          reject(new Error(`Export worker exited with code ${code}`));
+          const detail = [
+            `Export worker exited with code ${code}`,
+            workerStdErr.trim() || '',
+            workerStdOut.trim() || ''
+          ].filter(Boolean).join('\n');
+          reject(new Error(detail));
         }
       });
 

@@ -88,27 +88,27 @@ const getBubbleMotionState = (progress: number, style: SharedChatLayout['animati
     case 'rise':
       return {
         opacity: clamped,
-        transform: `translate3d(0, ${18 * (1 - base)}px, 0)`,
+        transform: `translate3d(0, ${30 * (1 - base)}px, 0)`,
         filter: undefined
       };
     case 'pop': {
       const eased = easeOutBack(clamped);
-      const scale = 0.82 + 0.18 * eased;
+      const scale = 0.72 + 0.28 * eased;
       return { opacity: clamped, transform: `scale(${scale})`, filter: undefined };
     }
     case 'slide': {
       const direction = side === 'left' ? -1 : side === 'right' ? 1 : 0;
       return {
         opacity: clamped,
-        transform: `translate3d(${direction * 18 * (1 - base)}px, 0, 0)`,
+        transform: `translate3d(${direction * 42 * (1 - base)}px, 0, 0)`,
         filter: undefined
       };
     }
     case 'blur':
       return {
         opacity: clamped,
-        transform: `translate3d(0, ${10 * (1 - base)}px, 0)`,
-        filter: `blur(${10 * (1 - base)}px)`
+        transform: `translate3d(0, ${16 * (1 - base)}px, 0) scale(${0.96 + 0.04 * base})`,
+        filter: `blur(${14 * (1 - base)}px)`
       };
     default:
       return { opacity: 1, transform: undefined, filter: undefined };

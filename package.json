@@ -55,6 +55,7 @@
     "files": [
       "dist/**",
       "dist-electron/**",
+      "electron/remotion-worker.cjs",
       "package.json"
     ],
     "mac": {

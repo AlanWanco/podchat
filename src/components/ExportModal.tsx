@@ -174,7 +174,7 @@ export function ExportModal({
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/55 backdrop-blur-sm px-4">
       <div
-        className="w-full max-w-3xl overflow-hidden rounded-[28px] border shadow-2xl"
+        className="w-full max-w-3xl overflow-hidden rounded-[28px] border shadow-2xl [&_.text-xs]:text-sm"
         style={{
           background: `linear-gradient(180deg, ${uiTheme.panelBgElevated} 0%, ${uiTheme.panelBg} 68%, ${rgba(secondaryThemeColor, isDarkMode ? 0.12 : 0.08)} 100%)`,
           borderColor: rgba(secondaryThemeColor, isDarkMode ? 0.32 : 0.26),

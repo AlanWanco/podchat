@@ -1975,15 +1975,7 @@ const [previewScale, setPreviewScale] = useState(1);
                         )}
                         renderBubble={({ outerStyle, contentStyle, children }) => {
                           const tintColor = typeof outerStyle.backgroundColor === 'string' ? outerStyle.backgroundColor : '#ffffff';
-                          const bubbleStyle = {
-                            ...outerStyle,
-                            animationDuration: `${animationDuration}s`,
-                            animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
-                            animationFillMode: 'both',
-                            ['--pomchat-enter-x' as any]: speaker.side === 'left' ? '-18px' : '18px',
-                            ['--pomchat-enter-y' as any]: '18px',
-                            ['--pomchat-enter-scale' as any]: '0.92'
-                          };
+                          const bubbleStyle = { ...outerStyle };
                           delete bubbleStyle.backgroundColor;
                           return (
                             <SnapshotBubble
@@ -1993,7 +1985,7 @@ const [previewScale, setPreviewScale] = useState(1);
                               backgroundBaseBlur={config.background?.blur || 0}
                               blurPx={0}
                               tintColor={tintColor}
-                              className={`break-words ${animationStyle === 'none' ? '' : `pomchat-bubble-enter-${animationStyle}`}`}
+                              className="break-words"
                               outerStyle={bubbleStyle}
                               contentStyle={contentStyle}
                             >
@@ -2012,10 +2004,8 @@ const [previewScale, setPreviewScale] = useState(1);
                   <div className="flex flex-col items-center gap-3">
                     {visibleAnnotations.filter((item) => config.speakers[item.speakerId]?.style?.annotationPosition === 'top').map((item) => {
                       const speaker = config.speakers[item.speakerId];
-                      const animationStyle = config.chatLayout?.animationStyle || 'rise';
-                      const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
                       return (
-                        <div key={item.id} className={animationStyle === 'none' ? '' : `pomchat-bubble-enter-${animationStyle}`} style={{ animationDuration: `${animationDuration}s`, animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)', animationFillMode: 'both', ['--pomchat-enter-y' as any]: '18px', ['--pomchat-enter-scale' as any]: '0.92' }}>
+                        <div key={item.id}>
                           <ChatAnnotationBubble
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
@@ -2029,10 +2019,8 @@ const [previewScale, setPreviewScale] = useState(1);
                   <div className="flex flex-col items-center gap-3">
                     {visibleAnnotations.filter((item) => (config.speakers[item.speakerId]?.style?.annotationPosition || 'bottom') === 'bottom').map((item) => {
                       const speaker = config.speakers[item.speakerId];
-                      const animationStyle = config.chatLayout?.animationStyle || 'rise';
-                      const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
                       return (
-                        <div key={item.id} className={animationStyle === 'none' ? '' : `pomchat-bubble-enter-${animationStyle}`} style={{ animationDuration: `${animationDuration}s`, animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)', animationFillMode: 'both', ['--pomchat-enter-y' as any]: '18px', ['--pomchat-enter-scale' as any]: '0.92' }}>
+                        <div key={item.id}>
                           <ChatAnnotationBubble
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}

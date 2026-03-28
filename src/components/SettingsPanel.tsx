@@ -304,7 +304,7 @@ export function SettingsPanel({
   );
 
   return (
-    <div className={`h-full flex flex-col overflow-hidden ${bgClass}`} style={{ backgroundColor: uiTheme.panelBg, color: uiTheme.textMuted, borderColor: uiTheme.border }}>
+    <div className={`h-full flex flex-col overflow-hidden ${bgClass} [&_.text-xs]:text-sm`} style={{ backgroundColor: uiTheme.panelBg, color: uiTheme.textMuted, borderColor: uiTheme.border }}>
       <div className={`p-4 border-b flex items-center justify-between shrink-0 ${headerClass}`} style={{ backgroundColor: uiTheme.panelBgElevated, borderColor: uiTheme.border, color: uiTheme.text }}>
         <h2 className="font-bold flex items-center gap-2 text-sm">
           <Settings size={16} /> {t('settings.title')}
@@ -468,7 +468,15 @@ export function SettingsPanel({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5 col-span-2">
-                  <span className="text-xs opacity-70 inline-flex items-center gap-1 cursor-help" title={t('project.fpsTip')}>{t('project.fps')}</span>
+                  <span className="text-xs opacity-70 inline-flex items-center gap-1">
+                    {t('project.fps')}
+                    <span className="group relative inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border text-[10px] font-semibold" style={{ borderColor: `${secondaryThemeColor}66`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}14` }}>
+                      ?
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-56 -translate-x-1/2 rounded-lg border px-2.5 py-2 text-[11px] font-normal leading-relaxed shadow-lg group-hover:block" style={{ borderColor: `${secondaryThemeColor}33`, backgroundColor: uiTheme.panelBgElevated, color: uiTheme.text }}>
+                        {t('project.fpsTip')}
+                      </span>
+                    </span>
+                  </span>
                   <input
                     type="number"
                     value={config.fps || 60}
@@ -652,7 +660,15 @@ export function SettingsPanel({
                 <span className="text-xs font-semibold flex items-center gap-1 opacity-80"><Type size={12} /> {t('project.animationStyle')}</span>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <span className="text-xs opacity-70 inline-flex items-center gap-1 cursor-help" title={t('project.animationStyleTip')}>{t('project.animationStyle')}</span>
+                    <span className="text-xs opacity-70 inline-flex items-center gap-1">
+                      {t('project.animationStyle')}
+                      <span className="group relative inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border text-[10px] font-semibold" style={{ borderColor: `${secondaryThemeColor}66`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}14` }}>
+                        ?
+                        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-56 -translate-x-1/2 rounded-lg border px-2.5 py-2 text-[11px] font-normal leading-relaxed shadow-lg group-hover:block" style={{ borderColor: `${secondaryThemeColor}33`, backgroundColor: uiTheme.panelBgElevated, color: uiTheme.text }}>
+                          {t('project.animationStyleTip')}
+                        </span>
+                      </span>
+                    </span>
                     <select
                       value={config.chatLayout?.animationStyle || 'rise'}
                       onChange={(e) => updateChatLayout('animationStyle', e.target.value)}

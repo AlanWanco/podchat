@@ -365,7 +365,7 @@ export function PlayerControls({
   };
 
   return (
-    <div className="h-32 border-t flex flex-col px-6 py-2 shrink-0 z-20 transition-colors duration-300" style={{ backgroundColor: uiTheme.toolbarBg, borderColor: uiTheme.border, boxShadow: `0 -4px 14px ${secondaryThemeColor}16` }}>
+    <div className="h-32 border-t flex flex-col px-6 py-2 shrink-0 z-20 transition-colors duration-300 [&_.text-xs]:text-sm" style={{ backgroundColor: uiTheme.toolbarBg, borderColor: uiTheme.border, boxShadow: `0 -4px 14px ${secondaryThemeColor}16` }}>
       
       {/* Waveform Track */}
       <div className="relative w-full mb-2">
