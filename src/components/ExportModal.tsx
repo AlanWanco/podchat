@@ -251,6 +251,27 @@ export function ExportModal({
               </div>
             </section>
 
+            {/* Quick subtitle selection */}
+            {(typeof currentSubtitleStart === 'number' && currentSubtitleStart >= 0) || (typeof currentSubtitleEnd === 'number' && currentSubtitleEnd >= 0) ? (
+              <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
+                <div className="mb-3 text-sm font-medium">{t('export.quickSelectSubtitle')}</div>
+                <div className="flex gap-2">
+                  {typeof currentSubtitleStart === 'number' && currentSubtitleStart >= 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onRangeChange({ start: currentSubtitleStart, end: currentSubtitleEnd !== undefined ? Math.max(currentSubtitleEnd, currentSubtitleStart) : undefined })}
+                      disabled={isExporting}
+                      className="flex-1 rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{ backgroundColor: rgba(secondaryThemeColor, 0.14), color: secondaryThemeColor, border: `1px solid ${rgba(secondaryThemeColor, 0.24)}` }}
+                      title={t('export.useCurrentSubtitleRange')}
+                    >
+                      {t('export.useCurrentSubtitleRange')}
+                    </button>
+                  )}
+                </div>
+              </section>
+            ) : null}
+
             <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.05) }}>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
