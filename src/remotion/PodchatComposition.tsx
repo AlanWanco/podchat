@@ -26,16 +26,9 @@ const formatBubbleShadow = (shadowSize: number) => {
 
 const formatTimestamp = (seconds: number) => {
   const total = Math.max(0, seconds);
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const remainingSeconds = Math.floor(total % 60);
-  const centiseconds = Math.floor((total % 1) * 100);
-
-  if (hours > 0) {
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
-  }
-
-  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+  const minutes = Math.floor(total / 60);
+  const secs = Math.floor(total % 60);
+  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 const easeOutBack = (t: number): number => {
@@ -250,7 +243,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                           </span>
                            <span
                             style={{
-                              fontSize: `${9 * bubbleScale * effectiveScale}px`,
+                              fontSize: `${10 * bubbleScale * effectiveScale}px`,
                               fontFamily: 'monospace',
                               color: 'rgba(255,255,255,0.65)',
                               letterSpacing: '0.5px',
