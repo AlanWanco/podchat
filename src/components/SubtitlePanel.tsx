@@ -154,7 +154,16 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
     <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.textMuted }}>
       <div className="p-4 border-b flex items-center justify-between shrink-0" style={{ backgroundColor: uiTheme.panelBgElevated, borderColor: uiTheme.border, color: uiTheme.text }}>
         <h2 className="font-bold flex items-center gap-2 text-sm">
-          <FileText size={16} /> {t('subtitle.title')}
+          <FileText size={16} />
+          <span className="inline-flex items-center gap-1">
+            {t('subtitle.title')}
+            <span className="group relative inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border text-[10px] font-semibold" style={{ borderColor: `${secondaryThemeColor}66`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}14` }}>
+              ?
+              <span className="pointer-events-none absolute top-full left-1/2 z-30 mt-2 hidden w-72 -translate-x-1/2 rounded-lg border px-2.5 py-2 text-[11px] font-normal leading-relaxed shadow-lg group-hover:block" style={{ borderColor: `${secondaryThemeColor}33`, backgroundColor: uiTheme.panelBgElevated, color: uiTheme.text }}>
+                {t('subtitle.titleTip')}
+              </span>
+            </span>
+          </span>
           <button type="button" onClick={() => setSearchOpen((v) => !v)} title={t('subtitle.search')}>
             <Search size={14} style={{ color: secondaryThemeColor }} />
           </button>
