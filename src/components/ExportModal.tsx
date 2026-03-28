@@ -26,12 +26,10 @@ interface ExportModalProps {
   exportSucceeded: boolean;
   progress: ExportProgressState | null;
   statusMessage: string | null;
-  exportQuality?: 'fast' | 'balance' | 'high';
-  filenameTemplate?: 'default' | 'timestamp' | 'unix' | 'custom';
-  customFilename?: string;
-  currentSubtitleStart?: number;
-  currentSubtitleEnd?: number;
-  onClose: () => void;
+   exportQuality?: 'fast' | 'balance' | 'high';
+   filenameTemplate?: 'default' | 'timestamp' | 'unix' | 'custom';
+   customFilename?: string;
+   onClose: () => void;
   onOutputPathChange: (value: string) => void;
   onChoosePath: () => void | Promise<void>;
   onQuickSave: () => void;
@@ -112,11 +110,9 @@ export function ExportModal({
   progress,
   statusMessage,
   exportQuality = 'balance',
-  filenameTemplate = 'default',
-  customFilename = '',
-  currentSubtitleStart,
-  currentSubtitleEnd,
-  onClose,
+   filenameTemplate = 'default',
+   customFilename = '',
+   onClose,
   onOutputPathChange,
   onChoosePath,
   onQuickSave,
@@ -251,27 +247,6 @@ export function ExportModal({
               </div>
             </section>
 
-            {/* Quick subtitle selection */}
-            {(typeof currentSubtitleStart === 'number' && currentSubtitleStart >= 0) || (typeof currentSubtitleEnd === 'number' && currentSubtitleEnd >= 0) ? (
-              <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
-                <div className="mb-3 text-sm font-medium">{t('export.quickSelectSubtitle')}</div>
-                <div className="flex gap-2">
-                  {typeof currentSubtitleStart === 'number' && currentSubtitleStart >= 0 && (
-                    <button
-                      type="button"
-                      onClick={() => onRangeChange({ start: currentSubtitleStart, end: currentSubtitleEnd !== undefined ? Math.max(currentSubtitleEnd, currentSubtitleStart) : undefined })}
-                      disabled={isExporting}
-                      className="flex-1 rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{ backgroundColor: rgba(secondaryThemeColor, 0.14), color: secondaryThemeColor, border: `1px solid ${rgba(secondaryThemeColor, 0.24)}` }}
-                      title={t('export.useCurrentSubtitleRange')}
-                    >
-                      {t('export.useCurrentSubtitleRange')}
-                    </button>
-                  )}
-                </div>
-              </section>
-            ) : null}
-
             <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.05) }}>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
@@ -287,30 +262,18 @@ export function ExportModal({
                  <div className="rounded-2xl border p-3" style={{ borderColor: rgba(themeColor, 0.18), backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.05) }}>
                    <div className="mb-2 flex items-center justify-between gap-1">
                      <span className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: themeColor }}>{t('export.start')}</span>
-                     <div className="flex gap-1">
-                       <button
-                         type="button"
-                         onClick={() => onRangeChange({ start: defaultRangeStart })}
-                         disabled={isExporting}
-                         className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                         style={{ backgroundColor: rgba(themeColor, 0.12), color: themeColor }}
-                         title={t('export.useEarliest')}
-                       >
-                         {t('export.useEarliest')}
-                       </button>
-                       {typeof currentSubtitleStart === 'number' && currentSubtitleStart >= 0 && (
-                         <button
-                           type="button"
-                           onClick={() => onRangeChange({ start: currentSubtitleStart })}
-                           disabled={isExporting}
-                           className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                           style={{ backgroundColor: rgba(themeColor, 0.2), color: themeColor, border: `1px solid ${rgba(themeColor, 0.3)}` }}
-                           title={t('export.useSubtitleStart')}
-                         >
-                           {t('export.useSubtitleStart')}
-                         </button>
-                       )}
-                     </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onRangeChange({ start: defaultRangeStart })}
+                          disabled={isExporting}
+                          className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                          style={{ backgroundColor: rgba(themeColor, 0.12), color: themeColor }}
+                          title={t('export.useEarliest')}
+                        >
+                          {t('export.useEarliest')}
+                        </button>
+                      </div>
                    </div>
                   <input
                     value={startInput}
@@ -329,30 +292,18 @@ export function ExportModal({
                  <div className="rounded-2xl border p-3" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.05) }}>
                    <div className="mb-2 flex items-center justify-between gap-1">
                      <span className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: secondaryThemeColor }}>{t('export.end')}</span>
-                     <div className="flex gap-1">
-                       <button
-                         type="button"
-                         onClick={() => onRangeChange({ end: defaultRangeEnd })}
-                         disabled={isExporting}
-                         className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                         style={{ backgroundColor: rgba(secondaryThemeColor, 0.12), color: secondaryThemeColor }}
-                         title={t('export.useLatest')}
-                       >
-                         {t('export.useLatest')}
-                       </button>
-                       {typeof currentSubtitleEnd === 'number' && currentSubtitleEnd >= 0 && (
-                         <button
-                           type="button"
-                           onClick={() => onRangeChange({ end: currentSubtitleEnd })}
-                           disabled={isExporting}
-                           className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                           style={{ backgroundColor: rgba(secondaryThemeColor, 0.2), color: secondaryThemeColor, border: `1px solid ${rgba(secondaryThemeColor, 0.3)}` }}
-                           title={t('export.useSubtitleEnd')}
-                         >
-                           {t('export.useSubtitleEnd')}
-                         </button>
-                       )}
-                     </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onRangeChange({ end: defaultRangeEnd })}
+                          disabled={isExporting}
+                          className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                          style={{ backgroundColor: rgba(secondaryThemeColor, 0.12), color: secondaryThemeColor }}
+                          title={t('export.useLatest')}
+                        >
+                          {t('export.useLatest')}
+                        </button>
+                      </div>
                    </div>
                   <input
                     value={endInput}
@@ -415,24 +366,38 @@ export function ExportModal({
                  </div>
                </div>
 
-               <div className="grid gap-2 md:grid-cols-2">
-                 {(['default', 'timestamp', 'unix', 'custom'] as const).map((template) => (
-                   <button
-                     key={template}
-                     type="button"
-                     onClick={() => onFilenameTemplateChange?.(template)}
-                     disabled={isExporting}
-                     className="rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                     style={{
-                       backgroundColor: filenameTemplate === template ? rgba(themeColor, 0.18) : rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04),
-                       color: filenameTemplate === template ? themeColor : uiTheme.text,
-                       border: `1px solid ${filenameTemplate === template ? rgba(themeColor, 0.24) : uiTheme.border}`
-                     }}
-                   >
-                     {t(`export.filenameTemplate${template.charAt(0).toUpperCase()}${template.slice(1)}`)}
-                   </button>
-                 ))}
-               </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(['default', 'timestamp', 'unix', 'custom'] as const).map((template) => {
+                    const filenameExamples: Record<string, string> = {
+                      default: 'podchat.mp4',
+                      timestamp: 'podchat_2026-03-28_12-07-03.mp4',
+                      unix: 'podchat_1743192423.mp4',
+                      custom: ''
+                    };
+                    return (
+                      <div key={template} className="group relative">
+                        <button
+                          type="button"
+                          onClick={() => onFilenameTemplateChange?.(template)}
+                          disabled={isExporting}
+                          className="relative w-full rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                          style={{
+                            backgroundColor: filenameTemplate === template ? rgba(themeColor, 0.18) : rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04),
+                            color: filenameTemplate === template ? themeColor : uiTheme.text,
+                            border: `1px solid ${filenameTemplate === template ? rgba(themeColor, 0.24) : uiTheme.border}`
+                          }}
+                        >
+                          {t(`export.filenameTemplate${template.charAt(0).toUpperCase()}${template.slice(1)}`)}
+                        </button>
+                        {filenameExamples[template] && (
+                          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-max px-3 py-2 text-xs rounded-lg whitespace-nowrap" style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.95 : 0.9), color: uiTheme.text, border: `1px solid ${rgba(secondaryThemeColor, 0.24)}` }}>
+                            {filenameExamples[template]}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
 
                {filenameTemplate === 'custom' && (
                  <div className="mt-3">

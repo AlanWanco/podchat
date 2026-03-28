@@ -2146,12 +2146,10 @@ const [previewScale, setPreviewScale] = useState(1);
          exportSucceeded={lastExportSucceeded}
          progress={exportProgress}
          statusMessage={exportStatusMessage}
-         exportQuality={exportQuality}
-         filenameTemplate={filenameTemplate}
-         customFilename={customFilename}
-         currentSubtitleStart={editingSub?.start}
-         currentSubtitleEnd={editingSub?.end}
-         onClose={() => {
+          exportQuality={exportQuality}
+          filenameTemplate={filenameTemplate}
+          customFilename={customFilename}
+          onClose={() => {
            if (!isExporting) {
              setShowExportModal(false);
            }

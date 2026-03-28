@@ -454,27 +454,30 @@ export function PlayerControls({
              >
                <Clock3 size={14} />
              </button>
-             {editingSub && editingSub.start >= 0 && (
-               <button
-                 type="button"
-                 onClick={() => onExportRangeChange({ start: editingSub.start })}
-                 className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
-                 style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
-                 onMouseEnter={(e) => {
-                   e.currentTarget.style.backgroundColor = secondaryThemeColor;
-                   e.currentTarget.style.color = '#ffffff';
-                   e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
-                 }}
-                 onMouseLeave={(e) => {
-                   e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
-                   e.currentTarget.style.color = secondaryThemeColor;
-                   e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
-                 }}
-                 title={t('export.useSubtitleStart')}
-               >
-                 <ChevronsRight size={14} />
-               </button>
-             )}
+               {editingSub && editingSub.start >= 0 && (
+                 <button
+                   type="button"
+                   onClick={() => onExportRangeChange({ start: editingSub.start })}
+                   className="rounded-full p-1.5 transition-all duration-200 hover:scale-110 relative group"
+                   style={{ backgroundColor: `${secondaryThemeColor}22`, color: secondaryThemeColor, boxShadow: `0 2px 8px ${secondaryThemeColor}18` }}
+                   onMouseEnter={(e) => {
+                     e.currentTarget.style.backgroundColor = secondaryThemeColor;
+                     e.currentTarget.style.color = '#ffffff';
+                     e.currentTarget.style.boxShadow = `0 6px 16px ${secondaryThemeColor}38`;
+                   }}
+                   onMouseLeave={(e) => {
+                     e.currentTarget.style.backgroundColor = `${secondaryThemeColor}22`;
+                     e.currentTarget.style.color = secondaryThemeColor;
+                     e.currentTarget.style.boxShadow = `0 2px 8px ${secondaryThemeColor}18`;
+                   }}
+                   title={t('export.useSubtitleStart')}
+                 >
+                   <ChevronsRight size={14} />
+                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 px-2 py-1 text-[11px] font-medium rounded-md whitespace-nowrap" style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.95 : 0.9), color: uiTheme.text, border: `1px solid ${rgba(secondaryThemeColor, 0.3)}` }}>
+                     {t('export.useSubtitleStart')}
+                   </div>
+                 </button>
+               )}
              {exportStartInputMode ? (
               <input
                 type="text"
@@ -594,27 +597,30 @@ export function PlayerControls({
              >
                <Clock3 size={14} />
              </button>
-             {editingSub && editingSub.end >= 0 && (
-               <button
-                 type="button"
-                 onClick={() => onExportRangeChange({ end: editingSub.end })}
-                 className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
-                 style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
-                 onMouseEnter={(e) => {
-                   e.currentTarget.style.backgroundColor = secondaryThemeColor;
-                   e.currentTarget.style.color = '#ffffff';
-                   e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
-                 }}
-                 onMouseLeave={(e) => {
-                   e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
-                   e.currentTarget.style.color = secondaryThemeColor;
-                   e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
-                 }}
-                 title={t('export.useSubtitleEnd')}
-               >
-                 <ChevronsLeft size={14} />
-               </button>
-             )}
+               {editingSub && editingSub.end >= 0 && (
+                 <button
+                   type="button"
+                   onClick={() => onExportRangeChange({ end: editingSub.end })}
+                   className="rounded-full p-1.5 transition-all duration-200 hover:scale-110 relative group"
+                   style={{ backgroundColor: `${secondaryThemeColor}22`, color: secondaryThemeColor, boxShadow: `0 2px 8px ${secondaryThemeColor}18` }}
+                   onMouseEnter={(e) => {
+                     e.currentTarget.style.backgroundColor = secondaryThemeColor;
+                     e.currentTarget.style.color = '#ffffff';
+                     e.currentTarget.style.boxShadow = `0 6px 16px ${secondaryThemeColor}38`;
+                   }}
+                   onMouseLeave={(e) => {
+                     e.currentTarget.style.backgroundColor = `${secondaryThemeColor}22`;
+                     e.currentTarget.style.color = secondaryThemeColor;
+                     e.currentTarget.style.boxShadow = `0 2px 8px ${secondaryThemeColor}18`;
+                   }}
+                   title={t('export.useSubtitleEnd')}
+                 >
+                   <ChevronsLeft size={14} />
+                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 px-2 py-1 text-[11px] font-medium rounded-md whitespace-nowrap" style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.95 : 0.9), color: uiTheme.text, border: `1px solid ${rgba(secondaryThemeColor, 0.3)}` }}>
+                     {t('export.useSubtitleEnd')}
+                   </div>
+                 </button>
+               )}
              <button
                type="button"
                onClick={() => onExportRangeChange({ end: defaultExportEnd })}
