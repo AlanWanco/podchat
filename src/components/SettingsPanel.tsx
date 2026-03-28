@@ -266,36 +266,36 @@ export function SettingsPanel({
         </div>
       </div>
 
-      <div className="flex border-b shrink-0" style={{ backgroundColor: uiTheme.panelBgSubtle, borderColor: uiTheme.border }}>
-        <button
-          className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'global' ? 'border-b-2' : ''}`}
-          style={activeTab === 'global' ? { borderColor: themeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
-          onClick={() => setActiveTab('global')}
-        >
-          {t('tab.global')}
-        </button>
-        <button
-          className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'project' ? 'border-b-2' : ''}`}
-          style={activeTab === 'project' ? { borderColor: themeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
-          onClick={() => setActiveTab('project')}
-        >
-          {t('tab.project')}
-        </button>
-        <button 
-          className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'speakers' ? 'border-b-2' : ''}`}
-          style={activeTab === 'speakers' ? { borderColor: themeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
-          onClick={() => setActiveTab('speakers')}
-        >
-          {t('tab.speakers')}
-        </button>
-        <button 
-          className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'annotation' ? 'border-b-2' : ''}`}
-          style={activeTab === 'annotation' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
-          onClick={() => setActiveTab('annotation')}
-        >
-          {t('tab.annotation')}
-        </button>
-      </div>
+       <div className="flex border-b shrink-0" style={{ backgroundColor: uiTheme.panelBgSubtle, borderColor: uiTheme.border }}>
+         <button
+           className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'global' ? 'border-b-2' : ''}`}
+           style={activeTab === 'global' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
+           onClick={() => setActiveTab('global')}
+         >
+           {t('tab.global')}
+         </button>
+         <button
+           className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'project' ? 'border-b-2' : ''}`}
+           style={activeTab === 'project' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
+           onClick={() => setActiveTab('project')}
+         >
+           {t('tab.project')}
+         </button>
+         <button 
+           className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'speakers' ? 'border-b-2' : ''}`}
+           style={activeTab === 'speakers' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
+           onClick={() => setActiveTab('speakers')}
+         >
+           {t('tab.speakers')}
+         </button>
+         <button 
+           className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'annotation' ? 'border-b-2' : ''}`}
+           style={activeTab === 'annotation' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
+           onClick={() => setActiveTab('annotation')}
+         >
+           {t('tab.annotation')}
+         </button>
+       </div>
 
       <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeTab === 'speakers' ? 'px-4 pb-4 pt-0' : 'p-4'}`}>
         {activeTab === 'global' && (

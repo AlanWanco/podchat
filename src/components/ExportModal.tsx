@@ -349,151 +349,155 @@ export function ExportModal({
               </div>
             </section>
 
-            <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium">{t('export.quality')}</div>
-                  <div className="text-xs mt-1" style={{ color: uiTheme.textMuted }}>{t('export.qualityHint')}</div>
-                </div>
-                <div className="rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.18 : 0.09), color: secondaryThemeColor }}>
-                  {exportQuality}
-                </div>
-              </div>
+             <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
+               <div className="mb-4 flex items-center justify-between gap-3">
+                 <div>
+                   <div className="text-sm font-medium">{t('export.quality')}</div>
+                   <div className="text-xs mt-1" style={{ color: uiTheme.textMuted }}>{t('export.qualityHint')}</div>
+                 </div>
+                 <div className="rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.18 : 0.09), color: secondaryThemeColor }}>
+                   {exportQuality}
+                 </div>
+               </div>
 
-              <div className="flex gap-2">
-                {(['fast', 'balance', 'high'] as const).map((quality) => (
-                  <button
-                    key={quality}
-                    type="button"
-                    onClick={() => onQualityChange?.(quality)}
-                    disabled={isExporting}
-                    className="flex-1 rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{
-                      backgroundColor: exportQuality === quality ? rgba(secondaryThemeColor, 0.18) : rgba(themeColor, isDarkMode ? 0.08 : 0.04),
-                      color: exportQuality === quality ? secondaryThemeColor : uiTheme.text,
-                      border: `1px solid ${exportQuality === quality ? rgba(secondaryThemeColor, 0.24) : uiTheme.border}`
-                    }}
-                  >
-                    {t(`export.quality${quality.charAt(0).toUpperCase()}${quality.slice(1)}`)}
-                  </button>
-                ))}
-              </div>
-            </section>
+               <div className="flex gap-2">
+                 {(['fast', 'balance', 'high'] as const).map((quality) => (
+                   <button
+                     key={quality}
+                     type="button"
+                     onClick={() => onQualityChange?.(quality)}
+                     disabled={isExporting}
+                     className="flex-1 rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                     style={{
+                       backgroundColor: exportQuality === quality ? rgba(secondaryThemeColor, 0.18) : rgba(themeColor, isDarkMode ? 0.08 : 0.04),
+                       color: exportQuality === quality ? secondaryThemeColor : uiTheme.text,
+                       border: `1px solid ${exportQuality === quality ? rgba(secondaryThemeColor, 0.24) : uiTheme.border}`
+                     }}
+                   >
+                     {t(`export.quality${quality.charAt(0).toUpperCase()}${quality.slice(1)}`)}
+                   </button>
+                 ))}
+               </div>
+             </section>
+           </div>
 
-            <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.05) }}>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium">{t('export.filenameTemplate')}</div>
-                  <div className="text-xs mt-1" style={{ color: uiTheme.textMuted }}>{t('export.filenameTemplateHint')}</div>
-                </div>
-                <div className="rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.18 : 0.09), color: themeColor }}>
-                  {filenameTemplate}
-                </div>
-              </div>
+           <section className="rounded-[24px] border p-4 flex flex-col" style={{ borderColor: uiTheme.border, background: `linear-gradient(180deg, ${rgba(secondaryThemeColor, isDarkMode ? 0.14 : 0.08)} 0%, ${uiTheme.panelBgSubtle} 100%)` }}>
+             {/* Filename Template Section - at the top */}
+             <div className="mb-5 rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.05) }}>
+               <div className="mb-4 flex items-center justify-between gap-3">
+                 <div>
+                   <div className="text-sm font-medium">{t('export.filenameTemplate')}</div>
+                   <div className="text-xs mt-1" style={{ color: uiTheme.textMuted }}>{t('export.filenameTemplateHint')}</div>
+                 </div>
+                 <div className="rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.18 : 0.09), color: themeColor }}>
+                   {filenameTemplate}
+                 </div>
+               </div>
 
-              <div className="grid gap-2 md:grid-cols-2">
-                {(['default', 'timestamp', 'unix', 'custom'] as const).map((template) => (
-                  <button
-                    key={template}
-                    type="button"
-                    onClick={() => onFilenameTemplateChange?.(template)}
-                    disabled={isExporting}
-                    className="rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{
-                      backgroundColor: filenameTemplate === template ? rgba(themeColor, 0.18) : rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04),
-                      color: filenameTemplate === template ? themeColor : uiTheme.text,
-                      border: `1px solid ${filenameTemplate === template ? rgba(themeColor, 0.24) : uiTheme.border}`
-                    }}
-                  >
-                    {t(`export.filenameTemplate${template.charAt(0).toUpperCase()}${template.slice(1)}`)}
-                  </button>
-                ))}
-              </div>
+               <div className="grid gap-2 md:grid-cols-2">
+                 {(['default', 'timestamp', 'unix', 'custom'] as const).map((template) => (
+                   <button
+                     key={template}
+                     type="button"
+                     onClick={() => onFilenameTemplateChange?.(template)}
+                     disabled={isExporting}
+                     className="rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                     style={{
+                       backgroundColor: filenameTemplate === template ? rgba(themeColor, 0.18) : rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04),
+                       color: filenameTemplate === template ? themeColor : uiTheme.text,
+                       border: `1px solid ${filenameTemplate === template ? rgba(themeColor, 0.24) : uiTheme.border}`
+                     }}
+                   >
+                     {t(`export.filenameTemplate${template.charAt(0).toUpperCase()}${template.slice(1)}`)}
+                   </button>
+                 ))}
+               </div>
 
-              {filenameTemplate === 'custom' && (
-                <div className="mt-3">
-                  <input
-                    value={localCustomFilename}
-                    onChange={(event) => {
-                      setLocalCustomFilename(event.target.value);
-                      onCustomFilenameChange?.(event.target.value);
-                    }}
-                    disabled={isExporting}
-                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                    style={{ backgroundColor: uiTheme.inputBg, borderColor: rgba(themeColor, 0.24), color: uiTheme.text }}
-                    placeholder={t('export.customFilenamePlaceholder')}
-                  />
-                </div>
-              )}
-            </section>
-          </div>
+               {filenameTemplate === 'custom' && (
+                 <div className="mt-3">
+                   <input
+                     value={localCustomFilename}
+                     onChange={(event) => {
+                       setLocalCustomFilename(event.target.value);
+                       onCustomFilenameChange?.(event.target.value);
+                     }}
+                     disabled={isExporting}
+                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                     style={{ backgroundColor: uiTheme.inputBg, borderColor: rgba(themeColor, 0.24), color: uiTheme.text }}
+                     placeholder={t('export.customFilenamePlaceholder')}
+                   />
+                 </div>
+               )}
+             </div>
 
-          <section className="rounded-[24px] border p-4" style={{ borderColor: uiTheme.border, background: `linear-gradient(180deg, ${rgba(secondaryThemeColor, isDarkMode ? 0.14 : 0.08)} 0%, ${uiTheme.panelBgSubtle} 100%)` }}>
-            <div className="mb-4 flex items-center gap-2">
-              <Timer size={16} style={{ color: secondaryThemeColor }} />
-              <div className="text-sm font-medium">{t('export.progress')}</div>
-            </div>
+             {/* Progress Section */}
+             <div className="flex-1 flex flex-col">
+               <div className="mb-4 flex items-center gap-2">
+                 <Timer size={16} style={{ color: secondaryThemeColor }} />
+                 <div className="text-sm font-medium">{t('export.progress')}</div>
+               </div>
 
-            <div className="rounded-2xl border p-3" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
-              <div className="mb-2 flex items-center justify-between text-xs" style={{ color: uiTheme.textMuted }}>
-                <span>{progress?.stage || t('export.waiting')}</span>
-                <span style={{ color: secondaryThemeColor }}>{progressPercent}%</span>
-              </div>
-              <div className="h-3 overflow-hidden rounded-full" style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.2 : 0.1) }}>
-                <div
-                  className="h-full rounded-full transition-all duration-300"
-                  style={{ width: `${progressPercent}%`, background: `linear-gradient(90deg, ${themeColor} 0%, ${secondaryThemeColor} 100%)`, boxShadow: `0 0 18px ${rgba(secondaryThemeColor, 0.28)}` }}
-                />
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-xl border px-3 py-2" style={{ borderColor: uiTheme.border, backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
-                  <div style={{ color: uiTheme.textMuted }}>{t('export.elapsed')}</div>
-                  <div className="mt-1 font-mono text-sm">{formatDuration(progress?.elapsedMs || 0)}</div>
-                </div>
-                <div className="rounded-xl border px-3 py-2" style={{ borderColor: uiTheme.border, backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04) }}>
-                  <div style={{ color: uiTheme.textMuted }}>{t('export.remaining')}</div>
-                  <div className="mt-1 font-mono text-sm">{formatDuration(progress?.estimatedRemainingMs ?? null)}</div>
-                </div>
-              </div>
-            </div>
+               <div className="rounded-2xl border p-3" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
+                 <div className="mb-2 flex items-center justify-between text-xs" style={{ color: uiTheme.textMuted }}>
+                   <span>{progress?.stage || t('export.waiting')}</span>
+                   <span style={{ color: secondaryThemeColor }}>{progressPercent}%</span>
+                 </div>
+                 <div className="h-3 overflow-hidden rounded-full" style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.2 : 0.1) }}>
+                   <div
+                     className="h-full rounded-full transition-all duration-300"
+                     style={{ width: `${progressPercent}%`, background: `linear-gradient(90deg, ${themeColor} 0%, ${secondaryThemeColor} 100%)`, boxShadow: `0 0 18px ${rgba(secondaryThemeColor, 0.28)}` }}
+                   />
+                 </div>
+                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                   <div className="rounded-xl border px-3 py-2" style={{ borderColor: uiTheme.border, backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
+                     <div style={{ color: uiTheme.textMuted }}>{t('export.elapsed')}</div>
+                     <div className="mt-1 font-mono text-sm">{formatDuration(progress?.elapsedMs || 0)}</div>
+                   </div>
+                   <div className="rounded-xl border px-3 py-2" style={{ borderColor: uiTheme.border, backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04) }}>
+                     <div style={{ color: uiTheme.textMuted }}>{t('export.remaining')}</div>
+                     <div className="mt-1 font-mono text-sm">{formatDuration(progress?.estimatedRemainingMs ?? null)}</div>
+                   </div>
+                 </div>
+               </div>
 
-            <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.09 : 0.05), color: statusMessage ? uiTheme.text : uiTheme.textMuted }}>
-              {statusMessage || t('export.statusIdle')}
-            </div>
+               <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.09 : 0.05), color: statusMessage ? uiTheme.text : uiTheme.textMuted }}>
+                 {statusMessage || t('export.statusIdle')}
+               </div>
 
-            {exportSucceeded && !isExporting && outputPath ? (
-              <button
-                type="button"
-                onClick={() => void onRevealOutput()}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition-colors"
-                style={{ backgroundColor: rgba(secondaryThemeColor, 0.14), color: secondaryThemeColor, border: `1px solid ${rgba(secondaryThemeColor, 0.22)}` }}
-              >
-                <FolderOpen size={15} />
-                {t('export.openFolder')}
-              </button>
-            ) : null}
+               {exportSucceeded && !isExporting && outputPath ? (
+                 <button
+                   type="button"
+                   onClick={() => void onRevealOutput()}
+                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition-colors"
+                   style={{ backgroundColor: rgba(secondaryThemeColor, 0.14), color: secondaryThemeColor, border: `1px solid ${rgba(secondaryThemeColor, 0.22)}` }}
+                 >
+                   <FolderOpen size={15} />
+                   {t('export.openFolder')}
+                 </button>
+               ) : null}
 
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isExporting}
-                className="flex-1 rounded-2xl px-4 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.16 : 0.08), color: uiTheme.text, border: `1px solid ${uiTheme.border}` }}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={() => void onStartExport()}
-                disabled={isExporting}
-                className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition-transform disabled:cursor-not-allowed disabled:opacity-70"
-                style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${secondaryThemeColor} 100%)`, boxShadow: `0 16px 30px ${rgba(secondaryThemeColor, 0.25)}` }}
-              >
-                {isExporting ? t('export.exporting') : t('export.startButton')}
-              </button>
-            </div>
-          </section>
+               <div className="mt-5 flex gap-2">
+                 <button
+                   type="button"
+                   onClick={onClose}
+                   disabled={isExporting}
+                   className="flex-1 rounded-2xl px-4 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                   style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.16 : 0.08), color: uiTheme.text, border: `1px solid ${uiTheme.border}` }}
+                 >
+                   {t('common.cancel')}
+                 </button>
+                 <button
+                   type="button"
+                   onClick={() => void onStartExport()}
+                   disabled={isExporting}
+                   className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition-transform disabled:cursor-not-allowed disabled:opacity-70"
+                   style={{ background: `linear-gradient(135deg, ${themeColor} 0%, ${secondaryThemeColor} 100%)`, boxShadow: `0 16px 30px ${rgba(secondaryThemeColor, 0.25)}` }}
+                 >
+                   {isExporting ? t('export.exporting') : t('export.startButton')}
+                 </button>
+               </div>
+             </div>
+           </section>
         </div>
       </div>
     </div>

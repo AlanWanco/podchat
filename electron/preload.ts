@@ -11,9 +11,12 @@ contextBridge.exposeInMainWorld('electron', {
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) => ipcRenderer.invoke('write-file', filePath, content),
   captureRectToClipboard: (rect: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke('capture-rect-to-clipboard', rect),
+  loadConfig: () => ipcRenderer.invoke('load-config'),
+  saveConfig: (config: any) => ipcRenderer.invoke('save-config', config),
   onExportProgress: (callback: (progress: any) => void) => {
     const listener = (_event: any, value: any) => callback(value);
     ipcRenderer.on('export-progress', listener);
     return () => ipcRenderer.removeListener('export-progress', listener);
   }
 });
+

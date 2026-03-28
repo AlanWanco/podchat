@@ -15,6 +15,8 @@ e.exposeInMainWorld("electron", {
 	readFile: (e) => t.invoke("read-file", e),
 	writeFile: (e, n) => t.invoke("write-file", e, n),
 	captureRectToClipboard: (e) => t.invoke("capture-rect-to-clipboard", e),
+	loadConfig: () => t.invoke("load-config"),
+	saveConfig: (e) => t.invoke("save-config", e),
 	onExportProgress: (e) => {
 		let n = (t, n) => e(n);
 		return t.on("export-progress", n), () => t.removeListener("export-progress", n);

@@ -3,11 +3,33 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fork } from 'node:child_process';
+import os from 'node:os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env.APP_ROOT = path.join(__dirname, '..');
 app.disableHardwareAcceleration();
+
+// Configuration file paths (priority order: ~/.config/podchat > app folder)
+function getConfigFilePath() {
+  const userConfigDir = path.join(os.homedir(), '.config', 'podchat');
+  const userConfigFile = path.join(userConfigDir, 'config.json');
+  const appConfigFile = path.join(process.env.APP_ROOT || '', 'podchat-config.json');
+  
+  // Check if user config exists, otherwise use app folder
+  if (fs.existsSync(userConfigFile)) {
+    return userConfigFile;
+  }
+  return appConfigFile;
+}
+
+// Ensure config directory exists
+function ensureConfigDir() {
+  const userConfigDir = path.join(os.homedir(), '.config', 'podchat');
+  if (!fs.existsSync(userConfigDir)) {
+    fs.mkdirSync(userConfigDir, { recursive: true });
+  }
+}
 
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
@@ -226,5 +248,33 @@ ipcMain.handle('capture-rect-to-clipboard', async (_event, rect) => {
     return true;
   } catch (error: any) {
     throw new Error(`Failed to capture rect: ${error.message}`);
+  }
+});
+
+// Config file handling
+ipcMain.handle('load-config', async () => {
+  try {
+    const configPath = getConfigFilePath();
+    if (fs.existsSync(configPath)) {
+      const content = fs.readFileSync(configPath, 'utf-8');
+      return JSON.parse(content);
+    }
+    return null;
+  } catch (error: any) {
+    console.error('Failed to load config:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('save-config', async (_event, config) => {
+  try {
+    ensureConfigDir();
+    const userConfigDir = path.join(os.homedir(), '.config', 'podchat');
+    const configPath = path.join(userConfigDir, 'config.json');
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    return true;
+  } catch (error: any) {
+    console.error('Failed to save config:', error);
+    return false;
   }
 });

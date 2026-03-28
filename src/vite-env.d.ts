@@ -12,6 +12,9 @@ interface Window {
     readFile: (filePath: string) => Promise<string>;
     writeFile: (filePath: string, content: string) => Promise<boolean>;
     captureRectToClipboard: (rect: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
+    loadConfig: () => Promise<any>;
+    saveConfig: (config: any) => Promise<boolean>;
     onExportProgress: (callback: (progress: { progress: number; elapsedMs: number; estimatedRemainingMs: number | null; stage: string }) => void) => () => void;
   };
 }
+

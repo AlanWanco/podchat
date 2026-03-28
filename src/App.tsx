@@ -793,11 +793,34 @@ const [previewScale, setPreviewScale] = useState(1);
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
-  // Save config explicitly
-  const handleSaveConfig = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    showToast(t('app.configSaved'));
-  };
+   // Save config explicitly
+   const handleSaveConfig = () => {
+     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+     if (window.electron) {
+       window.electron.saveConfig(config).catch((err: any) => console.error('Failed to save config to file:', err));
+     }
+     showToast(t('app.configSaved'));
+   };
+
+   // Load config from Electron config file on startup
+   useEffect(() => {
+     if (!window.electron) return;
+     
+     const loadElectronConfig = async () => {
+       try {
+         const electronConfig = await window.electron.loadConfig();
+         if (electronConfig) {
+           const mergedConfig = sanitizeProjectConfig(electronConfig);
+           setConfig(mergedConfig);
+         }
+       } catch (error) {
+         console.error('Failed to load config from Electron:', error);
+       }
+     };
+     
+     // Only load once on mount
+     loadElectronConfig();
+   }, []);
 
   useEffect(() => {
     localStorage.setItem(THEME_KEY, isDarkMode ? 'dark' : 'light');
