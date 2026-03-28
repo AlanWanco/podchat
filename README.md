@@ -1,85 +1,85 @@
 # PomChat Studio
 
-PomChat Studio is a desktop-first tool for turning local audio and ASS subtitles into chat-style dialogue videos.
+PomChat Studio 是一个以桌面端为主的聊天对话视频编辑工具，用来把本地音频和 ASS 字幕整理成聊天气泡风格的视频内容。
 
-It is built for editing speakers, bubble styles, layout, timing, and export settings in one place, with a live preview and Electron-based local file access.
+它支持在一个项目里完成字幕编辑、说话人配置、气泡样式调整、布局预览和视频导出。
 
-## What It Does
+English README: `README.en.md`
 
-- Import local audio and ASS subtitle files
-- Edit subtitle lines, timing, speaker mapping, and text
-- Configure speaker avatars, names, colors, padding, shadows, and animation
-- Preview the conversation layout in real time while the audio plays
-- Export a video with a selected time range and filename template
-- Save project data locally and sync project-related config through Electron
+## 功能简介
 
-## Main Features
+- 导入本地音频和 ASS 字幕文件
+- 编辑字幕文本、时间和说话人映射
+- 配置头像、名称、气泡颜色、字体、边框、阴影和动画
+- 跟随音频实时预览聊天排版效果
+- 选择导出区间并导出视频
+- 通过 Electron 读写本地项目文件和配置
 
-- **Subtitle editing**: add, remove, sort, and update subtitle lines
-- **Speaker styling**: customize avatars, bubble colors, fonts, borders, spacing, and theme
-- **Layout control**: adjust canvas size, padding, bubble scale, avatar size, and annotation position
-- **Playback tools**: scrub audio, loop playback, remember position, and set export range quickly
-- **Video export**: render chat-style video output from the current project configuration
+## 主要功能
 
-## Getting Started
+- **字幕编辑**：新增、删除、排序、修改字幕行
+- **角色样式**：自定义头像、气泡、字体、边距、内边距和主题
+- **布局控制**：调整画布尺寸、全局缩放、头像大小、注释位置和边距
+- **播放工具**：拖动播放、循环播放、记忆位置、快速设置导出范围
+- **视频导出**：按当前项目配置导出聊天视频
 
-### Install dependencies
+## 快速开始
+
+### 安装依赖
 
 ```bash
 npm install
 ```
 
-### Start development
+### 启动开发环境
 
 ```bash
 npm run dev
 ```
 
-This starts the Vite-based app for local development.
+## 基本使用
 
-## Basic Usage
+1. 打开应用
+2. 导入音频文件和 ASS 字幕文件
+3. 检查并调整说话人配置
+4. 编辑字幕内容、时间和样式
+5. 调整布局、动画和导出参数
+6. 在预览区确认效果
+7. 导出最终视频
 
-1. Open the app
-2. Import an audio file and an ASS subtitle file
-3. Check or adjust speaker assignments
-4. Edit subtitle content, timing, and styles as needed
-5. Tune layout, animation, and export settings
-6. Preview the result in the player area
-7. Export the final video
+## 构建
 
-## Build
-
-Build the app bundles:
+构建应用：
 
 ```bash
 npm run build
 ```
 
-Build an Electron package locally:
+本地打包 Electron 应用：
 
 ```bash
 npm run dist
 ```
 
-Packaged files are written to `release/`.
+打包产物输出到 `release/`。
 
 ## GitHub Actions
 
-This repository includes workflows for Electron builds and manual GitHub Releases.
+仓库内已经包含 Electron 自动构建和手动发布工作流：
 
-- `Build Electron Apps`: multi-platform build artifacts
-- `Release Electron Apps`: manually create and upload release assets
+- `Build Electron Apps`：多平台自动构建产物
+- `Release Electron Apps`：手动创建 GitHub Release 并上传产物
 
-## Project Structure
+## 项目结构
 
-- `src/App.tsx`: main application flow and preview integration
-- `src/components/`: editor panels, player, export modal, shared chat UI
-- `src/remotion/`: Remotion export composition and types
-- `src/hooks/useAssSubtitle.ts`: ASS parsing and subtitle loading
-- `electron/`: Electron main process, preload script, and render worker
-- `.github/workflows/`: CI build and release workflows
+- `src/App.tsx`：主应用流程与预览集成
+- `src/components/`：编辑面板、播放器、导出弹窗、共享聊天组件
+- `src/remotion/`：Remotion 导出组合和类型
+- `src/hooks/useAssSubtitle.ts`：ASS 解析与字幕加载
+- `electron/`：Electron 主进程、预加载脚本和渲染工作进程
+- `.github/workflows/`：CI 构建和发布工作流
 
-## Notes
+## 说明
 
-- The app is optimized for local desktop usage through Electron
-- Some Electron settings are still development-oriented and may be tightened later
+- 当前主要面向 Electron 本地桌面使用场景
+- 部分 Electron 配置仍偏开发态，后续可以继续收紧
