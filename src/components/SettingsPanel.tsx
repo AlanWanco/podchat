@@ -3,21 +3,18 @@ import { Settings, Image as ImageIcon, Users, Save, Moon, Sun, Trash2, Plus, X, 
 import { translate, type Language } from '../i18n';
 import { createThemeTokens } from '../theme';
 
-const SYSTEM_FONT_OPTIONS = [
-  'system-ui',
-  '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  'ui-sans-serif, system-ui, sans-serif',
-  '"SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif',
-  '"Segoe UI", "Helvetica Neue", Arial, sans-serif',
-  '"Helvetica Neue", Helvetica, Arial, sans-serif',
-  'Arial, sans-serif',
-  '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
-  '"Noto Sans SC", "PingFang SC", sans-serif',
-  'Georgia, serif',
-  '"Times New Roman", Times, serif',
-  'ui-serif, Georgia, serif',
-  'ui-monospace, "SFMono-Regular", Menlo, monospace',
-  '"JetBrains Mono", "SFMono-Regular", Menlo, monospace'
+const FONT_OPTIONS = [
+  { label: 'System UI', value: 'system-ui' },
+  { label: 'Segoe UI', value: '"Segoe UI", sans-serif' },
+  { label: 'PingFang SC', value: '"PingFang SC", "Microsoft YaHei", sans-serif' },
+  { label: 'Microsoft YaHei', value: '"Microsoft YaHei", sans-serif' },
+  { label: 'Noto Sans SC', value: '"Noto Sans SC", "PingFang SC", sans-serif' },
+  { label: 'Helvetica Neue', value: '"Helvetica Neue", Helvetica, Arial, sans-serif' },
+  { label: 'Arial', value: 'Arial, sans-serif' },
+  { label: 'Georgia', value: 'Georgia, serif' },
+  { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+  { label: 'JetBrains Mono', value: '"JetBrains Mono", "SFMono-Regular", Menlo, monospace' },
+  { label: 'Monospace UI', value: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }
 ];
 
 interface SettingsPanelProps {
@@ -249,6 +246,41 @@ export function SettingsPanel({
     </div>
   );
 
+  const renderFontFamilyFields = (value: string | undefined, onChange: (value: string) => void) => (
+    <div className="space-y-1.5">
+      <select
+        value={FONT_OPTIONS.some((font) => font.value === (value || '')) ? value : ''}
+        onChange={(e) => {
+          if (e.target.value) {
+            onChange(e.target.value);
+          }
+        }}
+        className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
+        style={inputSurfaceStyle}
+      >
+        <option value="">{t('speakers.fontPreset')}</option>
+        {FONT_OPTIONS.map((font) => (
+          <option key={font.value} value={font.value}>{font.label}</option>
+        ))}
+      </select>
+      <input
+        type="text"
+        placeholder={t('speakers.fontPlaceholder')}
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        title={t('speakers.fontTitle')}
+        className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
+        style={inputSurfaceStyle}
+      />
+      <div
+        className="text-[10px] opacity-55 leading-relaxed"
+        title={t('speakers.fontHelpTitle')}
+      >
+        {t('speakers.fontHelp')}
+      </div>
+    </div>
+  );
+
   return (
     <div className={`h-full flex flex-col overflow-hidden ${bgClass}`} style={{ backgroundColor: uiTheme.panelBg, color: uiTheme.textMuted, borderColor: uiTheme.border }}>
       <div className={`p-4 border-b flex items-center justify-between shrink-0 ${headerClass}`} style={{ backgroundColor: uiTheme.panelBgElevated, borderColor: uiTheme.border, color: uiTheme.text }}>
@@ -406,197 +438,249 @@ export function SettingsPanel({
         )}
 
         {activeTab === 'project' && (
-          <div className="space-y-6">
-            
-            {/* Resolution/Layout */}
-            <div className="space-y-3">
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl border space-y-4 shadow-sm" style={{ backgroundColor: uiTheme.cardBg, borderColor: uiTheme.border, boxShadow: `0 6px 18px ${uiTheme.shadow}` }}>
               <label className="flex items-center gap-2 text-sm font-medium border-b pb-1" style={{ borderColor: uiTheme.border, color: uiTheme.text }}>
                 <LayoutTemplate size={14} /> {t('project.layout')}
               </label>
-              <div className="grid grid-cols-2 gap-2">
+
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5 col-span-2">
                   <span className="text-xs opacity-70">{t('project.fps')}</span>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={config.fps || 60}
                     onChange={(e) => updateConfig('fps', parseInt(e.target.value))}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`} 
+                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
                     style={inputSurfaceStyle}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <span className="text-xs opacity-70">{t('project.width')}</span>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={config.dimensions?.width || 1920}
                     onChange={(e) => updateConfig('dimensions', { ...config.dimensions, width: parseInt(e.target.value) })}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`} 
+                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
                     style={inputSurfaceStyle}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <span className="text-xs opacity-70">{t('project.height')}</span>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={config.dimensions?.height || 1080}
                     onChange={(e) => updateConfig('dimensions', { ...config.dimensions, height: parseInt(e.target.value) })}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`} 
-                    style={inputSurfaceStyle}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1.5">
-                  <span className="text-xs opacity-70">{t('project.topLimit')}</span>
-                  <input 
-                    type="number" 
-                    value={config.chatLayout?.paddingTop || 48}
-                    onChange={(e) => updateChatLayout('paddingTop', parseInt(e.target.value))}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`} 
-                    style={inputSurfaceStyle}
-                    title={t('project.topLimit.title')}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <span className="text-xs opacity-70">{t('project.bottomPosition')}</span>
-                  <input 
-                    type="number" 
-                    value={config.chatLayout?.paddingBottom ?? 80}
-                    onChange={(e) => updateChatLayout('paddingBottom', parseInt(e.target.value))}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`} 
-                    style={inputSurfaceStyle}
-                    title={t('project.bottomPosition.title')}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1.5">
-                  <span className="text-xs opacity-70">{t('project.paddingLeft')}</span>
-                  <input
-                    type="number"
-                    value={config.chatLayout?.paddingLeft ?? config.chatLayout?.paddingX ?? 48}
-                    onChange={(e) => updateChatLayout('paddingLeft', parseInt(e.target.value))}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
-                    style={inputSurfaceStyle}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <span className="text-xs opacity-70">{t('project.paddingRight')}</span>
-                  <input
-                    type="number"
-                    value={config.chatLayout?.paddingRight ?? config.chatLayout?.paddingX ?? 48}
-                    onChange={(e) => updateChatLayout('paddingRight', parseInt(e.target.value))}
                     className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
                     style={inputSurfaceStyle}
                   />
                 </div>
               </div>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const left = config.chatLayout?.paddingLeft ?? config.chatLayout?.paddingX ?? 48;
-                    const right = config.chatLayout?.paddingRight ?? config.chatLayout?.paddingX ?? 48;
-                    const centered = Math.round((left + right) / 2);
-                    onConfigChange({
-                      ...config,
-                      chatLayout: {
-                        ...config.chatLayout,
-                        paddingLeft: centered,
-                        paddingRight: centered
-                      }
-                    });
-                  }}
-                  className="px-3 py-1.5 text-xs rounded-md border transition-colors"
-                  style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgSubtle, color: uiTheme.textMuted }}
-                >
-                  {t('project.centerPadding')}
-                </button>
-              </div>
+
+              <hr style={{ borderColor: uiTheme.border }} />
+
+              <div className="space-y-2">
+                <span className="text-xs font-semibold flex items-center gap-1 opacity-80"><Layout size={12} /> {t('speakers.layout')}</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.topLimit')}</span>
+                    <input
+                      type="number"
+                      value={config.chatLayout?.paddingTop || 48}
+                      onChange={(e) => updateChatLayout('paddingTop', parseInt(e.target.value))}
+                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                      style={inputSurfaceStyle}
+                      title={t('project.topLimit.title')}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.bottomPosition')}</span>
+                    <input
+                      type="number"
+                      value={config.chatLayout?.paddingBottom ?? 80}
+                      onChange={(e) => updateChatLayout('paddingBottom', parseInt(e.target.value))}
+                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                      style={inputSurfaceStyle}
+                      title={t('project.bottomPosition.title')}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.paddingLeft')}</span>
+                    <input
+                      type="number"
+                      value={config.chatLayout?.paddingLeft ?? config.chatLayout?.paddingX ?? 48}
+                      onChange={(e) => updateChatLayout('paddingLeft', parseInt(e.target.value))}
+                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                      style={inputSurfaceStyle}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.paddingRight')}</span>
+                    <input
+                      type="number"
+                      value={config.chatLayout?.paddingRight ?? config.chatLayout?.paddingX ?? 48}
+                      onChange={(e) => updateChatLayout('paddingRight', parseInt(e.target.value))}
+                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                      style={inputSurfaceStyle}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const left = config.chatLayout?.paddingLeft ?? config.chatLayout?.paddingX ?? 48;
+                      const right = config.chatLayout?.paddingRight ?? config.chatLayout?.paddingX ?? 48;
+                      const centered = Math.round((left + right) / 2);
+                      onConfigChange({
+                        ...config,
+                        chatLayout: {
+                          ...config.chatLayout,
+                          paddingLeft: centered,
+                          paddingRight: centered
+                        }
+                      });
+                    }}
+                    className="px-3 py-1.5 text-xs rounded-md border transition-colors"
+                    style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgSubtle, color: uiTheme.textMuted }}
+                  >
+                    {t('project.centerPadding')}
+                  </button>
+                </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-xs opacity-70">{t('project.bubbleScale')}</span>
-                  <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{(config.chatLayout?.bubbleScale ?? 1.5).toFixed(2)}x</span>
-                </div>
-                <input 
-                  type="range" min="0.5" max="5" step="0.05"
-                  value={config.chatLayout?.bubbleScale ?? 1.5}
-                  onChange={(e) => updateChatLayout('bubbleScale', parseFloat(e.target.value))}
-                  className="w-full" style={themedRangeStyle}
-                  title={t('project.bubbleScale.title')}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <span className="text-xs opacity-70">{t('project.avatarSize')}</span>
-                  <input
-                    type="number"
-                    value={config.chatLayout?.avatarSize ?? 80}
-                    onChange={(e) => updateChatLayout('avatarSize', parseInt(e.target.value))}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
-                    style={inputSurfaceStyle}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <span className="text-xs opacity-70">{t('project.speakerNameSize')}</span>
-                  <input
-                    type="number"
-                    value={config.chatLayout?.speakerNameSize ?? 22}
-                    onChange={(e) => updateChatLayout('speakerNameSize', parseInt(e.target.value))}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
-                    style={inputSurfaceStyle}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <span className="text-xs opacity-70">{t('project.animationStyle')}</span>
-                  <select
-                    value={config.chatLayout?.animationStyle || 'rise'}
-                    onChange={(e) => updateChatLayout('animationStyle', e.target.value)}
-                    className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
-                    style={inputSurfaceStyle}
-                  >
-                    <option value="none">{t('anim.none')}</option>
-                    <option value="fade">{t('anim.fade')}</option>
-                    <option value="rise">{t('anim.rise')}</option>
-                    <option value="pop">{t('anim.pop')}</option>
-                    <option value="slide">{t('anim.slide')}</option>
-                    <option value="blur">{t('anim.blur')}</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs opacity-70">{t('project.animationSpeed')}</span>
-                    <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{(config.chatLayout?.animationDuration ?? 0.2).toFixed(2)}s</span>
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{(config.chatLayout?.bubbleScale ?? 1.5).toFixed(2)}x</span>
                   </div>
-                  <input 
-                    type="range" min="0.01" max="0.5" step="0.01"
-                    value={config.chatLayout?.animationDuration ?? 0.2}
-                    onChange={(e) => updateChatLayout('animationDuration', parseFloat(e.target.value))}
-                    className="w-full" style={themedRangeStyle}
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="5"
+                    step="0.05"
+                    value={config.chatLayout?.bubbleScale ?? 1.5}
+                    onChange={(e) => updateChatLayout('bubbleScale', parseFloat(e.target.value))}
+                    className="w-full"
+                    style={themedRangeStyle}
+                    title={t('project.bubbleScale.title')}
                   />
+                </div>
+              </div>
+
+              <hr style={{ borderColor: uiTheme.border }} />
+
+              <div className="space-y-2">
+                <span className="text-xs font-semibold flex items-center gap-1 opacity-80"><Users size={12} /> {t('project.avatarSettings')}</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.avatarSize')}</span>
+                    <input
+                      type="number"
+                      value={config.chatLayout?.avatarSize ?? 80}
+                      onChange={(e) => updateChatLayout('avatarSize', parseInt(e.target.value))}
+                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                      style={inputSurfaceStyle}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.applyAvatarBorderColor')}</span>
+                    {renderColorInput((Object.values(config.speakers || {})[0] as any)?.style?.avatarBorderColor || '#FFFFFF', applyAvatarBorderColorToAll)}
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.speakerNameSize')}</span>
+                    <input
+                      type="number"
+                      value={config.chatLayout?.speakerNameSize ?? 22}
+                      onChange={(e) => updateChatLayout('speakerNameSize', parseInt(e.target.value))}
+                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                      style={inputSurfaceStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <hr style={{ borderColor: uiTheme.border }} />
+
+              <div className="space-y-2">
+                <span className="text-xs font-semibold flex items-center gap-1 opacity-80"><Type size={12} /> {t('project.timestampStyle')}</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.timestampSize')}</span>
+                    <input
+                      type="number"
+                      value={config.chatLayout?.timestampSize ?? 10}
+                      onChange={(e) => updateChatLayout('timestampSize', parseInt(e.target.value))}
+                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                      style={inputSurfaceStyle}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.timestampColor')}</span>
+                    {renderColorInput(config.chatLayout?.timestampColor || '#FFFFFFA6', (value) => updateChatLayout('timestampColor', value))}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-xs opacity-70">{t('project.timestampFont')}</span>
+                  {renderFontFamilyFields(config.chatLayout?.timestampFontFamily, (value) => updateChatLayout('timestampFontFamily', value))}
+                </div>
+              </div>
+
+              <hr style={{ borderColor: uiTheme.border }} />
+
+              <div className="space-y-2">
+                <span className="text-xs font-semibold flex items-center gap-1 opacity-80"><Type size={12} /> {t('project.animationStyle')}</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <span className="text-xs opacity-70">{t('project.animationStyle')}</span>
+                    <select
+                      value={config.chatLayout?.animationStyle || 'rise'}
+                      onChange={(e) => updateChatLayout('animationStyle', e.target.value)}
+                      className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                      style={inputSurfaceStyle}
+                    >
+                      <option value="none">{t('anim.none')}</option>
+                      <option value="fade">{t('anim.fade')}</option>
+                      <option value="rise">{t('anim.rise')}</option>
+                      <option value="pop">{t('anim.pop')}</option>
+                      <option value="slide">{t('anim.slide')}</option>
+                      <option value="blur">{t('anim.blur')}</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs opacity-70">{t('project.animationSpeed')}</span>
+                      <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{(config.chatLayout?.animationDuration ?? 0.2).toFixed(2)}s</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.01"
+                      max="0.5"
+                      step="0.01"
+                      value={config.chatLayout?.animationDuration ?? 0.2}
+                      onChange={(e) => updateChatLayout('animationDuration', parseFloat(e.target.value))}
+                      className="w-full"
+                      style={themedRangeStyle}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Background */}
-            <div className="space-y-3">
+            <div className="p-4 rounded-xl border space-y-4 shadow-sm" style={{ backgroundColor: uiTheme.cardBg, borderColor: uiTheme.border, boxShadow: `0 6px 18px ${uiTheme.shadow}` }}>
               <label className="flex items-center gap-2 text-sm font-medium border-b pb-1" style={{ borderColor: uiTheme.border, color: uiTheme.text }}>
                 <ImageIcon size={14} /> {t('project.background')}
               </label>
               <div className="space-y-1.5">
                 <span className="text-xs opacity-70">{t('project.backgroundPath')}</span>
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={config.background?.image || ''}
                     onChange={(e) => updateBackground('image', e.target.value)}
-                    className={`flex-1 w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} 
+                    className={`flex-1 w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
                     style={inputSurfaceStyle}
                   />
                   {onSelectImage && (
-                    <button 
+                    <button
                       onClick={async () => {
                         const path = await onSelectImage();
                         if (path) updateBackground('image', path);
@@ -620,22 +704,20 @@ export function SettingsPanel({
                   style={inputSurfaceStyle}
                 />
               </div>
-              <div className="space-y-1.5">
-                <span className="text-xs opacity-70">{t('project.applyAvatarBorderColor')}</span>
-                {renderColorInput((Object.values(config.speakers || {})[0] as any)?.style?.avatarBorderColor || '#FFFFFF', applyAvatarBorderColorToAll)}
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-xs opacity-70">{t('project.blur')}</span>
                     <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{config.background?.blur || 0}px</span>
                   </div>
-                  <input 
-                    type="range" 
-                    min="0" max="50" 
+                  <input
+                    type="range"
+                    min="0"
+                    max="50"
                     value={config.background?.blur || 0}
                     onChange={(e) => updateBackground('blur', parseInt(e.target.value))}
-                    className="w-full" style={themedRangeStyle}
+                    className="w-full"
+                    style={themedRangeStyle}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -643,12 +725,15 @@ export function SettingsPanel({
                     <span className="text-xs opacity-70">{t('project.brightness')}</span>
                     <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{Math.round((config.background?.brightness ?? 1) * 100)}%</span>
                   </div>
-                  <input 
-                    type="range" 
-                    min="0.1" max="2.0" step="0.1"
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="2.0"
+                    step="0.1"
                     value={config.background?.brightness ?? 1.0}
                     onChange={(e) => updateBackground('brightness', parseFloat(e.target.value))}
-                    className="w-full" style={themedRangeStyle}
+                    className="w-full"
+                    style={themedRangeStyle}
                   />
                 </div>
               </div>
@@ -892,21 +977,7 @@ export function SettingsPanel({
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.font')}</span>
-                          <input 
-                            type="text" 
-                            list="pomchat-font-options"
-                            placeholder={t('speakers.fontPlaceholder')}
-                            value={speaker.style?.fontFamily || ''}
-                            onChange={(e) => updateSpeakerStyle(key, 'fontFamily', e.target.value)}
-                            title={t('speakers.fontTitle')}
-                            className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
-                            style={inputSurfaceStyle}
-                          />
-                          <datalist id="pomchat-font-options">
-                            {SYSTEM_FONT_OPTIONS.map((font) => (
-                              <option key={font} value={font} />
-                            ))}
-                          </datalist>
+                          {renderFontFamilyFields(speaker.style?.fontFamily, (value) => updateSpeakerStyle(key, 'fontFamily', value))}
                           <div
                             className="text-[10px] opacity-55 leading-relaxed"
                             title={t('speakers.fontHelpTitle')}
@@ -1151,14 +1222,7 @@ export function SettingsPanel({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.font')}</span>
-                        <input
-                          type="text"
-                          list="pomchat-font-options"
-                          value={annotation.style?.fontFamily || ''}
-                          onChange={(e) => updateSpeakerStyle('ANNOTATION', 'fontFamily', e.target.value)}
-                          className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
-                          style={inputSurfaceStyle}
-                        />
+                        {renderFontFamilyFields(annotation.style?.fontFamily, (value) => updateSpeakerStyle('ANNOTATION', 'fontFamily', value))}
                       </div>
                       <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.shadow')}</span>

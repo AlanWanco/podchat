@@ -60,6 +60,9 @@ const DEFAULT_CHAT_LAYOUT = {
   bubbleScale: 1.5,
   avatarSize: 80,
   speakerNameSize: 22,
+  timestampFontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  timestampSize: 10,
+  timestampColor: '#FFFFFFA6',
   animationStyle: 'rise',
   animationDuration: 0.2
 };
@@ -1047,13 +1050,6 @@ const [previewScale, setPreviewScale] = useState(1);
     const { ui, ...restConfig } = config;
     return {
       ...restConfig,
-      audioPath: resolvePath(restConfig.audioPath),
-      background: restConfig.background
-        ? {
-            ...restConfig.background,
-            image: resolvePath(restConfig.background.image)
-          }
-        : restConfig.background,
       content: subtitles.map(s => ({
         start: s.start,
         end: s.end,
@@ -1070,6 +1066,8 @@ const [previewScale, setPreviewScale] = useState(1);
     const end = Number(Math.max(duration || 0, latestSubtitle || 0, start).toFixed(2));
     return { start, end };
   }, [duration, subtitles]);
+
+  const isSameRange = (a: { start: number; end: number }, b: { start: number; end: number }) => a.start === b.start && a.end === b.end;
 
   const updateExportRange = useCallback((updates: { start?: number; end?: number }, markTouched = true) => {
     const defaults = getDefaultExportRange();
@@ -1118,20 +1116,24 @@ const [previewScale, setPreviewScale] = useState(1);
       const saved = config.exportRange;
       const nextStart = Number(Math.max(0, Math.min(saved.start, defaults.end)).toFixed(2));
       const nextEnd = Number(Math.max(nextStart, Math.min(saved.end, Math.max(defaults.end, saved.end))).toFixed(2));
-      setExportRange({ start: nextStart, end: nextEnd });
+      setExportRange((prev) => {
+        const nextRange = { start: nextStart, end: nextEnd };
+        return isSameRange(prev, nextRange) ? prev : nextRange;
+      });
       exportRangeTouchedRef.current = true;
       return;
     }
     
     if (!exportRangeTouchedRef.current) {
-      setExportRange(defaults);
+      setExportRange((prev) => (isSameRange(prev, defaults) ? prev : defaults));
       return;
     }
 
     setExportRange((prev) => {
       const nextStart = Number(Math.max(0, Math.min(prev.start, defaults.end)).toFixed(2));
       const nextEnd = Number(Math.max(nextStart, Math.min(prev.end, Math.max(defaults.end, prev.end))).toFixed(2));
-      return { start: nextStart, end: nextEnd };
+      const nextRange = { start: nextStart, end: nextEnd };
+      return isSameRange(prev, nextRange) ? prev : nextRange;
     });
   }, [getDefaultExportRange, config.exportRange]);
 
@@ -1195,7 +1197,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const paths = await loadExportPaths();
     const defaults = getDefaultExportRange();
     if (!exportRangeTouchedRef.current) {
-      setExportRange(defaults);
+      setExportRange((prev) => (isSameRange(prev, defaults) ? prev : defaults));
     }
     if (paths?.suggestedPath && !exportOutputPath) {
       setExportOutputPath(paths.suggestedPath);

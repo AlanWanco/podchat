@@ -206,7 +206,7 @@ ipcMain.handle('get-export-paths', async (_event, options) => {
   const fileStem = sanitizeFileStem(options?.projectTitle || 'pomchat-export');
   return {
     runtimeDir,
-    quickSavePath: runtimeDir,
+    quickSavePath: projectDir,
     suggestedPath: projectDir,
     suggestedFilename: `${fileStem}.mp4`
   };

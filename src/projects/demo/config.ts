@@ -12,6 +12,9 @@ export const demoConfig = {
     bubbleScale: 1.5,
     avatarSize: 80,
     speakerNameSize: 22,
+    timestampFontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    timestampSize: 10,
+    timestampColor: '#FFFFFFA6',
     animationStyle: "rise",
     animationDuration: 0.2
   },

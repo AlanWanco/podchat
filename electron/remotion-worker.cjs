@@ -2,6 +2,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
+const { fileURLToPath } = require('node:url');
 
 let cachedBundle = null;
 
@@ -98,7 +99,15 @@ const toMediaUrl = (value, mediaServer) => {
     return '';
   }
 
-  if (/^(https?:|file:|data:)/i.test(value)) {
+  if (/^file:/i.test(value)) {
+    try {
+      return mediaServer.urlForPath(fileURLToPath(value));
+    } catch (_error) {
+      return value;
+    }
+  }
+
+  if (/^(https?:|data:)/i.test(value)) {
     return value;
   }
 

@@ -42,6 +42,9 @@ export interface SharedChatLayout {
   bubbleScale?: number;
   avatarSize?: number;
   speakerNameSize?: number;
+  timestampFontFamily?: string;
+  timestampSize?: number;
+  timestampColor?: string;
   animationStyle?: 'none' | 'rise';
   animationDuration?: number;
 }
@@ -145,7 +148,9 @@ export function ChatMessageBubble({
   const avatarPx = (chatLayout?.avatarSize ?? 80) * combinedScale;
   const avatarBorderWidth = Math.max(2, 4 * combinedScale);
   const speakerNameSize = (chatLayout?.speakerNameSize ?? 22) * combinedScale;
-  const timestampSize = 10 * combinedScale;
+  const timestampSize = (chatLayout?.timestampSize ?? 10) * combinedScale;
+  const timestampFontFamily = chatLayout?.timestampFontFamily || 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+  const timestampColor = chatLayout?.timestampColor || 'rgba(255,255,255,0.65)';
   const fontSize = (speaker.style?.fontSize ?? 30) * combinedScale;
   const bubbleMaxWidth = canvasWidth * 0.62;
   const opacity = speaker.style?.opacity ?? 0.9;
@@ -213,7 +218,7 @@ export function ChatMessageBubble({
               <span style={{ fontSize: `${speakerNameSize}px`, fontWeight: 700, color: speaker.style?.nameColor || '#ffffff' }}>
                 {speaker.name}
               </span>
-              <span style={{ fontSize: `${timestampSize}px`, fontFamily: 'monospace', color: 'rgba(255,255,255,0.65)' }}>
+              <span style={{ fontSize: `${timestampSize}px`, fontFamily: timestampFontFamily, color: timestampColor }}>
                 {formatTimestamp(item.start)}
               </span>
             </div>
