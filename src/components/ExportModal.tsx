@@ -29,6 +29,8 @@ interface ExportModalProps {
   exportQuality?: 'fast' | 'balance' | 'high';
   filenameTemplate?: 'default' | 'timestamp' | 'unix' | 'custom';
   customFilename?: string;
+  currentSubtitleStart?: number;
+  currentSubtitleEnd?: number;
   onClose: () => void;
   onOutputPathChange: (value: string) => void;
   onChoosePath: () => void | Promise<void>;
@@ -112,6 +114,8 @@ export function ExportModal({
   exportQuality = 'balance',
   filenameTemplate = 'default',
   customFilename = '',
+  currentSubtitleStart,
+  currentSubtitleEnd,
   onClose,
   onOutputPathChange,
   onChoosePath,
@@ -259,19 +263,34 @@ export function ExportModal({
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl border p-3" style={{ borderColor: rgba(themeColor, 0.18), backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.05) }}>
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: themeColor }}>{t('export.start')}</span>
-                    <button
-                      type="button"
-                      onClick={() => onRangeChange({ start: defaultRangeStart })}
-                      disabled={isExporting}
-                      className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{ backgroundColor: rgba(themeColor, 0.12), color: themeColor }}
-                    >
-                      {t('export.useEarliest')}
-                    </button>
-                  </div>
+                 <div className="rounded-2xl border p-3" style={{ borderColor: rgba(themeColor, 0.18), backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.05) }}>
+                   <div className="mb-2 flex items-center justify-between gap-1">
+                     <span className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: themeColor }}>{t('export.start')}</span>
+                     <div className="flex gap-1">
+                       <button
+                         type="button"
+                         onClick={() => onRangeChange({ start: defaultRangeStart })}
+                         disabled={isExporting}
+                         className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                         style={{ backgroundColor: rgba(themeColor, 0.12), color: themeColor }}
+                         title={t('export.useEarliest')}
+                       >
+                         {t('export.useEarliest')}
+                       </button>
+                       {typeof currentSubtitleStart === 'number' && currentSubtitleStart >= 0 && (
+                         <button
+                           type="button"
+                           onClick={() => onRangeChange({ start: currentSubtitleStart })}
+                           disabled={isExporting}
+                           className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                           style={{ backgroundColor: rgba(themeColor, 0.2), color: themeColor, border: `1px solid ${rgba(themeColor, 0.3)}` }}
+                           title={t('export.useSubtitleStart')}
+                         >
+                           {t('export.useSubtitleStart')}
+                         </button>
+                       )}
+                     </div>
+                   </div>
                   <input
                     value={startInput}
                     onChange={(event) => setStartInput(event.target.value)}
@@ -286,19 +305,34 @@ export function ExportModal({
                   />
                 </div>
 
-                <div className="rounded-2xl border p-3" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.05) }}>
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: secondaryThemeColor }}>{t('export.end')}</span>
-                    <button
-                      type="button"
-                      onClick={() => onRangeChange({ end: defaultRangeEnd })}
-                      disabled={isExporting}
-                      className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{ backgroundColor: rgba(secondaryThemeColor, 0.12), color: secondaryThemeColor }}
-                    >
-                      {t('export.useLatest')}
-                    </button>
-                  </div>
+                 <div className="rounded-2xl border p-3" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.05) }}>
+                   <div className="mb-2 flex items-center justify-between gap-1">
+                     <span className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: secondaryThemeColor }}>{t('export.end')}</span>
+                     <div className="flex gap-1">
+                       <button
+                         type="button"
+                         onClick={() => onRangeChange({ end: defaultRangeEnd })}
+                         disabled={isExporting}
+                         className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                         style={{ backgroundColor: rgba(secondaryThemeColor, 0.12), color: secondaryThemeColor }}
+                         title={t('export.useLatest')}
+                       >
+                         {t('export.useLatest')}
+                       </button>
+                       {typeof currentSubtitleEnd === 'number' && currentSubtitleEnd >= 0 && (
+                         <button
+                           type="button"
+                           onClick={() => onRangeChange({ end: currentSubtitleEnd })}
+                           disabled={isExporting}
+                           className="rounded-full px-2.5 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                           style={{ backgroundColor: rgba(secondaryThemeColor, 0.2), color: secondaryThemeColor, border: `1px solid ${rgba(secondaryThemeColor, 0.3)}` }}
+                           title={t('export.useSubtitleEnd')}
+                         >
+                           {t('export.useSubtitleEnd')}
+                         </button>
+                       )}
+                     </div>
+                   </div>
                   <input
                     value={endInput}
                     onChange={(event) => setEndInput(event.target.value)}

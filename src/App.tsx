@@ -822,6 +822,14 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [settingsPosition]);
 
   useEffect(() => {
+    // Save export range to config
+    setConfig((prev: any) => ({
+      ...prev,
+      exportRange: exportRange
+    }));
+  }, [exportRange]);
+
+  useEffect(() => {
     const isNarrowOrPortrait = isPortraitCanvas || windowWidth < 700;
     
     if (isNarrowOrPortrait) {
@@ -1023,6 +1031,17 @@ const [previewScale, setPreviewScale] = useState(1);
 
   useEffect(() => {
     const defaults = getDefaultExportRange();
+    
+    // Try to restore from config if available
+    if (config.exportRange && config.exportRange.start !== undefined && config.exportRange.end !== undefined) {
+      const saved = config.exportRange;
+      const nextStart = Number(Math.max(0, Math.min(saved.start, defaults.end)).toFixed(2));
+      const nextEnd = Number(Math.max(nextStart, Math.min(saved.end, Math.max(defaults.end, saved.end))).toFixed(2));
+      setExportRange({ start: nextStart, end: nextEnd });
+      exportRangeTouchedRef.current = true;
+      return;
+    }
+    
     if (!exportRangeTouchedRef.current) {
       setExportRange(defaults);
       return;
@@ -1033,7 +1052,7 @@ const [previewScale, setPreviewScale] = useState(1);
       const nextEnd = Number(Math.max(nextStart, Math.min(prev.end, Math.max(defaults.end, prev.end))).toFixed(2));
       return { start: nextStart, end: nextEnd };
     });
-  }, [getDefaultExportRange]);
+  }, [getDefaultExportRange, config.exportRange]);
 
   useEffect(() => {
     if (!window.electron) {
@@ -2078,40 +2097,42 @@ const [previewScale, setPreviewScale] = useState(1);
         }}
       />
 
-      <ExportModal
-        isOpen={showExportModal}
-        isDarkMode={isDarkMode}
-        language={language}
-        themeColor={themeColor}
-        secondaryThemeColor={secondaryThemeColor}
-        outputPath={exportOutputPath}
-        runtimeDir={runtimeDirectory}
-        rangeStart={exportRange.start}
-        rangeEnd={exportRange.end}
-        defaultRangeStart={defaultExportRange.start}
-        defaultRangeEnd={defaultExportRange.end}
-        isExporting={isExporting}
-        exportSucceeded={lastExportSucceeded}
-        progress={exportProgress}
-        statusMessage={exportStatusMessage}
-        exportQuality={exportQuality}
-        filenameTemplate={filenameTemplate}
-        customFilename={customFilename}
-        onClose={() => {
-          if (!isExporting) {
-            setShowExportModal(false);
-          }
-        }}
-        onOutputPathChange={setExportOutputPath}
-        onChoosePath={handleChooseExportPath}
-        onQuickSave={() => setExportOutputPath(quickSavePath)}
-        onRangeChange={updateExportRange}
-        onQualityChange={setExportQuality}
-        onFilenameTemplateChange={setFilenameTemplate}
-        onCustomFilenameChange={setCustomFilename}
-        onStartExport={handleStartExport}
-        onRevealOutput={handleRevealExport}
-      />
+       <ExportModal
+         isOpen={showExportModal}
+         isDarkMode={isDarkMode}
+         language={language}
+         themeColor={themeColor}
+         secondaryThemeColor={secondaryThemeColor}
+         outputPath={exportOutputPath}
+         runtimeDir={runtimeDirectory}
+         rangeStart={exportRange.start}
+         rangeEnd={exportRange.end}
+         defaultRangeStart={defaultExportRange.start}
+         defaultRangeEnd={defaultExportRange.end}
+         isExporting={isExporting}
+         exportSucceeded={lastExportSucceeded}
+         progress={exportProgress}
+         statusMessage={exportStatusMessage}
+         exportQuality={exportQuality}
+         filenameTemplate={filenameTemplate}
+         customFilename={customFilename}
+         currentSubtitleStart={editingSub?.start}
+         currentSubtitleEnd={editingSub?.end}
+         onClose={() => {
+           if (!isExporting) {
+             setShowExportModal(false);
+           }
+         }}
+         onOutputPathChange={setExportOutputPath}
+         onChoosePath={handleChooseExportPath}
+         onQuickSave={() => setExportOutputPath(quickSavePath)}
+         onRangeChange={updateExportRange}
+         onQualityChange={setExportQuality}
+         onFilenameTemplateChange={setFilenameTemplate}
+         onCustomFilenameChange={setCustomFilename}
+         onStartExport={handleStartExport}
+         onRevealOutput={handleRevealExport}
+       />
 
       {importAssData && (
         <AssImportModal 
