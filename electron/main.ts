@@ -201,8 +201,9 @@ ipcMain.handle('get-export-paths', async (_event, options) => {
   const fileStem = sanitizeFileStem(options?.projectTitle || 'podchat-export');
   return {
     runtimeDir,
-    quickSavePath: path.join(runtimeDir, `${fileStem}.mp4`),
-    suggestedPath: path.join(projectDir, `${fileStem}.mp4`)
+    quickSavePath: runtimeDir,
+    suggestedPath: projectDir,
+    suggestedFilename: `${fileStem}.mp4`
   };
 });
 

@@ -7,6 +7,7 @@ import { MenuBar } from './components/MenuBar';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { AssImportModal } from './components/AssImportModal';
 import { ExportModal } from './components/ExportModal';
+import { ChatAnnotationBubble, ChatMessageBubble } from './components/chat/SharedChatBubbles';
 import { useAssSubtitle } from './hooks/useAssSubtitle';
 import { translate, type Language } from './i18n';
 import { createThemeTokens } from './theme';
@@ -60,7 +61,7 @@ const DEFAULT_CHAT_LAYOUT = {
   avatarSize: 80,
   speakerNameSize: 22,
   animationStyle: 'rise',
-  animationDuration: 0.25
+  animationDuration: 0.2
 };
 
 const LEGACY_DEMO_PATH_PREFIXES = ['src/projects/demo/', 'projects/demo/'];
@@ -246,11 +247,23 @@ function SnapshotBubble({
     const updateMetrics = () => {
       const bubbleRect = bubbleEl.getBoundingClientRect();
       const canvasRect = canvasEl.getBoundingClientRect();
-      setMetrics({
+      const nextMetrics = {
         left: bubbleRect.left - canvasRect.left,
         top: bubbleRect.top - canvasRect.top,
         width: canvasRect.width,
         height: canvasRect.height
+      };
+      setMetrics((prev) => {
+        if (
+          prev &&
+          prev.left === nextMetrics.left &&
+          prev.top === nextMetrics.top &&
+          prev.width === nextMetrics.width &&
+          prev.height === nextMetrics.height
+        ) {
+          return prev;
+        }
+        return nextMetrics;
       });
     };
 
@@ -264,7 +277,7 @@ function SnapshotBubble({
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateMetrics);
     };
-  }, [canvasRef, children]);
+  }, [canvasRef]);
 
   return (
     <div ref={bubbleRef} className={className} style={outerStyle}>
@@ -994,6 +1007,30 @@ const [previewScale, setPreviewScale] = useState(1);
     return 'podchat.mp4';
   };
 
+  const normalizeExportDirectory = (rawPath: string) => {
+    const trimmedPath = rawPath.trim();
+    if (!trimmedPath) return '';
+
+    const normalized = trimmedPath.replace(/\\/g, '/');
+    const lastSlashIndex = normalized.lastIndexOf('/');
+    const lastSegment = lastSlashIndex >= 0 ? normalized.slice(lastSlashIndex + 1) : normalized;
+    const hasFileExtension = /\.[A-Za-z0-9]+$/.test(lastSegment);
+
+    if (hasFileExtension) {
+      const separatorIndex = Math.max(trimmedPath.lastIndexOf('/'), trimmedPath.lastIndexOf('\\'));
+      return separatorIndex >= 0 ? trimmedPath.slice(0, separatorIndex) : '';
+    }
+
+    return trimmedPath.endsWith('/') || trimmedPath.endsWith('\\') ? trimmedPath.slice(0, -1) : trimmedPath;
+  };
+
+  const applyFilenameTemplateToPath = (rawPath: string, filename: string) => {
+    const directory = normalizeExportDirectory(rawPath);
+    if (!directory) return filename;
+    const separator = directory.includes('\\') && !directory.includes('/') ? '\\' : '/';
+    return `${directory}${separator}${filename}`;
+  };
+
   const calculateCRF = (quality: 'fast' | 'balance' | 'high'): number => {
     if (quality === 'fast') return 23;
     if (quality === 'high') return 18;
@@ -1162,14 +1199,14 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const handleChooseExportPath = useCallback(async () => {
     if (!window.electron) return;
-    const result = await window.electron.showSaveDialog({
+    const result = await window.electron.showOpenDialog({
       title: t('export.title'),
       defaultPath: exportOutputPath || quickSavePath,
-      filters: [{ name: 'Video', extensions: ['mp4'] }]
+      properties: ['openDirectory', 'createDirectory']
     });
 
-    if (!result.canceled && result.filePath) {
-      setExportOutputPath(result.filePath);
+    if (!result.canceled && result.filePaths?.[0]) {
+      setExportOutputPath(result.filePaths[0]);
     }
   }, [exportOutputPath, quickSavePath, t]);
 
@@ -1185,14 +1222,8 @@ const [previewScale, setPreviewScale] = useState(1);
       return;
     }
 
-    // 如果输入的是目录路径，则生成文件名
     const filename = generateFilename(filenameTemplate, customFilename);
-    if (trimmedPath.endsWith('/') || trimmedPath.endsWith('\\')) {
-      trimmedPath = trimmedPath + filename;
-    } else if (!trimmedPath.endsWith('.mp4')) {
-      // 如果没有扩展名，假设是目录
-      trimmedPath = trimmedPath + '/' + filename;
-    }
+    trimmedPath = applyFilenameTemplateToPath(trimmedPath, filename);
 
     if (exportRange.end <= exportRange.start) {
       setExportStatusMessage(t('export.invalidRange'));
@@ -1313,12 +1344,6 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const resolvedAudioPath = resolvePath(config.audioPath) || '';
-
-  const formatTimestamp = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
 
   const validateProjectConfig = (parsed: any) => {
     if (!parsed || typeof parsed !== 'object') {
@@ -1592,7 +1617,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const speaker = config.speakers[item.speakerId];
     if (!speaker || speaker.type !== 'annotation') return false;
     const animationStyle = config.chatLayout?.animationStyle || 'rise';
-    const animationDuration = config.chatLayout?.animationDuration ?? 0.25;
+    const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
     const appearanceTime = Math.max(0, item.start - (animationStyle === 'none' ? 0 : animationDuration));
     return currentTime >= appearanceTime && currentTime <= item.end;
   });
@@ -1875,7 +1900,7 @@ const [previewScale, setPreviewScale] = useState(1);
               {/* Chat Stream */}
               <div 
                 ref={scrollRef}
-                className="preview-scroll-hidden relative z-20 flex-1 overflow-y-auto flex flex-col scroll-smooth"
+                className="preview-scroll-hidden relative z-20 flex-1 overflow-y-auto flex flex-col"
                 style={{
                   paddingTop: `${(config.chatLayout?.paddingTop ?? 48) * Math.max(0.35, previewScale)}px`,
                   paddingBottom: `${(config.chatLayout?.paddingBottom ?? 80) * Math.max(0.35, previewScale)}px`,
@@ -1891,143 +1916,62 @@ const [previewScale, setPreviewScale] = useState(1);
                     if (!speaker || speaker.type === 'annotation') return null;
 
                     const animationStyle = config.chatLayout?.animationStyle || 'rise';
-                    const animationDuration = config.chatLayout?.animationDuration ?? 0.25;
+                    const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
                     const animationLeadTime = animationStyle === 'none' ? 0 : animationDuration;
                     const appearanceTime = Math.max(0, item.start - animationLeadTime);
                     const isVisible = currentTime >= appearanceTime;
-                    const isAnnotation = speaker.type === 'annotation';
-                    const isLeft = speaker.side === "left";
 
                     if (!isVisible) return null;
 
-                    const fallbackBg = speaker.theme === 'dark' ? '#2563eb' : '#ffffff';
-                    const fallbackText = speaker.theme === 'dark' ? '#ffffff' : '#111827';
-                    
-                    const bgColor = speaker.style?.bgColor || fallbackBg;
-                    const textColor = speaker.style?.textColor || fallbackText;
-                    const radius = speaker.style?.borderRadius ?? 28;
-                    const opacity = speaker.style?.opacity ?? 0.9;
-                    const blur = 0;
-                    const borderWidth = speaker.style?.borderWidth ?? 0;
-                    const borderColor = speaker.style?.borderColor || "#ffffff";
-                    const borderOpacity = speaker.style?.borderOpacity ?? 1.0;
-                    const avatarBorderColor = speaker.style?.avatarBorderColor || (isDarkMode ? '#1f2937' : '#ffffff');
-                    const margin = speaker.style?.margin ?? 14;
-                    const paddingX = speaker.style?.paddingX ?? 20;
-                    const paddingY = speaker.style?.paddingY ?? 12;
-                    const shadowSize = speaker.style?.shadowSize ?? 7;
-                    
-                    const fontFamily = speaker.style?.fontFamily || "system-ui";
-                    const fontSize = speaker.style?.fontSize ?? 30;
-                    const fontWeight = speaker.style?.fontWeight || "normal";
-                    const nameColor = speaker.style?.nameColor || '#ffffff';
-                    const bubbleScale = config.chatLayout?.bubbleScale ?? 1.5;
-                    const effectiveScale = Math.max(0.35, previewScale) * bubbleScale;
-                    const scaledRadius = radius * effectiveScale;
-                    const scaledMargin = margin * effectiveScale;
-                    const scaledPaddingX = paddingX * effectiveScale;
-                    const scaledPaddingY = paddingY * effectiveScale;
-                    const scaledShadowSize = shadowSize * effectiveScale;
-                    const scaledFontSize = fontSize * effectiveScale;
-                    const scaledBlur = blur * effectiveScale;
-                    const avatarSize = (config.chatLayout?.avatarSize ?? 80) * effectiveScale;
-                    const avatarBorderWidth = Math.max(2, 4 * effectiveScale);
-                    const bubbleGap = 16 * effectiveScale;
-                    const metaGap = 8 * effectiveScale;
-                    const speakerNameSize = (config.chatLayout?.speakerNameSize ?? 22) * effectiveScale;
-                    const timestampSize = 10 * effectiveScale;
-                    
-                    // Convert hex color to rgba using opacity
-                    const hexBg = bgColor.startsWith('#') ? bgColor : '#ffffff';
-                    const opacityHex = Math.floor(opacity * 255).toString(16).padStart(2, '0');
-                    const finalBgColor = `${hexBg}${opacityHex}`;
-
-                    // Convert border hex color to rgba
-                    const hexBorder = borderColor.startsWith('#') ? borderColor : '#ffffff';
-                    const borderOpacityHex = Math.floor(borderOpacity * 255).toString(16).padStart(2, '0');
-                    const finalBorderColor = `${hexBorder}${borderOpacityHex}`;
-                    const bubbleShadow = scaledShadowSize > 0
-                      ? `0 ${Math.round(scaledShadowSize * 0.35)}px ${scaledShadowSize}px rgba(15, 23, 42, 0.24)`
-                      : 'none';
-                    const speakerBlockShadow = scaledShadowSize > 0
-                      ? `drop-shadow(0 ${Math.round(scaledShadowSize * 0.2)}px ${Math.max(6, scaledShadowSize * 0.55)}px rgba(15, 23, 42, 0.22))`
-                      : 'none';
-                    const bubbleAnimationClass = animationStyle === 'none' ? '' : `podchat-bubble-enter-${animationStyle}`;
-                    const bubbleStyle = {
-                      position: 'relative',
-                      overflow: 'hidden',
-                      isolation: 'isolate',
-                      fontFamily,
-                      fontSize: `${scaledFontSize}px`,
-                      fontWeight,
-                      backgroundClip: 'padding-box',
-                      borderRadius: `${scaledRadius}px`,
-                      borderTopLeftRadius: isLeft ? `${Math.max(3, 4 * effectiveScale)}px` : `${scaledRadius}px`,
-                      borderTopRightRadius: !isLeft ? `${Math.max(3, 4 * effectiveScale)}px` : `${scaledRadius}px`,
-                      border: borderWidth > 0 ? `${borderWidth}px solid ${finalBorderColor}` : 'none',
-                      boxShadow: bubbleShadow,
-                      animationDuration: `${animationDuration}s`,
-                      animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
-                      animationFillMode: 'both',
-                      '--podchat-enter-x': isLeft ? '-18px' : '18px',
-                      '--podchat-enter-y': '18px',
-                      '--podchat-enter-scale': '0.92'
-                    } as React.CSSProperties;
-                    const bubbleContentStyle = {
-                      position: 'relative',
-                      zIndex: 1,
-                      padding: `${scaledPaddingY}px ${scaledPaddingX}px`,
-                      color: textColor
-                    } as React.CSSProperties;
-
                     return (
-                      <div
+                      <ChatMessageBubble
                         key={item.id}
-                        className={`flex w-full ${isAnnotation ? 'justify-center' : isLeft ? "justify-start" : "justify-end"}`}
-                        style={{ 
-                          marginBottom: `${scaledMargin}px`
-                        } as React.CSSProperties}
-                      >
-                        <div 
-                          className={`flex ${isAnnotation ? 'max-w-[72%] justify-center' : `max-w-[62%] ${isLeft ? "flex-row" : "flex-row-reverse"}`}`}
-                          style={{ gap: `${bubbleGap}px` }}
-                        >
-                          {!isAnnotation && (
-                            <img
-                              src={resolvePath(speaker.avatar)}
-                              alt={speaker.name}
-                              referrerPolicy="no-referrer"
-                              className={`rounded-full shrink-0 shadow-lg object-cover ${isDarkMode ? 'border-gray-800 bg-gray-900' : 'border-white bg-gray-200'}`}
-                              style={{ width: `${avatarSize}px`, height: `${avatarSize}px`, borderWidth: `${avatarBorderWidth}px`, borderColor: avatarBorderColor, boxShadow: bubbleShadow }}
-                            />
-                          )}
-                          <div className={`flex flex-col ${isAnnotation ? 'items-center' : isLeft ? "items-start" : "items-end"}`} style={{ filter: speakerBlockShadow }}>
-                            {!isAnnotation && (
-                              <div className={`flex items-baseline mb-1 mix-blend-difference ${isLeft ? "flex-row" : "flex-row-reverse"}`} style={{ gap: `${metaGap}px` }}>
-                                <span className="font-bold" style={{ fontSize: `${speakerNameSize}px`, color: nameColor }}>
-                                  {speaker.name}
-                                </span>
-                                <span className="font-mono text-white/60" style={{ fontSize: `${timestampSize}px` }}>
-                                  {formatTimestamp(item.start)}
-                                </span>
-                              </div>
-                            )}
+                        item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
+                        speaker={speaker}
+                        currentTime={currentTime}
+                        canvasWidth={canvasWidth}
+                        layoutScale={previewScale}
+                        chatLayout={config.chatLayout}
+                        enableBuiltInMotion={false}
+                        fallbackAvatarBorderColor={isDarkMode ? '#1f2937' : '#ffffff'}
+                        renderAvatar={({ src, alt, style }) => (
+                          <img
+                            src={resolvePath(src)}
+                            alt={alt}
+                            referrerPolicy="no-referrer"
+                            className={`rounded-full shrink-0 shadow-lg object-cover ${isDarkMode ? 'border-gray-800 bg-gray-900' : 'border-white bg-gray-200'}`}
+                            style={style}
+                          />
+                        )}
+                        renderBubble={({ outerStyle, contentStyle, children }) => {
+                          const tintColor = typeof outerStyle.backgroundColor === 'string' ? outerStyle.backgroundColor : '#ffffff';
+                          const bubbleStyle = {
+                            ...outerStyle,
+                            animationDuration: `${animationDuration}s`,
+                            animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                            animationFillMode: 'both',
+                            ['--podchat-enter-x' as any]: speaker.side === 'left' ? '-18px' : '18px',
+                            ['--podchat-enter-y' as any]: '18px',
+                            ['--podchat-enter-scale' as any]: '0.92'
+                          };
+                          delete bubbleStyle.backgroundColor;
+                          return (
                             <SnapshotBubble
                               canvasRef={previewFrameRef}
                               backgroundSrc={resolvePath(config.background?.image)}
                               backgroundBrightness={config.background?.brightness ?? 1}
                               backgroundBaseBlur={config.background?.blur || 0}
-                              blurPx={scaledBlur}
-                              tintColor={finalBgColor}
-                              className={`break-words ${bubbleAnimationClass}`}
+                              blurPx={0}
+                              tintColor={tintColor}
+                              className={`break-words ${animationStyle === 'none' ? '' : `podchat-bubble-enter-${animationStyle}`}`}
                               outerStyle={bubbleStyle}
-                              contentStyle={bubbleContentStyle}
+                              contentStyle={contentStyle}
                             >
-                                <p className="leading-relaxed whitespace-pre-wrap">{item.text}</p>
+                              <p className="leading-relaxed whitespace-pre-wrap">{children}</p>
                             </SnapshotBubble>
-                          </div>
-                        </div>
-                      </div>
+                          );
+                        }}
+                      />
                     );
                   })
                 )}
@@ -2038,30 +1982,16 @@ const [previewScale, setPreviewScale] = useState(1);
                   <div className="flex flex-col items-center gap-3">
                     {visibleAnnotations.filter((item) => config.speakers[item.speakerId]?.style?.annotationPosition === 'top').map((item) => {
                       const speaker = config.speakers[item.speakerId];
-                      const opacity = speaker.style?.opacity ?? 0.9;
-                      const bgColor = speaker.style?.bgColor || '#111827';
-                      const textColor = speaker.style?.textColor || '#ffffff';
-                      const hexBg = bgColor.startsWith('#') ? bgColor : '#111827';
-                      const finalBgColor = `${hexBg}${Math.floor(opacity * 255).toString(16).padStart(2, '0')}`;
-                      const bubbleScale = config.chatLayout?.bubbleScale ?? 1.5;
-                      const effectiveScale = Math.max(0.35, previewScale) * bubbleScale;
-                      const shadowSize = (speaker.style?.shadowSize ?? 7) * effectiveScale;
-                      const maxWidth = (speaker.style?.maxWidth ?? 720) * effectiveScale;
+                      const animationStyle = config.chatLayout?.animationStyle || 'rise';
+                      const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
                       return (
-                        <div key={item.id} className={`pointer-events-none ${config.chatLayout?.animationStyle === 'none' ? '' : `podchat-bubble-enter-${config.chatLayout?.animationStyle || 'rise'}`}`} style={{ animationDuration: `${config.chatLayout?.animationDuration ?? 0.25}s` }}>
-                          <div style={{
-                            backgroundColor: finalBgColor,
-                            color: textColor,
-                            maxWidth: `${maxWidth}px`,
-                            borderRadius: `${(speaker.style?.borderRadius ?? 999) * effectiveScale}px`,
-                            padding: `${(speaker.style?.paddingY ?? 10) * effectiveScale}px ${(speaker.style?.paddingX ?? 18) * effectiveScale}px`,
-                            fontFamily: speaker.style?.fontFamily || 'system-ui',
-                            fontSize: `${(speaker.style?.fontSize ?? 24) * effectiveScale}px`,
-                            boxShadow: shadowSize > 0 ? `0 ${Math.round(shadowSize * 0.35)}px ${shadowSize}px rgba(15, 23, 42, 0.24)` : 'none',
-                            marginTop: `${(speaker.style?.margin ?? 12) * effectiveScale}px`
-                          }}>
-                            {item.text}
-                          </div>
+                        <div key={item.id} className={animationStyle === 'none' ? '' : `podchat-bubble-enter-${animationStyle}`} style={{ animationDuration: `${animationDuration}s`, animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)', animationFillMode: 'both', ['--podchat-enter-y' as any]: '18px', ['--podchat-enter-scale' as any]: '0.92' }}>
+                          <ChatAnnotationBubble
+                            item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
+                            speaker={speaker}
+                            layoutScale={previewScale}
+                            chatLayout={{ ...config.chatLayout, bubbleScale: config.chatLayout?.bubbleScale }}
+                          />
                         </div>
                       );
                     })}
@@ -2069,30 +1999,16 @@ const [previewScale, setPreviewScale] = useState(1);
                   <div className="flex flex-col items-center gap-3">
                     {visibleAnnotations.filter((item) => (config.speakers[item.speakerId]?.style?.annotationPosition || 'bottom') === 'bottom').map((item) => {
                       const speaker = config.speakers[item.speakerId];
-                      const opacity = speaker.style?.opacity ?? 0.9;
-                      const bgColor = speaker.style?.bgColor || '#111827';
-                      const textColor = speaker.style?.textColor || '#ffffff';
-                      const hexBg = bgColor.startsWith('#') ? bgColor : '#111827';
-                      const finalBgColor = `${hexBg}${Math.floor(opacity * 255).toString(16).padStart(2, '0')}`;
-                      const bubbleScale = config.chatLayout?.bubbleScale ?? 1.5;
-                      const effectiveScale = Math.max(0.35, previewScale) * bubbleScale;
-                      const shadowSize = (speaker.style?.shadowSize ?? 7) * effectiveScale;
-                      const maxWidth = (speaker.style?.maxWidth ?? 720) * effectiveScale;
+                      const animationStyle = config.chatLayout?.animationStyle || 'rise';
+                      const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
                       return (
-                        <div key={item.id} className={`pointer-events-none ${config.chatLayout?.animationStyle === 'none' ? '' : `podchat-bubble-enter-${config.chatLayout?.animationStyle || 'rise'}`}`} style={{ animationDuration: `${config.chatLayout?.animationDuration ?? 0.25}s` }}>
-                          <div style={{
-                            backgroundColor: finalBgColor,
-                            color: textColor,
-                            maxWidth: `${maxWidth}px`,
-                            borderRadius: `${(speaker.style?.borderRadius ?? 999) * effectiveScale}px`,
-                            padding: `${(speaker.style?.paddingY ?? 10) * effectiveScale}px ${(speaker.style?.paddingX ?? 18) * effectiveScale}px`,
-                            fontFamily: speaker.style?.fontFamily || 'system-ui',
-                            fontSize: `${(speaker.style?.fontSize ?? 24) * effectiveScale}px`,
-                            boxShadow: shadowSize > 0 ? `0 ${Math.round(shadowSize * 0.35)}px ${shadowSize}px rgba(15, 23, 42, 0.24)` : 'none',
-                            marginBottom: `${(speaker.style?.margin ?? 12) * effectiveScale}px`
-                          }}>
-                            {item.text}
-                          </div>
+                        <div key={item.id} className={animationStyle === 'none' ? '' : `podchat-bubble-enter-${animationStyle}`} style={{ animationDuration: `${animationDuration}s`, animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)', animationFillMode: 'both', ['--podchat-enter-y' as any]: '18px', ['--podchat-enter-scale' as any]: '0.92' }}>
+                          <ChatAnnotationBubble
+                            item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
+                            speaker={speaker}
+                            layoutScale={previewScale}
+                            chatLayout={{ ...config.chatLayout, bubbleScale: config.chatLayout?.bubbleScale }}
+                          />
                         </div>
                       );
                     })}

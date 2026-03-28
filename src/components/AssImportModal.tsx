@@ -85,7 +85,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
             paddingY: isAnnotation ? 10 : 12,
             shadowSize: 7,
             animationStyle: 'rise',
-            animationDuration: 0.25,
+            animationDuration: 0.2,
             fontFamily: "system-ui",
             fontSize: isAnnotation ? 24 : 30,
             fontWeight: "normal",
@@ -102,7 +102,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=A`,
         side: "left",
         style: {
-          bgColor: "#2563eb", textColor: "#ffffff", nameColor: '#ffffff', borderRadius: 28, opacity: 0.9, borderWidth: 0, avatarBorderColor: "#ffffff", borderColor: "#ffffff", borderOpacity: 1.0, margin: 14, paddingX: 20, paddingY: 12, shadowSize: 7, animationStyle: 'rise', animationDuration: 0.25, fontFamily: "system-ui", fontSize: 30, fontWeight: "normal"
+          bgColor: "#2563eb", textColor: "#ffffff", nameColor: '#ffffff', borderRadius: 28, opacity: 0.9, borderWidth: 0, avatarBorderColor: "#ffffff", borderColor: "#ffffff", borderOpacity: 1.0, margin: 14, paddingX: 20, paddingY: 12, shadowSize: 7, animationStyle: 'rise', animationDuration: 0.2, fontFamily: "system-ui", fontSize: 30, fontWeight: "normal"
         }
       };
     }

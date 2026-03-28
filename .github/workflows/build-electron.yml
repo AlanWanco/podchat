@@ -1,0 +1,69 @@
+name: Build Electron Apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            runner: macos-14
+            build_args: --mac zip dmg --arm64
+            artifact_glob: release/**
+          - name: windows-x64
+            runner: windows-latest
+            build_args: --win nsis zip --x64
+            artifact_glob: release/**
+          - name: windows-arm64
+            runner: windows-latest
+            build_args: --win nsis zip --arm64
+            artifact_glob: release/**
+          - name: linux-x64
+            runner: ubuntu-24.04
+            build_args: --linux AppImage tar.gz --x64
+            artifact_glob: release/**
+          - name: linux-arm64
+            runner: ubuntu-24.04
+            build_args: --linux AppImage tar.gz --arm64
+            artifact_glob: release/**
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer and Electron bundles
+        run: npm run build
+
+      - name: Package Electron app
+        run: npx electron-builder ${{ matrix.build_args }} --publish never
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error

@@ -568,11 +568,11 @@ export function SettingsPanel({
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-xs opacity-70">{t('project.animationSpeed')}</span>
-                    <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{(config.chatLayout?.animationDuration ?? 0.25).toFixed(2)}s</span>
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{(config.chatLayout?.animationDuration ?? 0.2).toFixed(2)}s</span>
                   </div>
                   <input 
-                    type="range" min="0.1" max="1.2" step="0.05"
-                    value={config.chatLayout?.animationDuration ?? 0.25}
+                    type="range" min="0.01" max="0.5" step="0.01"
+                    value={config.chatLayout?.animationDuration ?? 0.2}
                     onChange={(e) => updateChatLayout('animationDuration', parseFloat(e.target.value))}
                     className="w-full" style={themedRangeStyle}
                   />

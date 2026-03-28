@@ -13,7 +13,7 @@ export const demoConfig = {
     avatarSize: 80,
     speakerNameSize: 22,
     animationStyle: "rise",
-    animationDuration: 0.25
+    animationDuration: 0.2
   },
   audioPath: "/projects/demo/assets/test_audio.aac",
   assPath: "/projects/demo/assets/ass_test.ass",
