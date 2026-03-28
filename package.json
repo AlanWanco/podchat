@@ -10,10 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@remotion/bundler": "^4.0.441",
+    "@remotion/renderer": "^4.0.441",
     "ass-compiler": "^0.1.16",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "remotion": "^4.0.441",
     "wavesurfer.js": "^7.12.5"
   },
   "devDependencies": {
@@ -25,6 +28,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.27",
     "electron": "^41.1.0",
+    "electron-icon-builder": "^2.0.1",
     "esbuild": "^0.27.4",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",

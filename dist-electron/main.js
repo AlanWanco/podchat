@@ -1,124 +1,174 @@
-import { BrowserWindow as e, app as t, clipboard as n, dialog as r, ipcMain as i } from "electron";
-import { fileURLToPath as a } from "node:url";
-import o from "node:path";
-import s from "node:fs";
+import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import fs from "node:fs";
+import { fork } from "node:child_process";
 //#region electron/main.ts
-var c = o.dirname(a(import.meta.url));
-process.env.APP_ROOT = o.join(c, ".."), t.disableHardwareAcceleration();
-var l = process.env.VITE_DEV_SERVER_URL, u = o.join(process.env.APP_ROOT, "dist-electron"), d = o.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = l ? o.join(process.env.APP_ROOT, "public") : d;
-var f;
-function p(e) {
-	if (!e) return e;
-	let t = e.replace(/\\/g, "/");
-	return t.startsWith("/projects/") || t.startsWith("projects/") ? o.join(process.env.VITE_PUBLIC || process.env.APP_ROOT || "", t.replace(/^\//, "")) : e;
+var __dirname = path.dirname(fileURLToPath(import.meta.url));
+process.env.APP_ROOT = path.join(__dirname, "..");
+app.disableHardwareAcceleration();
+var VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+var MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
+var RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
+var win;
+function resolveAppFilePath(filePath) {
+	if (!filePath) return filePath;
+	const normalized = filePath.replace(/\\/g, "/");
+	if (normalized.startsWith("/projects/") || normalized.startsWith("projects/")) return path.join(process.env.VITE_PUBLIC || process.env.APP_ROOT || "", normalized.replace(/^\//, ""));
+	return filePath;
 }
-function m() {
-	return process.env.APP_ROOT || o.dirname(t.getPath("exe"));
+function getRuntimeDirectory() {
+	return process.env.APP_ROOT || path.dirname(app.getPath("exe"));
 }
-function h(e) {
-	return (e.trim() || "podchat-export").replace(/[<>:"/\\|?*]+/g, "-").replace(/\s+/g, "-");
+function sanitizeFileStem(value) {
+	return (value.trim() || "podchat-export").replace(/[<>:"/\\|?*]+/g, "-").replace(/\s+/g, "-");
 }
-function g() {
-	f = new e({
+function createWindow() {
+	win = new BrowserWindow({
 		width: 1400,
 		height: 900,
 		webPreferences: {
-			preload: o.join(c, "preload.cjs"),
-			webSecurity: !1,
-			contextIsolation: !0,
-			nodeIntegration: !1
+			preload: path.join(__dirname, "preload.cjs"),
+			webSecurity: false,
+			contextIsolation: true,
+			nodeIntegration: false
 		}
-	}), l ? (f.loadURL(l), f.webContents.openDevTools()) : f.loadFile(o.join(d, "index.html")), f.webContents.on("console-message", (e, t, n, r, i) => {
-		console.log(`[Renderer:${t}] ${n} (at ${i}:${r})`);
-	}), f.webContents.on("render-process-gone", (e, t) => {
-		console.error("[Renderer gone]", t.reason, t.exitCode);
-	}), f.webContents.on("preload-error", (e, t, n) => {
-		console.error("[Preload error]", t, n);
+	});
+	if (VITE_DEV_SERVER_URL) {
+		win.loadURL(VITE_DEV_SERVER_URL);
+		win.webContents.openDevTools();
+	} else win.loadFile(path.join(RENDERER_DIST, "index.html"));
+	win.webContents.on("console-message", (_event, level, message, lineNumber, sourceId) => {
+		console.log(`[Renderer:${level}] ${message} (at ${sourceId}:${lineNumber})`);
+	});
+	win.webContents.on("render-process-gone", (_event, details) => {
+		console.error("[Renderer gone]", details.reason, details.exitCode);
+	});
+	win.webContents.on("preload-error", (_event, preloadPath, error) => {
+		console.error("[Preload error]", preloadPath, error);
 	});
 }
-t.on("window-all-closed", () => {
-	process.platform !== "darwin" && (t.quit(), f = null);
-}), t.on("activate", () => {
-	e.getAllWindows().length === 0 && g();
-}), t.whenReady().then(g), i.handle("ping", () => "pong"), i.handle("export-video", async (e, t) => {
-	console.log("Received export video request with config:", t);
-	let n = Date.now(), r = Number(t?.exportRange?.start || 0), i = Number(t?.exportRange?.end || 0), a = Math.max(.5, i - r), o = Math.max(1800, Math.min(12e3, Math.round(a * 320))), c = [
-		{
-			until: .12,
-			label: "Preparing timeline"
-		},
-		{
-			until: .34,
-			label: "Collecting assets"
-		},
-		{
-			until: .78,
-			label: "Rendering frames"
-		},
-		{
-			until: .96,
-			label: "Packaging output"
-		},
-		{
-			until: 1,
-			label: "Done"
-		}
-	], l = (e) => {
-		let t = Date.now() - n, r = c.find((t) => e <= t.until)?.label || "Rendering", i = e > 0 ? Math.max(0, Math.round(t * ((1 - e) / e))) : null;
-		f?.webContents.send("export-progress", {
-			progress: e,
-			elapsedMs: t,
-			estimatedRemainingMs: i,
-			stage: r
+app.on("window-all-closed", () => {
+	if (process.platform !== "darwin") {
+		app.quit();
+		win = null;
+	}
+});
+app.on("activate", () => {
+	if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+app.whenReady().then(createWindow);
+ipcMain.handle("ping", () => "pong");
+ipcMain.handle("export-video", async (_event, config) => {
+	if (!(typeof config?.outputPath === "string" ? config.outputPath : "")) return {
+		success: false,
+		error: "Missing output path"
+	};
+	try {
+		const workerPath = path.join(process.env.APP_ROOT || process.cwd(), "electron", "remotion-worker.cjs");
+		const result = await new Promise((resolve, reject) => {
+			const worker = fork(workerPath, [], {
+				stdio: [
+					"pipe",
+					"pipe",
+					"pipe",
+					"ipc"
+				],
+				env: {
+					...process.env,
+					APP_ROOT: process.env.APP_ROOT || process.cwd(),
+					VITE_PUBLIC: process.env.VITE_PUBLIC || ""
+				}
+			});
+			worker.on("message", (message) => {
+				if (!message) return;
+				if (message.type === "progress") {
+					win?.webContents.send("export-progress", message.payload);
+					return;
+				}
+				if (message.type === "result") {
+					resolve(message.payload);
+					worker.kill();
+					return;
+				}
+				if (message.type === "error") {
+					reject(new Error(message.payload?.message || "Export failed"));
+					worker.kill();
+				}
+			});
+			worker.on("error", reject);
+			worker.on("exit", (code) => {
+				if (code && code !== 0) reject(/* @__PURE__ */ new Error(`Export worker exited with code ${code}`));
+			});
+			worker.send({
+				type: "render",
+				payload: config
+			});
 		});
-	};
-	l(0), await new Promise((e) => {
-		let t = Date.now(), n = setInterval(() => {
-			let r = Math.min(1, (Date.now() - t) / o);
-			l(r), r >= 1 && (clearInterval(n), e());
-		}, 140);
-	});
-	let u = typeof t?.outputPath == "string" ? t.outputPath : "", d = null;
-	return u && (d = `${u}.podchat-render.json`, s.writeFileSync(d, JSON.stringify({
-		note: "Video renderer is not wired yet. This file records the queued export payload for verification.",
-		requestedOutputPath: u,
-		createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-		payload: t
-	}, null, 2), "utf-8")), {
-		success: !0,
-		placeholder: !0,
-		outputPath: u,
-		manifestPath: d,
-		message: d ? `Export workflow finished. Placeholder render manifest saved to ${d}` : "Export workflow finished."
-	};
-}), i.handle("get-export-paths", async (e, t) => {
-	let n = m(), r = typeof t?.projectPath == "string" && t.projectPath ? p(t.projectPath) : "", i = r ? o.dirname(r) : n, a = h(t?.projectTitle || "podchat-export");
+		return {
+			success: true,
+			placeholder: false,
+			outputPath: result.outputPath,
+			elapsedMs: result.elapsedMs,
+			realTimeFactor: result.realTimeFactor,
+			message: result.message
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error?.message || "Export failed"
+		};
+	}
+});
+ipcMain.handle("get-export-paths", async (_event, options) => {
+	const runtimeDir = getRuntimeDirectory();
+	const projectPath = typeof options?.projectPath === "string" && options.projectPath ? resolveAppFilePath(options.projectPath) : "";
+	const projectDir = projectPath ? path.dirname(projectPath) : runtimeDir;
+	const fileStem = sanitizeFileStem(options?.projectTitle || "podchat-export");
 	return {
-		runtimeDir: n,
-		quickSavePath: o.join(n, `${a}.mp4`),
-		suggestedPath: o.join(i, `${a}.mp4`)
+		runtimeDir,
+		quickSavePath: path.join(runtimeDir, `${fileStem}.mp4`),
+		suggestedPath: path.join(projectDir, `${fileStem}.mp4`)
 	};
-}), i.handle("show-open-dialog", async (e, t) => f ? await r.showOpenDialog(f, t) : null), i.handle("show-save-dialog", async (e, t) => f ? await r.showSaveDialog(f, t) : null), i.handle("read-file", async (e, t) => {
+});
+ipcMain.handle("show-open-dialog", async (_event, options) => {
+	if (!win) return null;
+	return await dialog.showOpenDialog(win, options);
+});
+ipcMain.handle("show-save-dialog", async (_event, options) => {
+	if (!win) return null;
+	return await dialog.showSaveDialog(win, options);
+});
+ipcMain.handle("show-item-in-folder", async (_event, filePath) => {
+	if (!filePath) return false;
+	shell.showItemInFolder(resolveAppFilePath(filePath));
+	return true;
+});
+ipcMain.handle("read-file", async (_event, filePath) => {
 	try {
-		return s.readFileSync(p(t), "utf-8");
-	} catch (e) {
-		throw Error(`Failed to read file: ${e.message}`);
+		return fs.readFileSync(resolveAppFilePath(filePath), "utf-8");
+	} catch (error) {
+		throw new Error(`Failed to read file: ${error.message}`);
 	}
-}), i.handle("write-file", async (e, t, n) => {
+});
+ipcMain.handle("write-file", async (_event, filePath, content) => {
 	try {
-		return s.writeFileSync(p(t), n, "utf-8"), !0;
-	} catch (e) {
-		throw Error(`Failed to write file: ${e.message}`);
+		fs.writeFileSync(resolveAppFilePath(filePath), content, "utf-8");
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to write file: ${error.message}`);
 	}
-}), i.handle("capture-rect-to-clipboard", async (e, t) => {
-	if (!f) return !1;
+});
+ipcMain.handle("capture-rect-to-clipboard", async (_event, rect) => {
+	if (!win) return false;
 	try {
-		let e = await f.webContents.capturePage(t);
-		return n.writeImage(e), !0;
-	} catch (e) {
-		throw Error(`Failed to capture rect: ${e.message}`);
+		const image = await win.webContents.capturePage(rect);
+		clipboard.writeImage(image);
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to capture rect: ${error.message}`);
 	}
 });
 //#endregion
-export { u as MAIN_DIST, d as RENDERER_DIST, l as VITE_DEV_SERVER_URL };
+export { MAIN_DIST, RENDERER_DIST, VITE_DEV_SERVER_URL };

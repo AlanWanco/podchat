@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, clipboard } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, clipboard, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fork } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -90,66 +91,72 @@ app.whenReady().then(createWindow);
 ipcMain.handle('ping', () => 'pong');
 
 ipcMain.handle('export-video', async (_event, config) => {
-  console.log('Received export video request with config:', config);
-  const startTime = Date.now();
-  const rangeStart = Number(config?.exportRange?.start || 0);
-  const rangeEnd = Number(config?.exportRange?.end || 0);
-  const spanSeconds = Math.max(0.5, rangeEnd - rangeStart);
-  const totalDurationMs = Math.max(1800, Math.min(12000, Math.round(spanSeconds * 320)));
-  const stages = [
-    { until: 0.12, label: 'Preparing timeline' },
-    { until: 0.34, label: 'Collecting assets' },
-    { until: 0.78, label: 'Rendering frames' },
-    { until: 0.96, label: 'Packaging output' },
-    { until: 1, label: 'Done' }
-  ];
-
-  const sendProgress = (progress: number) => {
-    const elapsedMs = Date.now() - startTime;
-    const stage = stages.find((item) => progress <= item.until)?.label || 'Rendering';
-    const estimatedRemainingMs = progress > 0 ? Math.max(0, Math.round(elapsedMs * ((1 - progress) / progress))) : null;
-    win?.webContents.send('export-progress', {
-      progress,
-      elapsedMs,
-      estimatedRemainingMs,
-      stage
-    });
-  };
-
-  sendProgress(0);
-  await new Promise<void>((resolve) => {
-    const startedAt = Date.now();
-    const interval = setInterval(() => {
-      const progress = Math.min(1, (Date.now() - startedAt) / totalDurationMs);
-      sendProgress(progress);
-      if (progress >= 1) {
-        clearInterval(interval);
-        resolve();
-      }
-    }, 140);
-  });
-
   const outputPath = typeof config?.outputPath === 'string' ? config.outputPath : '';
-  let manifestPath: string | null = null;
-  if (outputPath) {
-    manifestPath = `${outputPath}.podchat-render.json`;
-    fs.writeFileSync(manifestPath, JSON.stringify({
-      note: 'Video renderer is not wired yet. This file records the queued export payload for verification.',
-      requestedOutputPath: outputPath,
-      createdAt: new Date().toISOString(),
-      payload: config
-    }, null, 2), 'utf-8');
+  if (!outputPath) {
+    return {
+      success: false,
+      error: 'Missing output path',
+    };
   }
 
-  return {
-    success: true,
-    placeholder: true,
-    outputPath,
-    manifestPath,
-    message: manifestPath
-      ? `Export workflow finished. Placeholder render manifest saved to ${manifestPath}`
-      : 'Export workflow finished.'
-  };
+  try {
+    const workerPath = path.join(process.env.APP_ROOT || process.cwd(), 'electron', 'remotion-worker.cjs');
+    const result = await new Promise<any>((resolve, reject) => {
+      const worker = fork(workerPath, [], {
+        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+        env: {
+          ...process.env,
+          APP_ROOT: process.env.APP_ROOT || process.cwd(),
+          VITE_PUBLIC: process.env.VITE_PUBLIC || '',
+        },
+      });
+
+      worker.on('message', (message: any) => {
+        if (!message) return;
+        if (message.type === 'progress') {
+          win?.webContents.send('export-progress', message.payload);
+          return;
+        }
+
+        if (message.type === 'result') {
+          resolve(message.payload);
+          worker.kill();
+          return;
+        }
+
+        if (message.type === 'error') {
+          reject(new Error(message.payload?.message || 'Export failed'));
+          worker.kill();
+        }
+      });
+
+      worker.on('error', reject);
+      worker.on('exit', (code) => {
+        if (code && code !== 0) {
+          reject(new Error(`Export worker exited with code ${code}`));
+        }
+      });
+
+      worker.send({
+        type: 'render',
+        payload: config,
+      });
+    });
+
+    return {
+      success: true,
+      placeholder: false,
+      outputPath: result.outputPath,
+      elapsedMs: result.elapsedMs,
+      realTimeFactor: result.realTimeFactor,
+      message: result.message,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || 'Export failed',
+    };
+  }
 });
 
 ipcMain.handle('get-export-paths', async (_event, options) => {
@@ -172,6 +179,12 @@ ipcMain.handle('show-open-dialog', async (_event, options) => {
 ipcMain.handle('show-save-dialog', async (_event, options) => {
   if (!win) return null;
   return await dialog.showSaveDialog(win, options);
+});
+
+ipcMain.handle('show-item-in-folder', async (_event, filePath) => {
+  if (!filePath) return false;
+  shell.showItemInFolder(resolveAppFilePath(filePath));
+  return true;
 });
 
 ipcMain.handle('read-file', async (_event, filePath) => {

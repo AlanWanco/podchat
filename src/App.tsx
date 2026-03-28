@@ -351,6 +351,8 @@ function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<ExportProgressState | null>(null);
   const [exportStatusMessage, setExportStatusMessage] = useState<string | null>(null);
+  const [lastExportOutputPath, setLastExportOutputPath] = useState('');
+  const [lastExportSucceeded, setLastExportSucceeded] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const portraitAutoCollapseRef = useRef<{ subtitle: boolean; settings: boolean } | null>(null);
   const savedSpeakerNamesRef = useRef<Record<string, string>>(getSpeakerNameSnapshot(config.speakers));
@@ -939,9 +941,8 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const getDefaultExportRange = useCallback(() => {
-    const earliestSubtitle = subtitles.reduce((min, item) => Math.min(min, item.start), Number.POSITIVE_INFINITY);
     const latestSubtitle = subtitles.reduce((max, item) => Math.max(max, item.end), 0);
-    const start = Number((Number.isFinite(earliestSubtitle) ? earliestSubtitle : 0).toFixed(2));
+    const start = 0;
     const end = Number(Math.max(duration || 0, latestSubtitle || 0, start).toFixed(2));
     return { start, end };
   }, [duration, subtitles]);
@@ -982,6 +983,7 @@ const [previewScale, setPreviewScale] = useState(1);
     exportRangeTouchedRef.current = false;
     setExportOutputPath('');
     setExportStatusMessage(null);
+    setLastExportSucceeded(false);
   }, [projectPath, config.assPath, config.audioPath]);
 
   useEffect(() => {
@@ -1060,6 +1062,8 @@ const [previewScale, setPreviewScale] = useState(1);
     }
 
     setIsExporting(true);
+    setLastExportOutputPath(trimmedPath);
+    setLastExportSucceeded(false);
     setExportProgress({ progress: 0, elapsedMs: 0, estimatedRemainingMs: null, stage: t('export.preparing') });
     setExportStatusMessage(t('export.preparing'));
 
@@ -1071,17 +1075,26 @@ const [previewScale, setPreviewScale] = useState(1);
       });
 
       if (res.success) {
+        setLastExportSucceeded(true);
         setExportStatusMessage(res.message || t('app.exportSuccess'));
         showToast(t(res.placeholder ? 'app.exportPlaceholder' : 'app.exportSuccess'));
       } else {
+        setLastExportSucceeded(false);
         setExportStatusMessage(res.error || t('export.failed'));
       }
     } catch (error: any) {
+      setLastExportSucceeded(false);
       setExportStatusMessage(`${t('export.failed')}: ${error.message}`);
     } finally {
       setIsExporting(false);
     }
   }, [exportOutputPath, exportRange, getExportConfig, showToast, t]);
+
+  const handleRevealExport = useCallback(async () => {
+    const targetPath = lastExportOutputPath || exportOutputPath.trim();
+    if (!window.electron || !targetPath) return;
+    await window.electron.showItemInFolder(targetPath);
+  }, [exportOutputPath, lastExportOutputPath]);
 
   const exportConfig = () => {
     const finalConfig = getExportConfig();
@@ -2024,6 +2037,7 @@ const [previewScale, setPreviewScale] = useState(1);
         defaultRangeStart={defaultExportRange.start}
         defaultRangeEnd={defaultExportRange.end}
         isExporting={isExporting}
+        exportSucceeded={lastExportSucceeded}
         progress={exportProgress}
         statusMessage={exportStatusMessage}
         onClose={() => {
@@ -2036,6 +2050,7 @@ const [previewScale, setPreviewScale] = useState(1);
         onQuickSave={() => setExportOutputPath(quickSavePath)}
         onRangeChange={updateExportRange}
         onStartExport={handleStartExport}
+        onRevealOutput={handleRevealExport}
       />
 
       {importAssData && (

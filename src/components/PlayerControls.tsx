@@ -63,6 +63,10 @@ export function PlayerControls({
   const [regionTooltip, setRegionTooltip] = useState<{ start: number; end: number } | null>(null);
   const [timeInputMode, setTimeInputMode] = useState(false);
   const [timeInputValue, setTimeInputValue] = useState('');
+  const [exportStartInputMode, setExportStartInputMode] = useState(false);
+  const [exportStartInputValue, setExportStartInputValue] = useState('');
+  const [exportEndInputMode, setExportEndInputMode] = useState(false);
+  const [exportEndInputValue, setExportEndInputValue] = useState('');
   const speedMenuRef = useRef<HTMLDivElement>(null);
   
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -105,6 +109,33 @@ export function PlayerControls({
     }
     setTimeInputMode(false);
   };
+
+  const commitExportRangeInput = (field: 'start' | 'end') => {
+    const rawValue = field === 'start' ? exportStartInputValue : exportEndInputValue;
+    const next = parseFlexibleTime(rawValue);
+    if (next !== null && Number.isFinite(next) && next >= 0) {
+      onExportRangeChange(field === 'start' ? { start: next } : { end: next });
+    }
+
+    if (field === 'start') {
+      setExportStartInputMode(false);
+      return;
+    }
+
+    setExportEndInputMode(false);
+  };
+
+  useEffect(() => {
+    if (!exportStartInputMode) {
+      setExportStartInputValue(formatTime(exportRangeStart));
+    }
+  }, [exportRangeStart, exportStartInputMode]);
+
+  useEffect(() => {
+    if (!exportEndInputMode) {
+      setExportEndInputValue(formatTime(exportRangeEnd));
+    }
+  }, [exportRangeEnd, exportEndInputMode]);
 
   // Initialize WaveSurfer
   useEffect(() => {
@@ -404,14 +435,40 @@ export function PlayerControls({
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
-                e.currentTarget.style.color = uiTheme.text;
+                e.currentTarget.style.color = secondaryThemeColor;
                 e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
               }}
               title={t('export.setCurrent')}
             >
               <Clock3 size={14} />
             </button>
-            <div className="px-1 text-[11px] font-mono tabular-nums" style={{ color: secondaryThemeColor }}>{formatTime(exportRangeStart)}</div>
+            {exportStartInputMode ? (
+              <input
+                type="text"
+                value={exportStartInputValue}
+                onChange={(e) => setExportStartInputValue(e.target.value)}
+                onBlur={() => commitExportRangeInput('start')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitExportRangeInput('start');
+                  if (e.key === 'Escape') setExportStartInputMode(false);
+                }}
+                className={`w-[82px] bg-transparent text-[11px] font-mono tabular-nums text-center outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+                autoFocus
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setExportStartInputValue(formatTime(exportRangeStart));
+                  setExportStartInputMode(true);
+                }}
+                className="px-1 text-[11px] font-mono tabular-nums transition-opacity hover:opacity-80"
+                style={{ color: secondaryThemeColor }}
+                title={t('export.start')}
+              >
+                {formatTime(exportRangeStart)}
+              </button>
+            )}
           </div>
           <button 
             onClick={onReset}
@@ -458,7 +515,33 @@ export function PlayerControls({
             <SquareSquare size={18} />
           </button>
           <div className="hidden xl:flex items-center gap-1.5 rounded-full px-2 py-1.5" style={{ backgroundColor: `${secondaryThemeColor}10`, border: `1px solid ${secondaryThemeColor}22`, boxShadow: `0 4px 14px ${secondaryThemeColor}10` }}>
-            <div className="px-1 text-[11px] font-mono tabular-nums" style={{ color: secondaryThemeColor }}>{formatTime(exportRangeEnd)}</div>
+            {exportEndInputMode ? (
+              <input
+                type="text"
+                value={exportEndInputValue}
+                onChange={(e) => setExportEndInputValue(e.target.value)}
+                onBlur={() => commitExportRangeInput('end')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitExportRangeInput('end');
+                  if (e.key === 'Escape') setExportEndInputMode(false);
+                }}
+                className={`w-[82px] bg-transparent text-[11px] font-mono tabular-nums text-center outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+                autoFocus
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setExportEndInputValue(formatTime(exportRangeEnd));
+                  setExportEndInputMode(true);
+                }}
+                className="px-1 text-[11px] font-mono tabular-nums transition-opacity hover:opacity-80"
+                style={{ color: secondaryThemeColor }}
+                title={t('export.end')}
+              >
+                {formatTime(exportRangeEnd)}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onExportRangeChange({ end: currentTime })}
@@ -471,7 +554,7 @@ export function PlayerControls({
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
-                e.currentTarget.style.color = uiTheme.text;
+                e.currentTarget.style.color = secondaryThemeColor;
                 e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
               }}
               title={t('export.setCurrent')}

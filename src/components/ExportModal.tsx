@@ -23,6 +23,7 @@ interface ExportModalProps {
   defaultRangeStart: number;
   defaultRangeEnd: number;
   isExporting: boolean;
+  exportSucceeded: boolean;
   progress: ExportProgressState | null;
   statusMessage: string | null;
   onClose: () => void;
@@ -31,6 +32,7 @@ interface ExportModalProps {
   onQuickSave: () => void;
   onRangeChange: (next: { start?: number; end?: number }) => void;
   onStartExport: () => void | Promise<void>;
+  onRevealOutput: () => void | Promise<void>;
 }
 
 const parseFlexibleTime = (value: string) => {
@@ -98,6 +100,7 @@ export function ExportModal({
   defaultRangeStart,
   defaultRangeEnd,
   isExporting,
+  exportSucceeded,
   progress,
   statusMessage,
   onClose,
@@ -105,7 +108,8 @@ export function ExportModal({
   onChoosePath,
   onQuickSave,
   onRangeChange,
-  onStartExport
+  onStartExport,
+  onRevealOutput
 }: ExportModalProps) {
   const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
@@ -189,12 +193,12 @@ export function ExportModal({
                   <div className="text-sm font-medium">{t('export.path')}</div>
                   <div className="text-xs mt-1" style={{ color: uiTheme.textMuted }}>{t('export.pathHint')}</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
                   <button
                     type="button"
                     onClick={() => void onChoosePath()}
                     disabled={isExporting}
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.16 : 0.08), border: `1px solid ${uiTheme.border}` }}
                   >
                     <FolderOpen size={13} />
@@ -204,7 +208,7 @@ export function ExportModal({
                     type="button"
                     onClick={onQuickSave}
                     disabled={isExporting}
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ backgroundColor: secondaryThemeColor, boxShadow: `0 10px 20px ${rgba(secondaryThemeColor, 0.24)}` }}
                   >
                     <Download size={13} />
@@ -326,6 +330,18 @@ export function ExportModal({
             <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.09 : 0.05), color: statusMessage ? uiTheme.text : uiTheme.textMuted }}>
               {statusMessage || t('export.statusIdle')}
             </div>
+
+            {exportSucceeded && !isExporting && outputPath ? (
+              <button
+                type="button"
+                onClick={() => void onRevealOutput()}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition-colors"
+                style={{ backgroundColor: rgba(secondaryThemeColor, 0.14), color: secondaryThemeColor, border: `1px solid ${rgba(secondaryThemeColor, 0.22)}` }}
+              >
+                <FolderOpen size={15} />
+                {t('export.openFolder')}
+              </button>
+            ) : null}
 
             <div className="mt-5 flex gap-2">
               <button

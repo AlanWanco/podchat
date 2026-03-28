@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electron', {
   getExportPaths: (options: any) => ipcRenderer.invoke('get-export-paths', options),
   showOpenDialog: (options: any) => ipcRenderer.invoke('show-open-dialog', options),
   showSaveDialog: (options: any) => ipcRenderer.invoke('show-save-dialog', options),
+  showItemInFolder: (filePath: string) => ipcRenderer.invoke('show-item-in-folder', filePath),
   getDroppedFilePath: (file: File) => webUtils.getPathForFile(file),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) => ipcRenderer.invoke('write-file', filePath, content),

@@ -3,10 +3,11 @@
 interface Window {
   electron: {
     ping: () => Promise<string>;
-    exportVideo: (config: any) => Promise<{ success: boolean; error?: string; message?: string; placeholder?: boolean; outputPath?: string; manifestPath?: string | null }>;
+    exportVideo: (config: any) => Promise<{ success: boolean; error?: string; message?: string; placeholder?: boolean; outputPath?: string; manifestPath?: string | null; elapsedMs?: number; realTimeFactor?: number }>;
     getExportPaths: (options: any) => Promise<{ runtimeDir: string; quickSavePath: string; suggestedPath: string }>;
     showOpenDialog: (options: any) => Promise<any>;
     showSaveDialog: (options: any) => Promise<any>;
+    showItemInFolder: (filePath: string) => Promise<boolean>;
     getDroppedFilePath: (file: File) => string;
     readFile: (filePath: string) => Promise<string>;
     writeFile: (filePath: string, content: string) => Promise<boolean>;
