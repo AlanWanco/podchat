@@ -38,11 +38,17 @@ const formatTimestamp = (seconds: number) => {
   return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
 };
 
+const easeOutBack = (t: number): number => {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return t === 0 ? 0 : t === 1 ? 1 : c3 * t * t * t - c1 * t * t;
+};
+
 const getBubbleAnimationStyle = (progress: number, side: SpeakerConfig['side']) => {
-  const eased = clamp(progress, 0, 1);
+  const eased = easeOutBack(clamp(progress, 0, 1));
   const translateX = side === 'left' ? -18 * (1 - eased) : side === 'right' ? 18 * (1 - eased) : 0;
   const translateY = 22 * (1 - eased);
-  const scale = 0.96 + 0.04 * eased;
+  const scale = 0.92 + 0.08 * eased;
   return `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`;
 };
 
@@ -164,17 +170,17 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
               }
 
               const isLeft = (speaker.side ?? 'left') === 'left';
-              const bgColor = speaker.style?.bgColor || (speaker.theme === 'dark' ? '#2563eb' : '#ffffff');
-              const textColor = speaker.style?.textColor || (speaker.theme === 'dark' ? '#ffffff' : '#111827');
-              const borderColor = speaker.style?.borderColor || '#ffffff';
-              const borderOpacity = speaker.style?.borderOpacity ?? 1;
-              const shadowSize = (speaker.style?.shadowSize ?? 7) * effectiveScale;
-              const fontSize = (speaker.style?.fontSize ?? 30) * bubbleScale * effectiveScale;
-              const currentProgress = animationDuration <= 0
-                ? 1
-                : clamp((currentTime - item.start + animationDuration) / animationDuration, 0, 1);
-              const avatarPx = avatarSize * effectiveScale;
-              const bubbleMaxWidth = width * 0.62;
+               const bgColor = speaker.style?.bgColor || (speaker.theme === 'dark' ? '#2563eb' : '#ffffff');
+               const textColor = speaker.style?.textColor || (speaker.theme === 'dark' ? '#ffffff' : '#111827');
+               const borderColor = speaker.style?.borderColor || '#ffffff';
+               const borderOpacity = speaker.style?.borderOpacity ?? 1;
+               const shadowSize = (speaker.style?.shadowSize ?? 7) * effectiveScale;
+               const fontSize = (speaker.style?.fontSize ?? 30) * bubbleScale * effectiveScale;
+               const currentProgress = animationDuration <= 0
+                 ? 1
+                 : clamp((currentTime - item.start + animationDuration) / animationDuration, 0, 1);
+               const avatarPx = avatarSize * effectiveScale;
+               const bubbleMaxWidth = width * 0.60;
               const radius = (speaker.style?.borderRadius ?? 28) * bubbleScale * effectiveScale;
               const bubbleGap = 16 * bubbleScale * effectiveScale;
               const metaGap = 8 * bubbleScale * effectiveScale;
@@ -182,8 +188,8 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
               const speakerBlockShadow = shadowSize > 0
                 ? `drop-shadow(0 ${Math.round(shadowSize * 0.2)}px ${Math.max(6, shadowSize * 0.55)}px rgba(15, 23, 42, 0.22))`
                 : 'none';
-              const hexBg = bgColor.startsWith('#') ? bgColor : '#ffffff';
-              const finalBgColor = rgba(hexBg, speaker.style?.opacity ?? 0.9);
+               const hexBg = bgColor.startsWith('#') ? bgColor : '#ffffff';
+               const finalBgColor = `${hexBg}${Math.floor((speaker.style?.opacity ?? 0.9) * 255).toString(16).padStart(2, '0')}`;
 
               return (
                 <div
@@ -236,16 +242,18 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                               fontSize: `${speakerNameSize * bubbleScale * effectiveScale}px`,
                               fontWeight: 700,
                               color: speaker.style?.nameColor || '#ffffff',
-                              textShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                              textShadow: '0 2px 6px rgba(0,0,0,0.35)',
+                              letterSpacing: '0.3px',
                             }}
                           >
                             {speaker.name}
                           </span>
-                          <span
+                           <span
                             style={{
-                              fontSize: `${10 * bubbleScale * effectiveScale}px`,
+                              fontSize: `${9 * bubbleScale * effectiveScale}px`,
                               fontFamily: 'monospace',
-                              color: 'rgba(255,255,255,0.6)',
+                              color: 'rgba(255,255,255,0.65)',
+                              letterSpacing: '0.5px',
                             }}
                           >
                             {formatTimestamp(item.start)}
@@ -260,8 +268,8 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                           backgroundColor: finalBgColor,
                           color: textColor,
                           borderRadius: `${radius}px`,
-                          borderTopLeftRadius: isLeft ? `${Math.max(3, 4 * bubbleScale * effectiveScale)}px` : `${radius}px`,
-                          borderTopRightRadius: !isLeft ? `${Math.max(3, 4 * bubbleScale * effectiveScale)}px` : `${radius}px`,
+                          borderTopLeftRadius: isLeft ? `${Math.max(2, 3 * bubbleScale * effectiveScale)}px` : `${radius}px`,
+                          borderTopRightRadius: !isLeft ? `${Math.max(2, 3 * bubbleScale * effectiveScale)}px` : `${radius}px`,
                           padding: `${(speaker.style?.paddingY ?? 12) * effectiveScale}px ${(speaker.style?.paddingX ?? 20) * effectiveScale}px`,
                           fontSize: `${fontSize}px`,
                           fontWeight: speaker.style?.fontWeight || 'normal',
