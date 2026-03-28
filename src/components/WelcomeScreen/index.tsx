@@ -93,7 +93,7 @@ export function WelcomeScreen({ onNewProject, onOpenProject, onOpenRecent, onOpe
 
         {recentProject && onOpenRecent && (
           <div className="mt-4">
-            <h3 className={`text-sm font-medium mb-3 ml-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{t('welcome.recent')}</h3>
+            <h3 className={`text-sm font-medium mb-3 ml-2`} style={{ color: uiTheme.textMuted }}>{t('welcome.recent')}</h3>
              <button 
                onClick={onOpenRecent}
                className="w-full flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 group shadow-sm hover:-translate-y-0.5"
@@ -104,7 +104,7 @@ export function WelcomeScreen({ onNewProject, onOpenProject, onOpenRecent, onOpe
               </div>
               <div className="flex flex-col items-start overflow-hidden flex-1">
                 <span className="font-medium text-sm">{t('welcome.resume')}</span>
-                <span className={`text-xs truncate w-full text-left mt-0.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} title={recentProject}>
+                <span style={{ color: uiTheme.textSoft }} className="text-xs truncate w-full text-left mt-0.5" title={recentProject}>
                   {recentProject}
                 </span>
               </div>

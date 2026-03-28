@@ -214,8 +214,8 @@ const runRender = async (config) => {
       concurrency: getRenderConcurrency(),
       imageFormat: 'jpeg',
       jpegQuality: 92,
-      x264Preset: 'veryfast',
-      crf: 20,
+      x264Preset: config.x264Preset || 'veryfast',
+      crf: config.crf || 20,
       pixelFormat: 'yuv420p',
       chromiumOptions: {
         disableWebSecurity: true,

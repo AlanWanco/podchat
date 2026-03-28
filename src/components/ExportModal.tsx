@@ -26,6 +26,9 @@ interface ExportModalProps {
   exportSucceeded: boolean;
   progress: ExportProgressState | null;
   statusMessage: string | null;
+  exportQuality?: 'fast' | 'balance' | 'high';
+  filenameTemplate?: 'default' | 'timestamp' | 'unix' | 'custom';
+  customFilename?: string;
   onClose: () => void;
   onOutputPathChange: (value: string) => void;
   onChoosePath: () => void | Promise<void>;
@@ -33,6 +36,9 @@ interface ExportModalProps {
   onRangeChange: (next: { start?: number; end?: number }) => void;
   onStartExport: () => void | Promise<void>;
   onRevealOutput: () => void | Promise<void>;
+  onQualityChange?: (quality: 'fast' | 'balance' | 'high') => void;
+  onFilenameTemplateChange?: (template: 'default' | 'timestamp' | 'unix' | 'custom') => void;
+  onCustomFilenameChange?: (filename: string) => void;
 }
 
 const parseFlexibleTime = (value: string) => {
@@ -103,18 +109,25 @@ export function ExportModal({
   exportSucceeded,
   progress,
   statusMessage,
+  exportQuality = 'balance',
+  filenameTemplate = 'default',
+  customFilename = '',
   onClose,
   onOutputPathChange,
   onChoosePath,
   onQuickSave,
   onRangeChange,
   onStartExport,
-  onRevealOutput
+  onRevealOutput,
+  onQualityChange,
+  onFilenameTemplateChange,
+  onCustomFilenameChange
 }: ExportModalProps) {
   const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
   const [startInput, setStartInput] = useState(formatTime(rangeStart));
   const [endInput, setEndInput] = useState(formatTime(rangeEnd));
+  const [localCustomFilename, setLocalCustomFilename] = useState(customFilename);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -125,6 +138,11 @@ export function ExportModal({
     if (!isOpen) return;
     setEndInput(formatTime(rangeEnd));
   }, [isOpen, rangeEnd]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLocalCustomFilename(customFilename);
+  }, [isOpen, customFilename]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -295,6 +313,84 @@ export function ExportModal({
                   />
                 </div>
               </div>
+            </section>
+
+            <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04) }}>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">{t('export.quality')}</div>
+                  <div className="text-xs mt-1" style={{ color: uiTheme.textMuted }}>{t('export.qualityHint')}</div>
+                </div>
+                <div className="rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.18 : 0.09), color: secondaryThemeColor }}>
+                  {exportQuality}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                {(['fast', 'balance', 'high'] as const).map((quality) => (
+                  <button
+                    key={quality}
+                    type="button"
+                    onClick={() => onQualityChange?.(quality)}
+                    disabled={isExporting}
+                    className="flex-1 rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      backgroundColor: exportQuality === quality ? rgba(secondaryThemeColor, 0.18) : rgba(themeColor, isDarkMode ? 0.08 : 0.04),
+                      color: exportQuality === quality ? secondaryThemeColor : uiTheme.text,
+                      border: `1px solid ${exportQuality === quality ? rgba(secondaryThemeColor, 0.24) : uiTheme.border}`
+                    }}
+                  >
+                    {t(`export.quality${quality.charAt(0).toUpperCase()}${quality.slice(1)}`)}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border p-4" style={{ borderColor: uiTheme.border, backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.05) }}>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">{t('export.filenameTemplate')}</div>
+                  <div className="text-xs mt-1" style={{ color: uiTheme.textMuted }}>{t('export.filenameTemplateHint')}</div>
+                </div>
+                <div className="rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: rgba(themeColor, isDarkMode ? 0.18 : 0.09), color: themeColor }}>
+                  {filenameTemplate}
+                </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                {(['default', 'timestamp', 'unix', 'custom'] as const).map((template) => (
+                  <button
+                    key={template}
+                    type="button"
+                    onClick={() => onFilenameTemplateChange?.(template)}
+                    disabled={isExporting}
+                    className="rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      backgroundColor: filenameTemplate === template ? rgba(themeColor, 0.18) : rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04),
+                      color: filenameTemplate === template ? themeColor : uiTheme.text,
+                      border: `1px solid ${filenameTemplate === template ? rgba(themeColor, 0.24) : uiTheme.border}`
+                    }}
+                  >
+                    {t(`export.filenameTemplate${template.charAt(0).toUpperCase()}${template.slice(1)}`)}
+                  </button>
+                ))}
+              </div>
+
+              {filenameTemplate === 'custom' && (
+                <div className="mt-3">
+                  <input
+                    value={localCustomFilename}
+                    onChange={(event) => {
+                      setLocalCustomFilename(event.target.value);
+                      onCustomFilenameChange?.(event.target.value);
+                    }}
+                    disabled={isExporting}
+                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ backgroundColor: uiTheme.inputBg, borderColor: rgba(themeColor, 0.24), color: uiTheme.text }}
+                    placeholder={t('export.customFilenamePlaceholder')}
+                  />
+                </div>
+              )}
             </section>
           </div>
 

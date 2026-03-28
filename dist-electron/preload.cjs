@@ -1,24 +1,23 @@
 //#endregion
 //#region electron/preload.ts
-var { contextBridge, ipcRenderer, webUtils } = (/* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, { get: (a, b) => (typeof require !== "undefined" ? require : a)[b] }) : x)(function(x) {
-	if (typeof require !== "undefined") return require.apply(this, arguments);
-	throw Error("Calling `require` for \"" + x + "\" in an environment that doesn't expose the `require` function. See https://rolldown.rs/in-depth/bundling-cjs#require-external-modules for more details.");
+var { contextBridge: e, ipcRenderer: t, webUtils: n } = (/* @__PURE__ */ ((e) => typeof require < "u" ? require : typeof Proxy < "u" ? new Proxy(e, { get: (e, t) => (typeof require < "u" ? require : e)[t] }) : e)(function(e) {
+	if (typeof require < "u") return require.apply(this, arguments);
+	throw Error("Calling `require` for \"" + e + "\" in an environment that doesn't expose the `require` function. See https://rolldown.rs/in-depth/bundling-cjs#require-external-modules for more details.");
 }))("electron");
-contextBridge.exposeInMainWorld("electron", {
-	ping: () => ipcRenderer.invoke("ping"),
-	exportVideo: (config) => ipcRenderer.invoke("export-video", config),
-	getExportPaths: (options) => ipcRenderer.invoke("get-export-paths", options),
-	showOpenDialog: (options) => ipcRenderer.invoke("show-open-dialog", options),
-	showSaveDialog: (options) => ipcRenderer.invoke("show-save-dialog", options),
-	showItemInFolder: (filePath) => ipcRenderer.invoke("show-item-in-folder", filePath),
-	getDroppedFilePath: (file) => webUtils.getPathForFile(file),
-	readFile: (filePath) => ipcRenderer.invoke("read-file", filePath),
-	writeFile: (filePath, content) => ipcRenderer.invoke("write-file", filePath, content),
-	captureRectToClipboard: (rect) => ipcRenderer.invoke("capture-rect-to-clipboard", rect),
-	onExportProgress: (callback) => {
-		const listener = (_event, value) => callback(value);
-		ipcRenderer.on("export-progress", listener);
-		return () => ipcRenderer.removeListener("export-progress", listener);
+e.exposeInMainWorld("electron", {
+	ping: () => t.invoke("ping"),
+	exportVideo: (e) => t.invoke("export-video", e),
+	getExportPaths: (e) => t.invoke("get-export-paths", e),
+	showOpenDialog: (e) => t.invoke("show-open-dialog", e),
+	showSaveDialog: (e) => t.invoke("show-save-dialog", e),
+	showItemInFolder: (e) => t.invoke("show-item-in-folder", e),
+	getDroppedFilePath: (e) => n.getPathForFile(e),
+	readFile: (e) => t.invoke("read-file", e),
+	writeFile: (e, n) => t.invoke("write-file", e, n),
+	captureRectToClipboard: (e) => t.invoke("capture-rect-to-clipboard", e),
+	onExportProgress: (e) => {
+		let n = (t, n) => e(n);
+		return t.on("export-progress", n), () => t.removeListener("export-progress", n);
 	}
 });
 //#endregion

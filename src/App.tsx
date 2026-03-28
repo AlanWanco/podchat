@@ -353,6 +353,9 @@ function App() {
   const [exportStatusMessage, setExportStatusMessage] = useState<string | null>(null);
   const [lastExportOutputPath, setLastExportOutputPath] = useState('');
   const [lastExportSucceeded, setLastExportSucceeded] = useState(false);
+  const [exportQuality, setExportQuality] = useState<'fast' | 'balance' | 'high'>('balance');
+  const [filenameTemplate, setFilenameTemplate] = useState<'default' | 'timestamp' | 'unix' | 'custom'>('default');
+  const [customFilename, setCustomFilename] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const portraitAutoCollapseRef = useRef<{ subtitle: boolean; settings: boolean } | null>(null);
   const savedSpeakerNamesRef = useRef<Record<string, string>>(getSpeakerNameSnapshot(config.speakers));
@@ -926,6 +929,38 @@ const [previewScale, setPreviewScale] = useState(1);
     }
   }, [currentTime]);
 
+  const generateFilename = (template: 'default' | 'timestamp' | 'unix' | 'custom', customName: string): string => {
+    if (template === 'custom' && customName.trim()) {
+      const name = customName.trim();
+      return name.endsWith('.mp4') ? name : `${name}.mp4`;
+    }
+
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const timeStr = String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '-' + String(now.getSeconds()).padStart(2, '0');
+    const unixTime = Math.floor(now.getTime() / 1000);
+
+    if (template === 'timestamp') {
+      return `podchat_${dateStr}_${timeStr}.mp4`;
+    }
+    if (template === 'unix') {
+      return `podchat_${unixTime}.mp4`;
+    }
+    return 'podchat.mp4';
+  };
+
+  const calculateCRF = (quality: 'fast' | 'balance' | 'high'): number => {
+    if (quality === 'fast') return 23;
+    if (quality === 'high') return 18;
+    return 20;
+  };
+
+  const calculateX264Preset = (quality: 'fast' | 'balance' | 'high'): 'ultrafast' | 'veryfast' | 'fast' => {
+    if (quality === 'fast') return 'ultrafast';
+    if (quality === 'high') return 'fast';
+    return 'veryfast';
+  };
+
   const getExportConfig = () => {
     const { ui, ...restConfig } = config;
     return {
@@ -1050,10 +1085,19 @@ const [previewScale, setPreviewScale] = useState(1);
       return;
     }
 
-    const trimmedPath = exportOutputPath.trim();
+    let trimmedPath = exportOutputPath.trim();
     if (!trimmedPath) {
       setExportStatusMessage(t('export.pathRequired'));
       return;
+    }
+
+    // 如果输入的是目录路径，则生成文件名
+    const filename = generateFilename(filenameTemplate, customFilename);
+    if (trimmedPath.endsWith('/') || trimmedPath.endsWith('\\')) {
+      trimmedPath = trimmedPath + filename;
+    } else if (!trimmedPath.endsWith('.mp4')) {
+      // 如果没有扩展名，假设是目录
+      trimmedPath = trimmedPath + '/' + filename;
     }
 
     if (exportRange.end <= exportRange.start) {
@@ -1068,10 +1112,16 @@ const [previewScale, setPreviewScale] = useState(1);
     setExportStatusMessage(t('export.preparing'));
 
     try {
+      const crf = calculateCRF(exportQuality);
+      const preset = calculateX264Preset(exportQuality);
+      
       const res = await window.electron.exportVideo({
         ...getExportConfig(),
         outputPath: trimmedPath,
-        exportRange
+        exportRange,
+        exportQuality,
+        crf,
+        x264Preset: preset
       });
 
       if (res.success) {
@@ -1092,7 +1142,7 @@ const [previewScale, setPreviewScale] = useState(1);
     } finally {
       setIsExporting(false);
     }
-  }, [exportOutputPath, exportRange, getExportConfig, showToast, t]);
+  }, [exportOutputPath, exportRange, exportQuality, filenameTemplate, customFilename, getExportConfig, showToast, t, generateFilename, calculateCRF, calculateX264Preset]);
 
   const handleRevealExport = useCallback(async () => {
     const targetPath = lastExportOutputPath || exportOutputPath.trim();
@@ -2044,6 +2094,9 @@ const [previewScale, setPreviewScale] = useState(1);
         exportSucceeded={lastExportSucceeded}
         progress={exportProgress}
         statusMessage={exportStatusMessage}
+        exportQuality={exportQuality}
+        filenameTemplate={filenameTemplate}
+        customFilename={customFilename}
         onClose={() => {
           if (!isExporting) {
             setShowExportModal(false);
@@ -2053,6 +2106,9 @@ const [previewScale, setPreviewScale] = useState(1);
         onChoosePath={handleChooseExportPath}
         onQuickSave={() => setExportOutputPath(quickSavePath)}
         onRangeChange={updateExportRange}
+        onQualityChange={setExportQuality}
+        onFilenameTemplateChange={setFilenameTemplate}
+        onCustomFilenameChange={setCustomFilename}
         onStartExport={handleStartExport}
         onRevealOutput={handleRevealExport}
       />
