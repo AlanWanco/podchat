@@ -111,6 +111,12 @@ ipcMain.handle('export-video', async (_event, config) => {
         },
       });
 
+      // Set timeout for export (5 hours max)
+      const timeout = setTimeout(() => {
+        worker.kill();
+        reject(new Error('Export timeout: operation took too long'));
+      }, 5 * 60 * 60 * 1000);
+
       worker.on('message', (message: any) => {
         if (!message) return;
         if (message.type === 'progress') {
@@ -119,19 +125,26 @@ ipcMain.handle('export-video', async (_event, config) => {
         }
 
         if (message.type === 'result') {
+          clearTimeout(timeout);
           resolve(message.payload);
           worker.kill();
           return;
         }
 
         if (message.type === 'error') {
+          clearTimeout(timeout);
           reject(new Error(message.payload?.message || 'Export failed'));
           worker.kill();
         }
       });
 
-      worker.on('error', reject);
+      worker.on('error', (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+      
       worker.on('exit', (code) => {
+        clearTimeout(timeout);
         if (code && code !== 0) {
           reject(new Error(`Export worker exited with code ${code}`));
         }

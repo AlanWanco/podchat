@@ -251,10 +251,14 @@ process.on('message', (message) => {
   }
 
   runRender(message.payload).catch((error) => {
+    const errorMessage = error && error.message ? error.message : 'Unknown export error';
+    const stack = error && error.stack ? error.stack : '';
+    console.error('Export error:', errorMessage, stack);
+    
     sendMessage({
       type: 'error',
       payload: {
-        message: error && error.message ? error.message : 'Export failed',
+        message: errorMessage,
       },
     });
   });

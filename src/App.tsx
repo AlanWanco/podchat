@@ -1080,11 +1080,15 @@ const [previewScale, setPreviewScale] = useState(1);
         showToast(t(res.placeholder ? 'app.exportPlaceholder' : 'app.exportSuccess'));
       } else {
         setLastExportSucceeded(false);
-        setExportStatusMessage(res.error || t('export.failed'));
+        const errorMsg = res.error || t('export.failed');
+        setExportStatusMessage(errorMsg);
+        showToast(errorMsg);
       }
     } catch (error: any) {
       setLastExportSucceeded(false);
-      setExportStatusMessage(`${t('export.failed')}: ${error.message}`);
+      const errorMsg = `${t('export.failed')}: ${error.message}`;
+      setExportStatusMessage(errorMsg);
+      showToast(errorMsg);
     } finally {
       setIsExporting(false);
     }
