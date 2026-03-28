@@ -330,11 +330,18 @@ function App() {
   const { subtitles, setSubtitles, loading: subtitlesLoading } = useAssSubtitle(config.assPath, config.speakers);
   const canvasWidth = config.dimensions?.width || 1920;
   const canvasHeight = config.dimensions?.height || 1080;
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   const isPortraitCanvas = canvasHeight > canvasWidth;
-  const shouldHideSidePanels = isPortraitCanvas;
+  const shouldHideSidePanels = isPortraitCanvas || windowWidth < 700;
   const aspectRatio = `${canvasWidth} / ${canvasHeight}`;
   const aspectLabel = `${canvasWidth}:${canvasHeight}`;
-  const [previewScale, setPreviewScale] = useState(1);
+const [previewScale, setPreviewScale] = useState(1);
   const [previewFrameSize, setPreviewFrameSize] = useState(() => {
     const base = 520;
     const scale = Math.min(base / canvasWidth, base / canvasHeight);
@@ -776,32 +783,26 @@ function App() {
   }, [settingsPosition]);
 
   useEffect(() => {
-    if (isPortraitCanvas) {
+    const isNarrowOrPortrait = isPortraitCanvas || windowWidth < 700;
+    
+    if (isNarrowOrPortrait) {
       if (!portraitAutoCollapseRef.current) {
         portraitAutoCollapseRef.current = {
           subtitle: showSubtitlePanel,
           settings: showSettings
         };
       }
-
-      if (showSubtitlePanel) {
-        setShowSubtitlePanel(false);
+      setShowSubtitlePanel(false);
+      setShowSettings(false);
+    } else {
+      if (portraitAutoCollapseRef.current) {
+        const previousState = portraitAutoCollapseRef.current;
+        portraitAutoCollapseRef.current = null;
+        setShowSubtitlePanel(previousState.subtitle);
+        setShowSettings(previousState.settings);
       }
-
-      if (showSettings) {
-        setShowSettings(false);
-      }
-
-      return;
     }
-
-    if (portraitAutoCollapseRef.current) {
-      const previousState = portraitAutoCollapseRef.current;
-      portraitAutoCollapseRef.current = null;
-      setShowSubtitlePanel(previousState.subtitle);
-      setShowSettings(previousState.settings);
-    }
-  }, [isPortraitCanvas, showSettings, showSubtitlePanel]);
+  }, [isPortraitCanvas, windowWidth]); // intentionally omitted showSettings and showSubtitlePanel to allow manual toggling
 
   // Update window title with project path
   useEffect(() => {

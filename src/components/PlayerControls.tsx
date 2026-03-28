@@ -342,10 +342,7 @@ export function PlayerControls({
         <div className="flex items-center gap-4 flex-1 min-w-0">
           {timeInputMode ? (
             <input
-              type="number"
-              min="0"
-              max={duration || undefined}
-              step="0.1"
+              type="text"
               value={timeInputValue}
               onChange={(e) => setTimeInputValue(e.target.value)}
               onBlur={commitTimeJump}
@@ -353,7 +350,7 @@ export function PlayerControls({
                 if (e.key === 'Enter') commitTimeJump();
                 if (e.key === 'Escape') setTimeInputMode(false);
               }}
-              className={`text-2xl font-mono font-medium tracking-wider min-w-[8rem] px-3 py-1 rounded-xl focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+              className={`text-lg font-mono font-medium tracking-wider min-w-[6rem] px-3 py-1 text-center rounded-full focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
               style={{ backgroundColor: `${secondaryThemeColor}14`, border: `1px solid ${secondaryThemeColor}33` }}
               autoFocus
             />
@@ -364,14 +361,14 @@ export function PlayerControls({
                 setTimeInputValue(formatTime(currentTime));
                 setTimeInputMode(true);
               }}
-              className={`text-2xl font-mono font-medium tracking-wider inline-flex min-w-[8rem] px-3 py-1.5 rounded-xl ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+              className={`text-lg font-mono font-medium tracking-wider inline-flex min-w-[6rem] px-3 py-1 justify-center rounded-full ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
               style={{ backgroundColor: `${secondaryThemeColor}14`, border: `1px solid ${secondaryThemeColor}33` }}
               title="Double click to jump (supports 00:00:00.00)"
             >
               {formatTime(currentTime)}
             </button>
           )}
-          <span className={`text-2xl font-mono ${textClass}`}>/ {formatTime(duration)}</span>
+          <span className={`text-lg font-mono ${textClass}`}>/ {formatTime(duration)}</span>
         </div>
 
         <div className="flex items-center gap-3 justify-center shrink-0">
