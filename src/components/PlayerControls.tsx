@@ -436,25 +436,46 @@ export function PlayerControls({
               <ChevronsLeft size={14} />
             </button>
             <button
-              type="button"
-              onClick={() => onExportRangeChange({ start: currentTime })}
-              className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
-              style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = secondaryThemeColor;
-                e.currentTarget.style.color = '#ffffff';
-                e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
-                e.currentTarget.style.color = secondaryThemeColor;
-                e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
-              }}
-              title={t('export.setCurrent')}
-            >
-              <Clock3 size={14} />
-            </button>
-            {exportStartInputMode ? (
+               type="button"
+               onClick={() => onExportRangeChange({ start: currentTime })}
+               className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
+               style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
+               onMouseEnter={(e) => {
+                 e.currentTarget.style.backgroundColor = secondaryThemeColor;
+                 e.currentTarget.style.color = '#ffffff';
+                 e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
+               }}
+               onMouseLeave={(e) => {
+                 e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
+                 e.currentTarget.style.color = secondaryThemeColor;
+                 e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
+               }}
+               title={t('export.setCurrent')}
+             >
+               <Clock3 size={14} />
+             </button>
+             {editingSub && editingSub.start >= 0 && (
+               <button
+                 type="button"
+                 onClick={() => onExportRangeChange({ start: editingSub.start })}
+                 className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
+                 style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
+                 onMouseEnter={(e) => {
+                   e.currentTarget.style.backgroundColor = secondaryThemeColor;
+                   e.currentTarget.style.color = '#ffffff';
+                   e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
+                 }}
+                 onMouseLeave={(e) => {
+                   e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
+                   e.currentTarget.style.color = secondaryThemeColor;
+                   e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
+                 }}
+                 title={t('export.useSubtitleStart')}
+               >
+                 <ChevronsRight size={14} />
+               </button>
+             )}
+             {exportStartInputMode ? (
               <input
                 type="text"
                 value={exportStartInputValue}
@@ -553,46 +574,67 @@ export function PlayerControls({
               >
                 {formatTime(exportRangeEnd)}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onExportRangeChange({ end: currentTime })}
-              className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
-              style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = secondaryThemeColor;
-                e.currentTarget.style.color = '#ffffff';
-                e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
-                e.currentTarget.style.color = secondaryThemeColor;
-                e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
-              }}
-              title={t('export.setCurrent')}
-            >
-              <Clock3 size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onExportRangeChange({ end: defaultExportEnd })}
-              className="rounded-full p-1.5 transition-all duration-200 hover:scale-105 hover:text-white"
-              style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = secondaryThemeColor;
-                e.currentTarget.style.color = '#ffffff';
-                e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
-                e.currentTarget.style.color = secondaryThemeColor;
-                e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
-              }}
-              title={t('export.useLatest')}
-            >
-              <ChevronsRight size={14} />
-            </button>
-          </div>
+             )}
+             <button
+               type="button"
+               onClick={() => onExportRangeChange({ end: currentTime })}
+               className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
+               style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
+               onMouseEnter={(e) => {
+                 e.currentTarget.style.backgroundColor = secondaryThemeColor;
+                 e.currentTarget.style.color = '#ffffff';
+                 e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
+               }}
+               onMouseLeave={(e) => {
+                 e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
+                 e.currentTarget.style.color = secondaryThemeColor;
+                 e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
+               }}
+               title={t('export.setCurrent')}
+             >
+               <Clock3 size={14} />
+             </button>
+             {editingSub && editingSub.end >= 0 && (
+               <button
+                 type="button"
+                 onClick={() => onExportRangeChange({ end: editingSub.end })}
+                 className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
+                 style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
+                 onMouseEnter={(e) => {
+                   e.currentTarget.style.backgroundColor = secondaryThemeColor;
+                   e.currentTarget.style.color = '#ffffff';
+                   e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
+                 }}
+                 onMouseLeave={(e) => {
+                   e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
+                   e.currentTarget.style.color = secondaryThemeColor;
+                   e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
+                 }}
+                 title={t('export.useSubtitleEnd')}
+               >
+                 <ChevronsLeft size={14} />
+               </button>
+             )}
+             <button
+               type="button"
+               onClick={() => onExportRangeChange({ end: defaultExportEnd })}
+               className="rounded-full p-1.5 transition-all duration-200 hover:scale-105 hover:text-white"
+               style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
+               onMouseEnter={(e) => {
+                 e.currentTarget.style.backgroundColor = secondaryThemeColor;
+                 e.currentTarget.style.color = '#ffffff';
+                 e.currentTarget.style.boxShadow = `0 8px 18px ${secondaryThemeColor}33`;
+               }}
+               onMouseLeave={(e) => {
+                 e.currentTarget.style.backgroundColor = `${secondaryThemeColor}14`;
+                 e.currentTarget.style.color = secondaryThemeColor;
+                 e.currentTarget.style.boxShadow = '0 0 0 0 transparent';
+               }}
+               title={t('export.useLatest')}
+             >
+               <ChevronsRight size={14} />
+             </button>
+           </div>
         </div>
 
         <div className={`flex items-center justify-end gap-4 flex-1 min-w-0 ${textClass}`}>
