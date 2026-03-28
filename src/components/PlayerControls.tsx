@@ -353,7 +353,7 @@ export function PlayerControls({
                 if (e.key === 'Enter') commitTimeJump();
                 if (e.key === 'Escape') setTimeInputMode(false);
               }}
-              className={`text-3xl font-mono font-medium tracking-wider min-w-[10rem] px-2 py-1 rounded-md focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+              className={`text-2xl font-mono font-medium tracking-wider min-w-[8rem] px-3 py-1 rounded-xl focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
               style={{ backgroundColor: `${secondaryThemeColor}14`, border: `1px solid ${secondaryThemeColor}33` }}
               autoFocus
             />
@@ -364,14 +364,14 @@ export function PlayerControls({
                 setTimeInputValue(formatTime(currentTime));
                 setTimeInputMode(true);
               }}
-              className={`text-3xl font-mono font-medium tracking-wider inline-flex min-w-[10rem] px-2 py-1 rounded-md ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+              className={`text-2xl font-mono font-medium tracking-wider inline-flex min-w-[8rem] px-3 py-1.5 rounded-xl ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
               style={{ backgroundColor: `${secondaryThemeColor}14`, border: `1px solid ${secondaryThemeColor}33` }}
               title="Double click to jump (supports 00:00:00.00)"
             >
               {formatTime(currentTime)}
             </button>
           )}
-          <span className={`text-lg font-mono ${textClass}`}>/ {formatTime(duration)}</span>
+          <span className={`text-2xl font-mono ${textClass}`}>/ {formatTime(duration)}</span>
         </div>
 
         <div className="flex items-center gap-3 justify-center shrink-0">
@@ -399,7 +399,7 @@ export function PlayerControls({
               type="button"
               onClick={() => onExportRangeChange({ start: currentTime })}
               className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
-              style={{ backgroundColor: `${secondaryThemeColor}14`, color: uiTheme.text, boxShadow: `0 0 0 0 transparent` }}
+              style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = secondaryThemeColor;
                 e.currentTarget.style.color = '#ffffff';
@@ -466,7 +466,7 @@ export function PlayerControls({
               type="button"
               onClick={() => onExportRangeChange({ end: currentTime })}
               className="rounded-full p-1.5 transition-all duration-200 hover:scale-105"
-              style={{ backgroundColor: `${secondaryThemeColor}14`, color: uiTheme.text, boxShadow: `0 0 0 0 transparent` }}
+              style={{ backgroundColor: `${secondaryThemeColor}14`, color: secondaryThemeColor, boxShadow: `0 0 0 0 transparent` }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = secondaryThemeColor;
                 e.currentTarget.style.color = '#ffffff';
