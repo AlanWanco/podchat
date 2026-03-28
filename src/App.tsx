@@ -296,7 +296,7 @@ function App() {
   
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem(THEME_KEY) !== 'light');
   const [themeColorState, setThemeColorState] = useState(() => localStorage.getItem(THEME_COLOR_KEY) || '');
-  const [secondaryThemeColorState, setSecondaryThemeColorState] = useState(() => localStorage.getItem(SECONDARY_THEME_COLOR_KEY) || '#01b7ee');
+  const [secondaryThemeColorState, setSecondaryThemeColorState] = useState(() => localStorage.getItem(SECONDARY_THEME_COLOR_KEY) || '#f472b6');
   const [showSettings, setShowSettings] = useState(false);
   const [showSubtitlePanel, setShowSubtitlePanel] = useState(true);
   
@@ -330,68 +330,7 @@ function App() {
   const { subtitles, setSubtitles, loading: subtitlesLoading } = useAssSubtitle(config.assPath, config.speakers);
   const canvasWidth = config.dimensions?.width || 1920;
   const canvasHeight = config.dimensions?.height || 1080;
-    useEffect(() => {
-    const preventDefault = (e: Event) => e.preventDefault();
-    
-    // Global prevent default to avoid browser navigation
-    window.addEventListener('dragenter', preventDefault, false);
-    window.addEventListener('dragover', preventDefault, false);
-    window.addEventListener('drop', preventDefault, false);
-    
-    // We handle the actual drag drop globally to ensure it never fails due to React event bubbling issues
-    const handleNativeDragOver = (e: DragEvent) => {
-      e.preventDefault();
-      if (!window.electron) return;
-      if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = 'copy';
-      }
-      setIsDragOver(true);
-    };
-    
-    const handleNativeDragLeave = (e: DragEvent) => {
-      e.preventDefault();
-      // Ensure we only hide overlay if we are leaving the actual window
-      if (!e.relatedTarget || (e.relatedTarget as HTMLElement).nodeName === 'HTML') {
-        setIsDragOver(false);
-      }
-    };
-    
-    const handleNativeDrop = (e: DragEvent) => {
-      e.preventDefault();
-      setIsDragOver(false);
-      if (!window.electron) return;
-      
-      const droppedFiles = Array.from(e.dataTransfer?.files || []);
-      const firstPath = (droppedFiles[0] as any)?.path;
-      
-      if (firstPath) {
-        // Use timeout to prevent native dialogs from hanging the drag-and-drop session
-        setTimeout(() => {
-          // We have to use the latest projectPath state, but since it's a closure, 
-          // we should ideally use a ref or just rely on the fact that if this fires on the welcome screen,
-          // projectPath is null anyway.
-          // To be perfectly safe, we dispatch a custom event that App.tsx listens to,
-          // or we just call importFileByPath directly. But importFileByPath is a React callback.
-          // Let's dispatch a custom event.
-          window.dispatchEvent(new CustomEvent('podchat-file-drop', { detail: { path: firstPath } }));
-        }, 50);
-      }
-    };
-
-    window.addEventListener('dragover', handleNativeDragOver);
-    window.addEventListener('dragleave', handleNativeDragLeave);
-    window.addEventListener('drop', handleNativeDrop);
-
-    return () => {
-      window.removeEventListener('dragenter', preventDefault);
-      window.removeEventListener('dragover', preventDefault);
-      window.removeEventListener('drop', preventDefault);
-      window.removeEventListener('dragover', handleNativeDragOver);
-      window.removeEventListener('dragleave', handleNativeDragLeave);
-      window.removeEventListener('drop', handleNativeDrop);
-    };
-  }, []);
-
+  
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -806,7 +745,7 @@ const [previewScale, setPreviewScale] = useState(1);
   const language = (config.language || 'zh-CN') as Language;
   const t = useCallback((key: string, vars?: Record<string, string | number>) => translate(language, key, vars), [language]);
   const themeColor = themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT);
-  const secondaryThemeColor = secondaryThemeColorState || '#01b7ee';
+  const secondaryThemeColor = secondaryThemeColorState || '#f472b6';
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
   const appBackground = isDarkMode
     ? `linear-gradient(180deg, ${uiTheme.appBg} 0%, ${uiTheme.appBg} 74%, ${secondaryThemeColor}14 100%)`
@@ -831,7 +770,7 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [themeColorState, isDarkMode]);
 
   useEffect(() => {
-    localStorage.setItem(SECONDARY_THEME_COLOR_KEY, secondaryThemeColorState || '#01b7ee');
+    localStorage.setItem(SECONDARY_THEME_COLOR_KEY, secondaryThemeColorState || '#f472b6');
   }, [secondaryThemeColorState]);
 
   useEffect(() => {
@@ -1349,16 +1288,6 @@ const [previewScale, setPreviewScale] = useState(1);
     }
   }, [showToast, t]);
 
-  useEffect(() => {
-    const handleCustomDrop = (e: any) => {
-      const filePath = e.detail?.path;
-      if (filePath) {
-        void importFileByPath(filePath, projectPath);
-      }
-    };
-    window.addEventListener('podchat-file-drop', handleCustomDrop);
-    return () => window.removeEventListener('podchat-file-drop', handleCustomDrop);
-  }, [importFileByPath, projectPath]);
 
   const handleSelectImage = async (): Promise<string | null> => {
     if (!window.electron) {
@@ -1473,9 +1402,39 @@ const [previewScale, setPreviewScale] = useState(1);
     return currentTime >= appearanceTime && currentTime <= item.end;
   });
 
+  const handleAppDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.electron) return;
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  };
+  const handleAppDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragOver(false);
+  };
+  const handleAppDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    if (!window.electron) return;
+    const droppedFiles = Array.from(e.dataTransfer.files || []);
+    const firstPath = (droppedFiles[0] as any)?.path;
+    
+    if (firstPath) {
+      // Delay opening native dialogs to let OS drag-and-drop state machine finish
+      setTimeout(() => {
+        void importFileByPath(firstPath, projectPath);
+      }, 100);
+    }
+  };
+
   if (!projectPath) {
     return (
-      <div className="relative w-full h-screen" style={{ background: appBackground, color: uiTheme.text, ['--podchat-scrollbar-thumb' as any]: `${secondaryThemeColor}77`, ['--podchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}AA` }}>
+      <div className="relative w-full h-screen" style={{ background: appBackground, color: uiTheme.text, ['--podchat-scrollbar-thumb' as any]: `${secondaryThemeColor}77`, ['--podchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}AA` }} onDragOver={handleAppDragOver} onDragLeave={handleAppDragLeave} onDrop={handleAppDrop}>
         <WelcomeScreen 
           onNewProject={handleNewProject} 
           onOpenProject={handleOpenProject} 
@@ -1534,6 +1493,9 @@ const [previewScale, setPreviewScale] = useState(1);
     <div
       className={`w-full h-screen flex flex-col font-sans ${textClass} overflow-hidden transition-colors duration-300 relative`}
       style={{ background: appBackground, ['--podchat-scrollbar-thumb' as any]: `${secondaryThemeColor}77`, ['--podchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}AA` }}
+      onDragOver={handleAppDragOver}
+      onDragLeave={handleAppDragLeave}
+      onDrop={handleAppDrop}
 
     >
       
