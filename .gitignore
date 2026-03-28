@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-electron
+dist-test
 dist-ssr
 release
 *.local
