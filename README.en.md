@@ -197,6 +197,7 @@ On Windows, the workflow produces both:
 - You may still see some Vite or Electron warnings in development mode
 - Some Electron settings are still development-oriented and may be tightened later
 - If the app name or local config directory changes, old local preferences are not migrated automatically
+- Some exported videos may show slight 1-2 pixel jitter on certain elements, likely caused by sub-pixel layout values and per-frame rounding during rendering
 
 ## Todo
 
