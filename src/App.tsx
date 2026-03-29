@@ -383,7 +383,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<'subtitle' | 'global' | 'project' | 'speakers' | 'annotation'>(
     !window.electron && window.innerWidth < 700 ? 'subtitle' : 'speakers'
   );
-  const [isMobileSubtitleCollapsed, setIsMobileSubtitleCollapsed] = useState(false);
+  const [isMobileBottomPanelCollapsed, setIsMobileBottomPanelCollapsed] = useState(false);
   const [mobileBottomPanelHeight, setMobileBottomPanelHeight] = useState(340);
   const [editingSub, setEditingSub] = useState<{ id: string, start: number, end: number, text: string } | null>(null);
   const [importAssData, setImportAssData] = useState<{ path: string, content: string } | null>(null);
@@ -1538,6 +1538,29 @@ const [previewScale, setPreviewScale] = useState(1);
     document.addEventListener('mouseup', onMouseUp);
   };
 
+  const startMobileBottomResizeTouch = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const startY = e.touches[0]?.clientY ?? 0;
+    const startHeight = mobileBottomPanelHeight;
+
+    const onTouchMove = (moveEvent: TouchEvent) => {
+      const currentY = moveEvent.touches[0]?.clientY ?? startY;
+      const delta = startY - currentY;
+      const next = Math.max(220, Math.min(560, startHeight + delta));
+      setMobileBottomPanelHeight(next);
+    };
+
+    const onTouchEnd = () => {
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchcancel', onTouchEnd);
+    };
+
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+    document.addEventListener('touchcancel', onTouchEnd);
+  };
+
   const resolvePath = (path: string | undefined): string | undefined => {
     if (!path) return undefined;
 
@@ -2194,13 +2217,13 @@ const [previewScale, setPreviewScale] = useState(1);
           secondaryThemeColor={secondaryThemeColor}
         />
 
-        {showSettings && !shouldHideSidePanels && (
+        {showSettings && (
           <div className="absolute inset-y-0 right-0 z-[120] flex">
             <div
               className="absolute inset-0 bg-black/20"
               onClick={() => setShowSettings(false)}
             />
-            <div style={{ width: settingsWidth }} className="relative h-full shrink-0 flex flex-col min-h-0 overflow-hidden shadow-2xl">
+            <div style={{ width: shouldHideSidePanels ? Math.min(windowWidth - 24, 420) : settingsWidth }} className="relative h-full shrink-0 flex flex-col min-h-0 overflow-hidden shadow-2xl">
               <SettingsPanel
                 config={config}
                 onConfigChange={setConfig}
@@ -2537,8 +2560,8 @@ const [previewScale, setPreviewScale] = useState(1);
                 onContextMenu={handleCopyPreviewToClipboard}
                 className="relative pointer-events-auto bg-transparent rounded-lg overflow-hidden flex flex-col border shrink-0"
                 style={{
-                  width: `${previewFrameSize.width}px`,
-                  height: `${previewFrameSize.height}px`,
+                  width: `${(isMobileWebLayout ? previewFrameSize.width * 0.94 : previewFrameSize.width)}px`,
+                  height: `${(isMobileWebLayout ? previewFrameSize.height * 0.94 : previewFrameSize.height)}px`,
                   aspectRatio,
                   borderColor: isDarkMode ? '#1f2937' : '#d1d5db',
                   isolation: 'isolate',
@@ -2749,15 +2772,18 @@ const [previewScale, setPreviewScale] = useState(1);
       />
 
       {isMobileWebLayout && (
-        <div className="border-t overflow-hidden" style={{ height: `${mobileBottomPanelHeight}px`, minHeight: '220px', maxHeight: '560px', borderColor: uiTheme.border, backgroundColor: uiTheme.panelBg }}>
-          <div
-            className="h-2 cursor-row-resize border-b flex items-center justify-center"
-            onMouseDown={startMobileBottomResize}
-            style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}
-            title={t('app.dragHint')}
-          >
-            <div className="h-1 w-10 rounded-full" style={{ backgroundColor: `${secondaryThemeColor}66` }} />
-          </div>
+        <div className="border-t overflow-hidden" style={{ height: isMobileBottomPanelCollapsed ? '44px' : `${mobileBottomPanelHeight}px`, minHeight: isMobileBottomPanelCollapsed ? '44px' : '220px', maxHeight: '560px', borderColor: uiTheme.border, backgroundColor: uiTheme.panelBg }}>
+          {!isMobileBottomPanelCollapsed && (
+            <div
+              className="h-2 cursor-row-resize border-b flex items-center justify-center"
+              onMouseDown={startMobileBottomResize}
+              onTouchStart={startMobileBottomResizeTouch}
+              style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}
+              title={t('app.dragHint')}
+            >
+              <div className="h-1 w-10 rounded-full" style={{ backgroundColor: `${secondaryThemeColor}66` }} />
+            </div>
+          )}
           <SettingsPanel
             config={config}
             onConfigChange={setConfig}
@@ -2772,8 +2798,7 @@ const [previewScale, setPreviewScale] = useState(1);
             settingsPosition={settingsPosition}
             onPositionChange={setSettingsPosition}
             onClose={() => {
-              setIsMobileSubtitleCollapsed((prev) => !prev);
-              setActiveTab('subtitle');
+              setIsMobileBottomPanelCollapsed((prev) => !prev);
             }}
             onSave={window.electron ? handleSaveProject : handleSaveConfig}
             showToast={showToast}
@@ -2784,43 +2809,27 @@ const [previewScale, setPreviewScale] = useState(1);
             onSelectImage={handleSelectImage}
             showSubtitleTab
             compactHeader
-            hideHeaderTitle
-            hideHeaderSave
+            hideHeader
+            panelCollapsed={isMobileBottomPanelCollapsed}
+            onTogglePanelCollapsed={() => setIsMobileBottomPanelCollapsed((prev) => !prev)}
             subtitleContent={(
               <div className="h-full min-h-0 flex flex-col">
-                <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}>
-                  <span className="text-sm font-medium" style={{ color: uiTheme.text }}>{t('subtitle.title')}</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsMobileSubtitleCollapsed((prev) => !prev)}
-                    className="px-2.5 py-1 rounded text-xs border transition-colors"
-                    style={{ borderColor: uiTheme.border, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
-                  >
-                    {isMobileSubtitleCollapsed ? t('subtitle.expand') : t('subtitle.collapse')}
-                  </button>
+                <div className="flex-1 min-h-0">
+                  <SubtitlePanel
+                    subtitles={subtitles}
+                    currentTime={currentTime}
+                    isDarkMode={isDarkMode}
+                    language={language}
+                    themeColor={themeColor}
+                    secondaryThemeColor={secondaryThemeColor}
+                    speakers={config.speakers}
+                    onSeek={handleSeek}
+                    onUpdateSubtitle={handleUpdateSubtitle}
+                    onDeleteSubtitle={handleDeleteSubtitle}
+                    editingSub={editingSub}
+                    setEditingSub={setEditingSub}
+                  />
                 </div>
-                {isMobileSubtitleCollapsed ? (
-                  <div className="flex-1 flex items-center justify-center text-sm" style={{ color: uiTheme.textMuted }}>
-                    {t('subtitle.collapsedHint')}
-                  </div>
-                ) : (
-                  <div className="flex-1 min-h-0">
-                    <SubtitlePanel
-                      subtitles={subtitles}
-                      currentTime={currentTime}
-                      isDarkMode={isDarkMode}
-                      language={language}
-                      themeColor={themeColor}
-                      secondaryThemeColor={secondaryThemeColor}
-                      speakers={config.speakers}
-                      onSeek={handleSeek}
-                      onUpdateSubtitle={handleUpdateSubtitle}
-                      onDeleteSubtitle={handleDeleteSubtitle}
-                      editingSub={editingSub}
-                      setEditingSub={setEditingSub}
-                    />
-                  </div>
-                )}
               </div>
             )}
           />

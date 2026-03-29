@@ -46,6 +46,9 @@ interface SettingsPanelProps {
   compactHeader?: boolean;
   hideHeaderTitle?: boolean;
   hideHeaderSave?: boolean;
+  hideHeader?: boolean;
+  panelCollapsed?: boolean;
+  onTogglePanelCollapsed?: () => void;
 }
 
 export function SettingsPanel({ 
@@ -54,7 +57,9 @@ export function SettingsPanel({
   settingsPosition, onPositionChange,
   onClose, onSave, showToast, presets, onPresetsChange, activeTab, setActiveTab,
   onSelectImage, globalOnly = false, showSubtitleTab = false, subtitleContent = null,
-  compactHeader = false, hideHeaderTitle = false, hideHeaderSave = false
+  compactHeader = false, hideHeaderTitle = false, hideHeaderSave = false,
+  hideHeader = false,
+  panelCollapsed = false, onTogglePanelCollapsed
 }: SettingsPanelProps) {
   const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
@@ -303,6 +308,7 @@ export function SettingsPanel({
 
   return (
     <div className={`h-full flex flex-col overflow-hidden ${bgClass} [&_.text-xs]:text-sm`} style={{ backgroundColor: uiTheme.panelBg, color: uiTheme.textMuted, borderColor: uiTheme.border }}>
+      {!hideHeader && (
       <div className={`${compactHeader ? 'p-2.5' : 'p-4'} border-b flex items-center justify-between shrink-0 ${headerClass}`} style={{ backgroundColor: uiTheme.panelBgElevated, borderColor: uiTheme.border, color: uiTheme.text }}>
         <h2 className={`${hideHeaderTitle ? 'opacity-0 pointer-events-none select-none' : ''} font-bold flex items-center gap-2 text-sm`}>
           <Settings size={16} /> {t('settings.title')}
@@ -319,6 +325,7 @@ export function SettingsPanel({
           </button>
         </div>
       </div>
+      )}
 
        <div className="flex border-b shrink-0" style={{ backgroundColor: uiTheme.panelBgSubtle, borderColor: uiTheme.border }}>
          <button
@@ -353,17 +360,28 @@ export function SettingsPanel({
          >
            {t('tab.speakers')}
          </button>
-         <button 
-           className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'annotation' ? 'border-b-2' : ''}`}
-           style={activeTab === 'annotation' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
-           onClick={() => setActiveTab('annotation')}
-          >
-            {t('tab.annotation')}
-          </button>
-           </>
-         )}
-        </div>
+          <button 
+            className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'annotation' ? 'border-b-2' : ''}`}
+            style={activeTab === 'annotation' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
+            onClick={() => setActiveTab('annotation')}
+           >
+             {t('tab.annotation')}
+           </button>
+            </>
+          )}
+          {onTogglePanelCollapsed && (
+            <button
+              className="px-3 py-2 text-xs font-medium border-l"
+              style={{ borderColor: uiTheme.border, color: panelCollapsed ? secondaryThemeColor : uiTheme.textSoft, backgroundColor: panelCollapsed ? `${secondaryThemeColor}12` : 'transparent' }}
+              onClick={onTogglePanelCollapsed}
+              title={panelCollapsed ? t('subtitle.expand') : t('subtitle.collapse')}
+            >
+              {panelCollapsed ? t('subtitle.expand') : t('subtitle.collapse')}
+            </button>
+          )}
+         </div>
 
+      {!panelCollapsed && (
       <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeTab === 'speakers' ? 'px-4 pb-4 pt-0' : activeTab === 'subtitle' ? 'p-0' : 'p-4'}`}>
         {showSubtitleTab && activeTab === 'subtitle' && (
           <div className="h-full min-h-0">{subtitleContent}</div>
@@ -1353,6 +1371,7 @@ export function SettingsPanel({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

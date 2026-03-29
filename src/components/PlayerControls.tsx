@@ -422,7 +422,7 @@ export function PlayerControls({
                 if (e.key === 'Enter') commitTimeJump();
                 if (e.key === 'Escape') setTimeInputMode(false);
               }}
-              className={`w-[130px] text-lg font-mono font-medium tracking-wider px-2 py-1 text-center rounded-full focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+              className={`${compactMobile ? 'w-[96px] text-sm' : 'w-[130px] text-lg'} font-mono font-medium tracking-wider px-2 py-1 text-center rounded-full focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
               style={{ backgroundColor: `${secondaryThemeColor}14`, border: `1px solid ${secondaryThemeColor}33` }}
               autoFocus
             />
@@ -433,7 +433,7 @@ export function PlayerControls({
                 setTimeInputValue(formatTime(currentTime));
                 setTimeInputMode(true);
               }}
-              className={`w-[130px] text-lg font-mono font-medium tracking-wider inline-flex px-2 py-1 justify-center rounded-full transition-all duration-200 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+              className={`${compactMobile ? 'w-[96px] text-sm' : 'w-[130px] text-lg'} font-mono font-medium tracking-wider inline-flex px-2 py-1 justify-center rounded-full transition-all duration-200 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
               style={{ 
                 backgroundColor: `${secondaryThemeColor}20`, 
                 border: `1.5px solid ${secondaryThemeColor}55`,
@@ -452,9 +452,10 @@ export function PlayerControls({
               {formatTime(currentTime)}
             </button>
           )}
-          <span className={`text-lg font-mono ${textClass}`}>/ {formatTime(duration)}</span>
+          <span className={`${compactMobile ? 'text-sm' : 'text-lg'} font-mono ${textClass}`}>/ {formatTime(duration)}</span>
         </div>
 
+        {!compactMobile && (
         <div className={`flex items-center gap-3 shrink-0 ${compactMobile ? 'order-1 basis-full overflow-x-auto pb-1 justify-start' : 'justify-center'}`}>
           <div className="flex items-center gap-1.5 rounded-full px-2 py-1.5" style={{ backgroundColor: `${secondaryThemeColor}10`, border: `1px solid ${secondaryThemeColor}22`, boxShadow: `0 4px 14px ${secondaryThemeColor}10` }}>
             <button
@@ -765,8 +766,37 @@ export function PlayerControls({
             </button>
            </div>
         </div>
+        )}
 
         <div className={`flex items-center gap-4 min-w-0 ${textClass} ${compactMobile ? 'order-2 ml-auto basis-auto justify-end' : 'flex-1 justify-end'}`}>
+          {compactMobile && (
+            <>
+              <button
+                onClick={onReset}
+                className={`p-1.5 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+                title={t('player.restart')}
+              >
+                <RotateCcw size={15} />
+              </button>
+              <button
+                onClick={onPlayPause}
+                className="w-9 h-9 min-w-9 min-h-9 aspect-square shrink-0 flex items-center justify-center rounded-full text-white"
+                style={{ backgroundColor: secondaryThemeColor, boxShadow: `0 6px 14px ${secondaryThemeColor}30` }}
+              >
+                {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+              </button>
+              <button
+                className={`p-1.5 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+                title={t('player.stop')}
+                onClick={() => {
+                  if (isPlaying) onPlayPause();
+                  onReset();
+                }}
+              >
+                <SquareSquare size={15} />
+              </button>
+            </>
+          )}
           
           <button 
             onClick={() => onLoopChange(!loop)}
@@ -809,6 +839,7 @@ export function PlayerControls({
             )}
           </div>
 
+          {!compactMobile && (
           <div className="flex items-center gap-1.5 p-1 rounded-full" style={{ backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22`, boxShadow: `0 2px 10px ${secondaryThemeColor}14` }}>
             <ZoomOut size={14} className="opacity-50 cursor-pointer hover:opacity-100" onClick={() => {
               const z = Math.max(minZoom, zoomLevel * 0.8);
@@ -828,15 +859,16 @@ export function PlayerControls({
               setZoomLevel(z);
             }} />
           </div>
+          )}
 
-          <div className="flex items-center gap-2">
-            <Volume1 size={16} />
+          <div className={`flex items-center ${compactMobile ? 'gap-1.5' : 'gap-2'}`}>
+            <Volume1 size={compactMobile ? 14 : 16} />
             <input 
               type="range" 
               min="0" max="1" step="0.01" 
               value={volume}
               onChange={e => setVolume(parseFloat(e.target.value))}
-              className="w-16 h-1" style={{ accentColor: secondaryThemeColor }}
+              className={`${compactMobile ? 'w-12' : 'w-16'} h-1`} style={{ accentColor: secondaryThemeColor }}
             />
           </div>
         </div>
