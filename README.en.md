@@ -209,7 +209,7 @@ On Windows, the workflow produces both:
 
 ## Release Notes
 
-### v0.1.2
+### v0.1.3
 
 - Added `SRT/LRC` subtitle import support, using the default non-annotation speaker and saving edits into project `content`
 - Added ASS style mapping and preset generation on import (color, opacity, and border width)

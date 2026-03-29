@@ -74,27 +74,22 @@ jobs:
           - name: macos-arm64
             runner: macos-14
             build_args: --mac zip dmg --arm64
-            asset_suffix: macos-arm64
             artifact_glob: release/*
           - name: windows-x64
             runner: windows-latest
             build_args: --win nsis zip --x64
-            asset_suffix: windows-x64
             artifact_glob: release/*
           - name: windows-arm64
             runner: windows-latest
             build_args: --win nsis zip --arm64
-            asset_suffix: windows-arm64
             artifact_glob: release/*
           - name: linux-x64
             runner: ubuntu-24.04
             build_args: --linux AppImage tar.gz --x64
-            asset_suffix: linux-x64
             artifact_glob: release/*
           - name: linux-arm64
             runner: ubuntu-24.04
             build_args: --linux AppImage tar.gz --arm64
-            asset_suffix: linux-arm64
             artifact_glob: release/*
 
     runs-on: ${{ matrix.runner }}
@@ -124,10 +119,8 @@ jobs:
       - name: Package Electron app
         run: npx electron-builder ${{ matrix.build_args }} --publish never
 
-      - name: Rename packaged assets with platform suffix
+      - name: Collect packaged assets
         shell: bash
-        env:
-          ASSET_SUFFIX: ${{ matrix.asset_suffix }}
         run: |
           shopt -s nullglob
           mkdir -p release-upload
@@ -146,7 +139,7 @@ jobs:
                 ;;
             esac
 
-            cp "$file" "release-upload/${name}-${ASSET_SUFFIX}.${ext}"
+            cp "$file" "release-upload/${base}"
           done
 
       - name: Upload packaged artifacts

@@ -179,7 +179,7 @@ const patchMacCompositorBinaries = () => {
   const sourceDir = path.dirname(pkgJsonPath);
   const hash = crypto.createHash('sha1').update(sourceDir).digest('hex').slice(0, 8);
   const targetDir = path.join(os.tmpdir(), `pomchat-remotion-bin-${process.arch}-${hash}`);
-  const marker = path.join(targetDir, '.patched');
+  const marker = path.join(targetDir, '.patched-v2');
 
   if (!fs.existsSync(marker)) {
     fs.rmSync(targetDir, { recursive: true, force: true });
@@ -202,6 +202,17 @@ const patchMacCompositorBinaries = () => {
     ['ffmpeg', 'ffprobe', 'remotion'].forEach((binary) => {
       const binaryPath = path.join(targetDir, binary);
       patchTarget(binaryPath);
+    });
+
+    const signTarget = (filePath) => {
+      execFileSync('codesign', ['--force', '--sign', '-', '--timestamp=none', filePath]);
+    };
+
+    dylibs.forEach((libName) => {
+      signTarget(path.join(targetDir, libName));
+    });
+    ['ffmpeg', 'ffprobe', 'remotion'].forEach((binary) => {
+      signTarget(path.join(targetDir, binary));
     });
 
     fs.writeFileSync(marker, 'ok');
