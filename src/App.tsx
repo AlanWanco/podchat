@@ -353,7 +353,7 @@ function App() {
         try {
           const parsed = JSON.parse(saved);
           return sanitizeProjectConfig(parsed);
-        } catch (_e) {
+        } catch {
           return sanitizeProjectConfig(initialConfig);
         }
       }
@@ -1172,7 +1172,7 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const getProjectConfig = () => {
-    const { ui, ...restConfig } = config;
+    const restConfig: any = Object.fromEntries(Object.entries(config).filter(([key]) => key !== 'ui'));
     return {
       ...restConfig,
       content: subtitles.map(s => ({
@@ -2278,7 +2278,15 @@ const [previewScale, setPreviewScale] = useState(1);
           <div className="h-12 border-b flex items-center px-4 justify-between shrink-0 z-30 shadow-sm" style={{ backgroundColor: uiTheme.toolbarBg, borderColor: uiTheme.border }}>
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => setShowSubtitlePanel(!showSubtitlePanel)}
+                onClick={() => {
+                  setShowSubtitlePanel((prev) => {
+                    const next = !prev;
+                    if (shouldHideSidePanels && next) {
+                      setShowSettings(false);
+                    }
+                    return next;
+                  });
+                }}
                 className={`p-1.5 rounded transition-colors mr-2 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
                 title="切换字幕列表"
               >
@@ -2290,7 +2298,15 @@ const [previewScale, setPreviewScale] = useState(1);
                 {canvasWidth}x{canvasHeight} ({aspectLabel}) @ {config.fps}FPS
               </div>
               <button
-                onClick={() => setShowSettings(!showSettings)}
+                onClick={() => {
+                  setShowSettings((prev) => {
+                    const next = !prev;
+                    if (shouldHideSidePanels && next) {
+                      setShowSubtitlePanel(false);
+                    }
+                    return next;
+                  });
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded transition-colors ${showSettings ? '' : (isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}`}
                 style={showSettings ? { backgroundColor: `${secondaryThemeColor}18`, color: secondaryThemeColor, border: `1px solid ${secondaryThemeColor}55`, boxShadow: `0 4px 12px ${secondaryThemeColor}22` } : { border: `1px solid ${secondaryThemeColor}22` }}
                 title={t('menu.settings')}
@@ -2302,6 +2318,72 @@ const [previewScale, setPreviewScale] = useState(1);
           </div>
 
           {/* Canvas Area (Preview) */}
+          {shouldHideSidePanels && showSubtitlePanel && (
+            <div className="absolute inset-x-0 top-12 bottom-0 z-40 flex">
+              <div className="absolute inset-0 bg-black/25" onClick={() => setShowSubtitlePanel(false)} />
+              <div
+                className="relative h-full shrink-0 border-r overflow-hidden"
+                style={{
+                  width: `${Math.min(subtitleWidth, Math.max(300, windowWidth - 24))}px`,
+                  borderColor: uiTheme.border,
+                  backgroundColor: uiTheme.panelBg
+                }}
+              >
+                <SubtitlePanel
+                  subtitles={subtitles}
+                  currentTime={currentTime}
+                  isDarkMode={isDarkMode}
+                  language={language}
+                  themeColor={themeColor}
+                  secondaryThemeColor={secondaryThemeColor}
+                  speakers={config.speakers}
+                  onSeek={handleSeek}
+                  onUpdateSubtitle={handleUpdateSubtitle}
+                  onDeleteSubtitle={handleDeleteSubtitle}
+                  editingSub={editingSub}
+                  setEditingSub={setEditingSub}
+                />
+              </div>
+            </div>
+          )}
+
+          {shouldHideSidePanels && showSettings && (
+            <div className="absolute inset-x-0 top-12 bottom-0 z-40 flex justify-end">
+              <div className="absolute inset-0 bg-black/25" onClick={() => setShowSettings(false)} />
+              <div
+                className="relative h-full shrink-0 overflow-hidden border-l"
+                style={{
+                  width: `${Math.min(settingsWidth, Math.max(320, windowWidth - 24))}px`,
+                  borderColor: uiTheme.border,
+                  backgroundColor: uiTheme.panelBg
+                }}
+              >
+                <SettingsPanel
+                  config={config}
+                  onConfigChange={setConfig}
+                  isDarkMode={isDarkMode}
+                  language={language}
+                  themeColor={themeColor}
+                  secondaryThemeColor={secondaryThemeColor}
+                  onThemeColorChange={setThemeColorState}
+                  onSecondaryThemeColorChange={setSecondaryThemeColorState}
+                  onLanguageChange={(nextLanguage: Language) => setConfig((prev: any) => ({ ...prev, language: nextLanguage }))}
+                  onThemeChange={setIsDarkMode}
+                  settingsPosition={settingsPosition}
+                  onPositionChange={setSettingsPosition}
+                  onClose={() => setShowSettings(false)}
+                  onSave={handleSaveProject}
+                  showToast={showToast}
+                  presets={presets}
+                  onPresetsChange={setPresets}
+                  activeTab={activeTab as 'global' | 'project' | 'speakers' | 'annotation'}
+                  setActiveTab={setActiveTab}
+                  onSelectImage={handleSelectImage}
+                />
+              </div>
+            </div>
+          )}
+
           {toastMessage && (
             <div className="absolute top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded z-50 animate-fade-in text-sm flex items-center gap-2 border" style={{ backgroundColor: uiTheme.panelBgElevated, color: uiTheme.text, borderColor: uiTheme.border, boxShadow: '0 8px 18px rgba(0,0,0,0.14)' }}>
               <span className="w-2 h-2 rounded-full bg-green-500"></span>

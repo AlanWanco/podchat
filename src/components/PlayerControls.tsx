@@ -33,6 +33,32 @@ interface PlayerControlsProps {
   onEditingSubChange?: (start: number, end: number) => void;
 }
 
+interface WaveformRegion {
+  start: number;
+  end: number;
+  on: (event: 'update' | 'update-end', callback: () => void) => void;
+  un: (event: 'update' | 'update-end', callback: () => void) => void;
+}
+
+interface WaveformRegionsPlugin {
+  clearRegions: () => void;
+  addRegion: (options: {
+    start: number;
+    end: number;
+    color: string;
+    drag: boolean;
+    resize: boolean;
+  }) => WaveformRegion;
+}
+
+const formatTime = (seconds: number) => {
+  if (isNaN(seconds) || !isFinite(seconds)) return '00:00.0';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 10);
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
+};
+
 export function PlayerControls({ 
   audioPath,
   audioRef,
@@ -73,7 +99,7 @@ export function PlayerControls({
   
   const waveformRef = useRef<HTMLDivElement>(null);
   const wavesurfer = useRef<WaveSurfer | null>(null);
-  const wsRegions = useRef<any>(null);
+  const wsRegions = useRef<WaveformRegionsPlugin | null>(null);
   
   const [volume, setVolume] = useState(0.8);
   const [zoomLevel, setZoomLevel] = useState(50);
@@ -129,13 +155,15 @@ export function PlayerControls({
 
   useEffect(() => {
     if (!exportStartInputMode) {
-      setExportStartInputValue(formatTime(exportRangeStart));
+      const timer = window.setTimeout(() => setExportStartInputValue(formatTime(exportRangeStart)), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [exportRangeStart, exportStartInputMode]);
 
   useEffect(() => {
     if (!exportEndInputMode) {
-      setExportEndInputValue(formatTime(exportRangeEnd));
+      const timer = window.setTimeout(() => setExportEndInputValue(formatTime(exportRangeEnd)), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [exportRangeEnd, exportEndInputMode]);
 
@@ -144,7 +172,7 @@ export function PlayerControls({
     if (!waveformRef.current) return;
     if (!audioRef?.current) return;
 
-    setIsWaveformReady(false);
+    const readyResetTimer = window.setTimeout(() => setIsWaveformReady(false), 0);
 
     wavesurfer.current = WaveSurfer.create({
       container: waveformRef.current,
@@ -244,6 +272,7 @@ export function PlayerControls({
     });
 
     return () => {
+      window.clearTimeout(readyResetTimer);
       setIsWaveformReady(false);
       wavesurfer.current?.destroy();
     };
@@ -304,7 +333,9 @@ export function PlayerControls({
         resize: true,
       });
 
-      setRegionTooltip({ start: editingSub.start, end: editingSub.end });
+      const tooltipTimer = window.setTimeout(() => {
+        setRegionTooltip({ start: editingSub.start, end: editingSub.end });
+      }, 0);
 
       const handleUpdate = () => {
         if (onEditingSubChange) {
@@ -324,24 +355,20 @@ export function PlayerControls({
       region.on('update', handleRegionUpdating);
       region.on('update-end', handleRegionDone);
       return () => {
+        window.clearTimeout(tooltipTimer);
         setRegionTooltip(null);
         region.un('update', handleRegionUpdating);
         region.un('update-end', handleRegionDone);
       };
     }
-    setRegionTooltip(null);
-  }, [editingSub?.id, themeColor, secondaryThemeColor, isDarkMode, zoomLevel]);
+    const tooltipResetTimer = window.setTimeout(() => setRegionTooltip(null), 0);
+    return () => {
+      window.clearTimeout(tooltipResetTimer);
+    };
+  }, [editingSub, onEditingSubChange, themeColor, secondaryThemeColor, isDarkMode, zoomLevel]);
 
   // Removed manual Sync effect since WaveSurfer syncs via the media element automatically.
   // We still format time based on App's currentTime state for the UI string.
-
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || !isFinite(seconds)) return "00:00.0";
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    const ms = Math.floor((seconds % 1) * 10);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
-  };
 
   const rates = [0.5, 1.0, 1.25, 1.5, 2.0];
 

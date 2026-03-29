@@ -7,7 +7,7 @@ import { Tooltip } from './ui/Tooltip';
 
 interface SubtitlePanelProps {
   subtitles: SubtitleItem[];
-  speakers: Record<string, any>;
+  speakers: Record<string, { name?: string; type?: string }>;
   currentTime: number;
   isDarkMode: boolean;
   language: Language;
@@ -58,10 +58,6 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
       scrollToSubtitle(activeSubId);
     }
   }, [activeSubId, inlineEditingId]);
-
-  useEffect(() => {
-    setSearchIndex(0);
-  }, [searchQuery]);
 
   const jumpToSearchMatch = (direction: 1 | -1) => {
     if (searchMatches.length === 0) return;
@@ -171,7 +167,10 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
       {searchOpen && <div className="px-3 py-2 border-b flex items-center gap-2 shrink-0" style={{ backgroundColor: uiTheme.panelBgSubtle, borderColor: uiTheme.border }}>
         <input
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setSearchIndex(0);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();

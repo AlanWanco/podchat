@@ -132,17 +132,20 @@ export function ExportModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setStartInput(formatTime(rangeStart));
+    const timer = window.setTimeout(() => setStartInput(formatTime(rangeStart)), 0);
+    return () => window.clearTimeout(timer);
   }, [isOpen, rangeStart]);
 
   useEffect(() => {
     if (!isOpen) return;
-    setEndInput(formatTime(rangeEnd));
+    const timer = window.setTimeout(() => setEndInput(formatTime(rangeEnd)), 0);
+    return () => window.clearTimeout(timer);
   }, [isOpen, rangeEnd]);
 
   useEffect(() => {
     if (!isOpen) return;
-    setLocalCustomFilename(customFilename);
+    const timer = window.setTimeout(() => setLocalCustomFilename(customFilename), 0);
+    return () => window.clearTimeout(timer);
   }, [isOpen, customFilename]);
 
   useEffect(() => {

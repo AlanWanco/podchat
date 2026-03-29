@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { parse } from 'ass-compiler';
+import { parse, type ParsedASS } from 'ass-compiler';
 
 export interface SubtitleItem {
   id: string;
@@ -22,140 +22,154 @@ const extractDialogueLineIndexes = (content: string) => {
 
 const normalizeSubtitleText = (value: string) => value.replace(/\\N/g, '\n').trim();
 
-export function useAssSubtitle(assPath: string, speakerConfig: any, assContentOverride?: string | null, projectContent?: any[]) {
+type SpeakerConfig = Record<string, { name?: string }>;
+type ProjectTextItem = {
+  type?: string;
+  start?: number;
+  end?: number;
+  text?: string;
+  speaker?: string;
+};
+type ParsedDialogue = ParsedASS['events']['dialogue'][number];
+
+const mapActorToSpeaker = (speakerConfig: SpeakerConfig, actorName: string, styleName: string) => {
+  const keys = Object.keys(speakerConfig);
+  for (const key of keys) {
+    if (speakerConfig[key].name === actorName) return key;
+  }
+  for (const key of keys) {
+    if (speakerConfig[key].name === styleName) return key;
+  }
+  return keys[0] || 'A';
+};
+
+const buildSubtitleItems = (dialogues: ParsedDialogue[], dialogueLineIndexes: number[], speakerConfig: SpeakerConfig) => {
+  return dialogues.reduce((result: SubtitleItem[], dialogue, index: number) => {
+    const text = normalizeSubtitleText(dialogue.Text.combined);
+    if (!text) {
+      return result;
+    }
+
+    result.push({
+      id: `sub-${dialogueLineIndexes[index] ?? index}`,
+      start: dialogue.Start,
+      end: dialogue.End,
+      duration: Number((dialogue.End - dialogue.Start).toFixed(2)),
+      style: dialogue.Style,
+      actor: dialogue.Name || dialogue.Style,
+      text,
+      speakerId: mapActorToSpeaker(speakerConfig, dialogue.Name, dialogue.Style),
+      sourceLineIndex: dialogueLineIndexes[index] ?? index
+    });
+
+    return result;
+  }, []);
+};
+
+export function useAssSubtitle(assPath: string, speakerConfig: SpeakerConfig, assContentOverride?: string | null, projectContent?: ProjectTextItem[]) {
   const [subtitles, setSubtitles] = useState<SubtitleItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (assContentOverride) {
-      setLoading(true);
+      Promise.resolve().then(() => {
+        if (!cancelled) {
+          setLoading(true);
+        }
+      });
+
       Promise.resolve(assContentOverride)
         .then((text: string) => {
+          if (cancelled) return;
           const parsed = parse(text);
-          const dialogues = parsed.events.dialogue;
           const dialogueLineIndexes = extractDialogueLineIndexes(text);
-
-          const mapActorToSpeaker = (actorName: string, styleName: string) => {
-            const keys = Object.keys(speakerConfig);
-            for (const key of keys) {
-              if (speakerConfig[key].name === actorName) return key;
-            }
-            for (const key of keys) {
-              if (speakerConfig[key].name === styleName) return key;
-            }
-            return keys[0] || 'A';
-          };
-
-          const items: SubtitleItem[] = dialogues.reduce((result: SubtitleItem[], d: any, index: number) => {
-            const text = normalizeSubtitleText(d.Text.combined);
-            if (!text) {
-              return result;
-            }
-
-            result.push({
-              id: `sub-${dialogueLineIndexes[index] ?? index}`,
-              start: d.Start,
-              end: d.End,
-              duration: Number((d.End - d.Start).toFixed(2)),
-              style: d.Style,
-              actor: d.Name || d.Style,
-              text,
-              speakerId: mapActorToSpeaker(d.Name, d.Style),
-              sourceLineIndex: dialogueLineIndexes[index] ?? index
-            });
-
-            return result;
-          }, []);
+          const items = buildSubtitleItems(parsed.events.dialogue, dialogueLineIndexes, speakerConfig);
 
           setSubtitles(items);
           setError(null);
         })
-        .catch((err: any) => {
+        .catch((err: Error) => {
+          if (cancelled) return;
           console.error(err);
           setError(err.message);
         })
         .finally(() => {
-          setLoading(false);
+          if (!cancelled) {
+            setLoading(false);
+          }
         });
-      return;
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     if (!window.electron && Array.isArray(projectContent) && projectContent.length > 0) {
       const items: SubtitleItem[] = projectContent
-        .filter((item) => item && typeof item === 'object' && item.type === 'text')
+        .filter((item): item is ProjectTextItem => Boolean(item) && typeof item === 'object' && item.type === 'text')
         .map((item, index) => ({
           id: `sub-${index}`,
           start: Number(item.start || 0),
           end: Number(item.end || 0),
           duration: Number(((item.end || 0) - (item.start || 0)).toFixed(2)),
-          style: speakerConfig?.[item.speaker]?.name || 'Default',
-          actor: speakerConfig?.[item.speaker]?.name || item.speaker || '',
+          style: item.speaker ? (speakerConfig[item.speaker]?.name || 'Default') : 'Default',
+          actor: item.speaker ? (speakerConfig[item.speaker]?.name || item.speaker) : '',
           text: normalizeSubtitleText(item.text || ''),
           speakerId: item.speaker || Object.keys(speakerConfig || {})[0] || 'A',
           sourceLineIndex: index
         }));
 
-      setSubtitles(items);
-      setError(null);
-      setLoading(false);
-      return;
+      const timer = window.setTimeout(() => {
+        setSubtitles(items);
+        setError(null);
+        setLoading(false);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timer);
+      };
     }
 
     if (!assPath || !window.electron) {
-      setSubtitles([]);
-      return;
+      const timer = window.setTimeout(() => setSubtitles([]), 0);
+      return () => {
+        window.clearTimeout(timer);
+      };
     }
     
-    setLoading(true);
+    Promise.resolve().then(() => {
+      if (!cancelled) {
+        setLoading(true);
+      }
+    });
+
     window.electron.readFile(assPath)
       .then((text: string) => {
+        if (cancelled) return;
         const parsed = parse(text);
-        const dialogues = parsed.events.dialogue;
         const dialogueLineIndexes = extractDialogueLineIndexes(text);
-        
-        const mapActorToSpeaker = (actorName: string, styleName: string) => {
-          const keys = Object.keys(speakerConfig);
-          for (const key of keys) {
-            if (speakerConfig[key].name === actorName) return key;
-          }
-          for (const key of keys) {
-            if (speakerConfig[key].name === styleName) return key;
-          }
-          return keys[0] || 'A';
-        };
-
-        const items: SubtitleItem[] = dialogues.reduce((result: SubtitleItem[], d: any, index: number) => {
-          const text = normalizeSubtitleText(d.Text.combined);
-          if (!text) {
-            return result;
-          }
-
-          result.push({
-            id: `sub-${dialogueLineIndexes[index] ?? index}`,
-            start: d.Start,
-            end: d.End,
-            duration: Number((d.End - d.Start).toFixed(2)),
-            style: d.Style,
-            actor: d.Name || d.Style,
-            text,
-            speakerId: mapActorToSpeaker(d.Name, d.Style),
-            sourceLineIndex: dialogueLineIndexes[index] ?? index
-          });
-
-          return result;
-        }, []);
+        const items = buildSubtitleItems(parsed.events.dialogue, dialogueLineIndexes, speakerConfig);
 
         setSubtitles(items);
         setError(null);
       })
-      .catch((err: any) => {
+      .catch((err: Error) => {
+        if (cancelled) return;
         console.error(err);
         setError(err.message);
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [assPath, assContentOverride, projectContent, speakerConfig]);
 
   return { subtitles, setSubtitles, loading, error };

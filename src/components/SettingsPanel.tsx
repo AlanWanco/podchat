@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
 import { Settings, Image as ImageIcon, Users, Save, Moon, Sun, Trash2, Plus, X, ArrowLeftRight, LayoutTemplate, Type, Box, Layout, FolderOpen } from 'lucide-react';
 import { translate, type Language } from '../i18n';
@@ -62,21 +63,14 @@ export function SettingsPanel({
   const [presetPromptKey, setPresetPromptKey] = useState<string | null>(null);
   const [presetNameInput, setPresetNameInput] = useState("");
   const [activeSpeakerTab, setActiveSpeakerTab] = useState<string | null>(null);
+  const speakerKeys = Object.keys(config.speakers).filter((key) => config.speakers[key]?.type !== 'annotation');
+  const currentSpeakerTab = activeSpeakerTab && speakerKeys.includes(activeSpeakerTab) ? activeSpeakerTab : (speakerKeys[0] || null);
 
   useEffect(() => {
     if (globalOnly && activeTab !== 'global') {
       setActiveTab('global');
     }
   }, [globalOnly, activeTab, setActiveTab]);
-
-  useEffect(() => {
-    if (config.speakers) {
-      const keys = Object.keys(config.speakers).filter((key) => config.speakers[key]?.type !== 'annotation');
-      if (keys.length > 0 && (!activeSpeakerTab || !keys.includes(activeSpeakerTab))) {
-        setActiveSpeakerTab(keys[0]);
-      }
-    }
-  }, [config.speakers, activeSpeakerTab]);
 
   const updateConfig = (key: string, value: any) => {
     onConfigChange({ ...config, [key]: value });
@@ -800,11 +794,11 @@ export function SettingsPanel({
                       key={key}
                       onClick={() => setActiveSpeakerTab(key)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${
-                        activeSpeakerTab === key 
+                        currentSpeakerTab === key 
                           ? 'text-white'
                           : ''
                       }`}
-                      style={activeSpeakerTab === key ? { backgroundColor: themeColor, borderColor: themeColor } : { backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.textMuted }}
+                      style={currentSpeakerTab === key ? { backgroundColor: themeColor, borderColor: themeColor } : { backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.textMuted }}
                     >
                       {config.speakers[key].name || key}
                     </button>
@@ -815,8 +809,8 @@ export function SettingsPanel({
 
               <div className="space-y-3">
 
-                {activeSpeakerTab && config.speakers[activeSpeakerTab] && (() => {
-                  const key = activeSpeakerTab;
+                {currentSpeakerTab && config.speakers[currentSpeakerTab] && (() => {
+                  const key = currentSpeakerTab;
                   const speaker = config.speakers[key];
                   return (
                     <div key={key} className="p-4 rounded-xl border space-y-4 shadow-sm" style={{ backgroundColor: uiTheme.cardBg, borderColor: uiTheme.border, boxShadow: `0 6px 18px ${uiTheme.shadow}` }}>
