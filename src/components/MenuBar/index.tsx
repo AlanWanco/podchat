@@ -47,6 +47,7 @@ export function MenuBar({
   onExportVideo,
   onExportConfig
 }: MenuBarProps) {
+  const isWebMode = !window.electron;
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const t = (key: string) => translate(language, key);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
@@ -157,15 +158,17 @@ export function MenuBar({
               </button>
               <button
                 onClick={() => executeAction(onImportPresets)}
-                disabled={!projectPath}
-                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${!projectPath && 'opacity-50 cursor-not-allowed'}`}
+                disabled={!projectPath || isWebMode}
+                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${(!projectPath || isWebMode) && 'opacity-50 cursor-not-allowed'}`}
+                title={isWebMode ? t('welcome.webMode') : undefined}
               >
                 <FolderOpen size={14} /> {t('menu.importPresets')}
               </button>
               <button
                 onClick={() => executeAction(onExportPresets)}
-                disabled={!projectPath}
-                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${!projectPath && 'opacity-50 cursor-not-allowed'}`}
+                disabled={!projectPath || isWebMode}
+                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${(!projectPath || isWebMode) && 'opacity-50 cursor-not-allowed'}`}
+                title={isWebMode ? t('welcome.webMode') : undefined}
               >
                 <Download size={14} /> {t('menu.exportPresets')}
               </button>
@@ -197,7 +200,7 @@ export function MenuBar({
               <button onClick={() => executeAction(onExportConfig)} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass}`}>
                 <Download size={14} /> {t('menu.exportConfig')}
               </button>
-              <button onClick={() => executeAction(onExportVideo)} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass}`} style={{ color: secondaryThemeColor }}>
+              <button onClick={() => executeAction(onExportVideo)} disabled={isWebMode} title={isWebMode ? t('welcome.webMode') : undefined} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${hoverClass} ${isWebMode ? 'opacity-50 cursor-not-allowed' : ''}`} style={{ color: secondaryThemeColor }} onMouseEnter={(e) => { if (!isWebMode) e.currentTarget.style.backgroundColor = uiTheme.hoverBg; }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                 <Download size={14} /> <span>{t('menu.exportVideo')}</span>
               </button>
             </div>

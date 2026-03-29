@@ -6,7 +6,10 @@ import renderer from 'vite-plugin-electron-renderer'
 import path from 'node:path'
 
 // https://vite.dev/config/
+const isGitHubPages = process.env.GITHUB_ACTIONS === 'true'
+
 export default defineConfig({
+  base: isGitHubPages ? '/PomChat/' : '/',
   plugins: [
     react(), 
     tailwindcss(),

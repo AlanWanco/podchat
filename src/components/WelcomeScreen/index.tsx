@@ -129,9 +129,12 @@ export function WelcomeScreen({ onNewProject, onOpenProject, onOpenRecent, onOpe
       </div>
       
       {!window.electron && (
-        <div className="mt-12 px-4 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-600 rounded-lg text-sm flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-          {t('welcome.webMode')}
+        <div className="mt-12 max-w-2xl px-4 py-3 bg-amber-500/10 border border-amber-500/20 text-amber-600 rounded-xl text-sm flex items-start gap-3">
+          <span className="mt-1 w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+          <div className="space-y-1">
+            <div className="font-semibold">PomChat Web Preview</div>
+            <div>{t('welcome.webMode')}</div>
+          </div>
         </div>
       )}
     </div>

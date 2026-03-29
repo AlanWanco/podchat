@@ -25,7 +25,8 @@ export const demoConfig = {
     blur: 8 // px
   },
   ui: {
-    themeColor: "#9ca4b8"
+    themeColor: "#9ca4b8",
+    secondaryThemeColor: "#ed7e96"
   },
   speakers: {
     "A": { 

@@ -39,6 +39,7 @@ interface SettingsPanelProps {
   activeTab: 'global' | 'project' | 'speakers' | 'annotation';
   setActiveTab: (tab: 'global' | 'project' | 'speakers' | 'annotation') => void;
   onSelectImage?: () => Promise<string | null>;
+  globalOnly?: boolean;
 }
 
 export function SettingsPanel({ 
@@ -46,7 +47,7 @@ export function SettingsPanel({
   isDarkMode, language, themeColor, secondaryThemeColor, onThemeColorChange, onSecondaryThemeColorChange, onLanguageChange, onThemeChange, 
   settingsPosition, onPositionChange,
   onClose, onSave, showToast, presets, onPresetsChange, activeTab, setActiveTab,
-  onSelectImage
+  onSelectImage, globalOnly = false
 }: SettingsPanelProps) {
   const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
@@ -61,6 +62,12 @@ export function SettingsPanel({
   const [presetPromptKey, setPresetPromptKey] = useState<string | null>(null);
   const [presetNameInput, setPresetNameInput] = useState("");
   const [activeSpeakerTab, setActiveSpeakerTab] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (globalOnly && activeTab !== 'global') {
+      setActiveTab('global');
+    }
+  }, [globalOnly, activeTab, setActiveTab]);
 
   useEffect(() => {
     if (config.speakers) {
@@ -313,10 +320,12 @@ export function SettingsPanel({
          >
            {t('tab.global')}
          </button>
-         <button
-           className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'project' ? 'border-b-2' : ''}`}
-           style={activeTab === 'project' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
-           onClick={() => setActiveTab('project')}
+         {!globalOnly && (
+           <>
+          <button
+            className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'project' ? 'border-b-2' : ''}`}
+            style={activeTab === 'project' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
+            onClick={() => setActiveTab('project')}
          >
            {t('tab.project')}
          </button>
@@ -331,10 +340,12 @@ export function SettingsPanel({
            className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'annotation' ? 'border-b-2' : ''}`}
            style={activeTab === 'annotation' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
            onClick={() => setActiveTab('annotation')}
-         >
-           {t('tab.annotation')}
-         </button>
-       </div>
+          >
+            {t('tab.annotation')}
+          </button>
+           </>
+         )}
+        </div>
 
       <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeTab === 'speakers' ? 'px-4 pb-4 pt-0' : 'p-4'}`}>
         {activeTab === 'global' && (

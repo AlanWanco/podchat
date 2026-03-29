@@ -16,6 +16,8 @@ import './App.css';
 
 const LIGHT_THEME_DEFAULT = '#9ca4b8';
 const DARK_THEME_DEFAULT = '#545454';
+const SECONDARY_THEME_DEFAULT = '#ed7e96';
+const THEME_COLOR_VALUES = ['#545454', '#ed7e96', '#e7d600', '#01b7ee', '#485ec6', '#ff5800', '#a764a1', '#d71c30', '#83c36e', '#9ca4b8', '#36b583', '#aaa898', '#f8c9c4'];
 
 // Web-only local storage key
 const STORAGE_KEY = 'pomchat_demo_config';
@@ -64,7 +66,7 @@ const DEFAULT_CHAT_LAYOUT = {
 const DEFAULT_UI_CONFIG = {
   isDarkMode: true,
   themeColor: DARK_THEME_DEFAULT,
-  secondaryThemeColor: '#f472b6',
+  secondaryThemeColor: SECONDARY_THEME_DEFAULT,
   settingsPosition: 'right' as 'left' | 'right',
   recentProject: null as string | null,
   playbackPositions: {} as Record<string, number>,
@@ -147,6 +149,12 @@ const sanitizeProjectConfig = (parsed: any) => {
     ui: {
       ...DEFAULT_UI_CONFIG,
       ...(parsed?.ui || {}),
+      themeColor: typeof parsed?.ui?.themeColor === 'string' && THEME_COLOR_VALUES.includes(parsed.ui.themeColor)
+        ? parsed.ui.themeColor
+        : DEFAULT_UI_CONFIG.themeColor,
+      secondaryThemeColor: typeof parsed?.ui?.secondaryThemeColor === 'string' && THEME_COLOR_VALUES.includes(parsed.ui.secondaryThemeColor)
+        ? parsed.ui.secondaryThemeColor
+        : DEFAULT_UI_CONFIG.secondaryThemeColor,
       settingsPosition: parsed?.ui?.settingsPosition === 'left' ? 'left' : 'right',
       recentProject: typeof parsed?.ui?.recentProject === 'string' ? parsed.ui.recentProject : null,
       playbackPositions: parsed?.ui?.playbackPositions && typeof parsed.ui.playbackPositions === 'object' ? parsed.ui.playbackPositions : {},
@@ -382,6 +390,8 @@ function App() {
   const [persistedCustomFilename, setPersistedCustomFilename] = useState('');
   const [cachedRemoteAssets, setCachedRemoteAssets] = useState<Record<string, string>>({});
   const [presets, setPresets] = useState<Record<string, any>>(() => config.ui?.presets ?? DEFAULT_UI_CONFIG.presets);
+  const [webAudioObjectUrl, setWebAudioObjectUrl] = useState('');
+  const [webAssContent, setWebAssContent] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const portraitAutoCollapseRef = useRef<{ subtitle: boolean; settings: boolean } | null>(null);
   const savedSpeakerNamesRef = useRef<Record<string, string>>(getSpeakerNameSnapshot(config.speakers));
@@ -389,9 +399,12 @@ function App() {
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const webAudioInputRef = useRef<HTMLInputElement>(null);
+  const webSubtitleInputRef = useRef<HTMLInputElement>(null);
+  const webProjectInputRef = useRef<HTMLInputElement>(null);
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const previewFrameRef = useRef<HTMLDivElement>(null);
-  const { subtitles, setSubtitles, loading: subtitlesLoading } = useAssSubtitle(config.assPath, config.speakers);
+  const { subtitles, setSubtitles, loading: subtitlesLoading } = useAssSubtitle(config.assPath, config.speakers, webAssContent, config.content);
   const activePlaybackSubtitle = useMemo(
     () => subtitles.find((sub) => currentTime >= sub.start && currentTime <= sub.end) ?? null,
     [subtitles, currentTime]
@@ -811,7 +824,7 @@ const [previewScale, setPreviewScale] = useState(1);
   const language = (config.language || 'zh-CN') as Language;
   const t = useCallback((key: string, vars?: Record<string, string | number>) => translate(language, key, vars), [language]);
   const themeColor = themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT);
-  const secondaryThemeColor = secondaryThemeColorState || '#f472b6';
+  const secondaryThemeColor = secondaryThemeColorState || SECONDARY_THEME_DEFAULT;
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
   const appBackground = isDarkMode
     ? `linear-gradient(180deg, ${uiTheme.appBg} 0%, ${uiTheme.appBg} 74%, ${secondaryThemeColor}14 100%)`
@@ -1077,8 +1090,22 @@ const [previewScale, setPreviewScale] = useState(1);
     return 'veryfast';
   };
 
-  const getExportConfig = () => {
+  const getProjectConfig = () => {
     const { ui, ...restConfig } = config;
+    return {
+      ...restConfig,
+      content: subtitles.map(s => ({
+        start: s.start,
+        end: s.end,
+        speaker: s.speakerId,
+        type: 'text',
+        text: s.text
+      }))
+    };
+  };
+
+  const getExportConfig = () => {
+    const restConfig = getProjectConfig();
     const remappedSpeakers = Object.fromEntries(
       Object.entries(restConfig.speakers || {}).map(([key, speaker]: [string, any]) => [
         key,
@@ -1096,14 +1123,7 @@ const [previewScale, setPreviewScale] = useState(1);
             ...restConfig.background,
             image: cachedRemoteAssets[restConfig.background.image || ''] || restConfig.background.image
           }
-        : restConfig.background,
-      content: subtitles.map(s => ({
-        start: s.start,
-        end: s.end,
-        speaker: s.speakerId,
-        type: 'text',
-        text: s.text
-      }))
+        : restConfig.background
     };
   };
 
@@ -1340,7 +1360,7 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [exportOutputPath, lastExportOutputPath]);
 
   const exportConfig = () => {
-    const finalConfig = getExportConfig();
+    const finalConfig = getProjectConfig();
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(finalConfig, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -1462,7 +1482,7 @@ const [previewScale, setPreviewScale] = useState(1);
     };
   }, [config.background?.image, config.speakers, cachedRemoteAssets]);
 
-  const resolvedAudioPath = resolvePath(config.audioPath) || '';
+  const resolvedAudioPath = webAudioObjectUrl || resolvePath(config.audioPath) || '';
 
   const validateProjectConfig = (parsed: any) => {
     if (!parsed || typeof parsed !== 'object') {
@@ -1490,6 +1510,13 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const handleNewProject = async (initialOverrides?: any) => {
     const safeOverrides = sanitizeProjectOverrides(initialOverrides);
+    if (!window.electron) {
+      setWebAssContent(null);
+      if (webAudioObjectUrl) {
+        URL.revokeObjectURL(webAudioObjectUrl);
+        setWebAudioObjectUrl('');
+      }
+    }
     if (!window.electron) {
       // Web mode fallback
       setProjectPath('web-demo');
@@ -1527,11 +1554,21 @@ const [previewScale, setPreviewScale] = useState(1);
   const handleCloseProject = () => {
     setProjectPath(null);
     setShowSettings(false);
+    if (!window.electron) {
+      setWebAssContent(null);
+      if (webAudioObjectUrl) {
+        URL.revokeObjectURL(webAudioObjectUrl);
+        setWebAudioObjectUrl('');
+      }
+    }
     document.title = 'PomChat Studio';
   };
 
   const handleSetAudio = async () => {
-    if (!window.electron) return;
+    if (!window.electron) {
+      webAudioInputRef.current?.click();
+      return;
+    }
     try {
       const res = await window.electron.showOpenDialog({
         title: t('dialog.selectAudioTitle'),
@@ -1548,7 +1585,10 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const handleSetSubtitle = async () => {
-    if (!window.electron) return;
+    if (!window.electron) {
+      webSubtitleInputRef.current?.click();
+      return;
+    }
     try {
       const res = await window.electron.showOpenDialog({
         title: t('dialog.selectSubtitleTitle'),
@@ -1678,26 +1718,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const handleOpenProject = async () => {
     if (!window.electron) {
-      // Web mode fallback
-      try {
-          const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const validatedConfig = validateProjectConfig(parsed);
-          setConfig(validatedConfig);
-          savedSpeakerNamesRef.current = getSpeakerNameSnapshot(validatedConfig.speakers);
-        } else {
-          setConfig(initialConfig);
-          savedSpeakerNamesRef.current = getSpeakerNameSnapshot(initialConfig.speakers);
-        }
-        setProjectPath('web-demo');
-        setShowSettings(true);
-      } catch (e: any) {
-        alert('读取网页缓存失败: ' + e.message);
-        setConfig(initialConfig);
-        savedSpeakerNamesRef.current = getSpeakerNameSnapshot(initialConfig.speakers);
-        setProjectPath('web-demo');
-      }
+      webProjectInputRef.current?.click();
       return;
     }
 
@@ -1716,21 +1737,87 @@ const [previewScale, setPreviewScale] = useState(1);
     }
   };
 
+  const handleWebAudioSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const nextObjectUrl = URL.createObjectURL(file);
+    if (webAudioObjectUrl) {
+      URL.revokeObjectURL(webAudioObjectUrl);
+    }
+
+    if (!projectPath) {
+      setProjectPath('web-demo');
+      setShowSettings(true);
+    }
+
+    setWebAudioObjectUrl(nextObjectUrl);
+    setConfig((prev: any) => ({ ...prev, audioPath: nextObjectUrl }));
+    showToast(t('app.audioImported'));
+    event.target.value = '';
+  };
+
+  const handleWebSubtitleSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const content = await file.text();
+    if (!projectPath) {
+      setProjectPath('web-demo');
+      setShowSettings(true);
+    }
+
+    setImportAssData({ path: file.name, content });
+    event.target.value = '';
+  };
+
   const handleSaveProject = async () => {
     if (!window.electron || !projectPath || projectPath === 'web-demo') {
-      handleSaveConfig(); // Web mode fallback to localStorage
+      const finalConfig = getExportConfig();
+      const blob = new Blob([JSON.stringify(finalConfig, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'pomchat_project.json';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      showToast(t('app.projectSaved'));
       return;
     }
 
     try {
       await backupAssIfSpeakerNamesChanged();
       await persistSubtitlesToAss(subtitles, false);
-      const finalConfig = getExportConfig();
+      const finalConfig = getProjectConfig();
       await window.electron.writeFile(projectPath, JSON.stringify(finalConfig, null, 2));
       savedSpeakerNamesRef.current = getSpeakerNameSnapshot(config.speakers);
       showToast(t('app.projectSaved'));
     } catch (e: any) {
       alert('保存失败: ' + e.message);
+    }
+  };
+
+  const handleWebProjectSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const content = await file.text();
+      const parsed = JSON.parse(content);
+      const validatedConfig = validateProjectConfig(parsed);
+      setProjectPath('web-demo');
+      setRecentProject(file.name);
+      setConfig(validatedConfig);
+      setWebAssContent(null);
+      savedSpeakerNamesRef.current = getSpeakerNameSnapshot(validatedConfig.speakers);
+      setShowSettings(true);
+      showToast(t('app.projectLoaded'));
+    } catch (e: any) {
+      alert('加载失败: ' + e.message);
+    } finally {
+      event.target.value = '';
     }
   };
 
@@ -1821,6 +1908,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                 onPresetsChange={setPresets}
+                globalOnly
                 activeTab={activeTab as 'global' | 'project' | 'speakers' | 'annotation'}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
@@ -1869,9 +1957,41 @@ const [previewScale, setPreviewScale] = useState(1);
         onExportPresets={handleExportPresets}
         onSortSubtitles={handleSortSubtitles}
         onCloseProject={handleCloseProject}
-        onExportVideo={() => void handleOpenExportModal()}
+        onExportVideo={() => {
+          if (!window.electron) {
+            showToast(t('welcome.webMode'));
+            return;
+          }
+          void handleOpenExportModal();
+        }}
         onExportConfig={exportConfig}
       />
+
+      {!window.electron && (
+        <>
+          <input
+            ref={webProjectInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={handleWebProjectSelected}
+          />
+          <input
+            ref={webAudioInputRef}
+            type="file"
+            accept="audio/*,.mp3,.wav,.aac,.m4a,.flac"
+            className="hidden"
+            onChange={handleWebAudioSelected}
+          />
+          <input
+            ref={webSubtitleInputRef}
+            type="file"
+            accept=".ass,text/plain"
+            className="hidden"
+            onChange={handleWebSubtitleSelected}
+          />
+        </>
+      )}
 
       <audio 
         key={resolvedAudioPath}
@@ -2264,6 +2384,9 @@ const [previewScale, setPreviewScale] = useState(1);
               assPath: path,
               speakers: newSpeakers
             }));
+            if (!window.electron) {
+              setWebAssContent(sanitizedContent);
+            }
             setImportAssData(null);
             showToast(t('app.subtitleImported'));
           }}
