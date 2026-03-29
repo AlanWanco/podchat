@@ -334,6 +334,12 @@ function SnapshotBubble({
 function App() {
   const getSpeakerNameSnapshot = (speakers: Record<string, any>) =>
     Object.fromEntries(Object.entries(speakers || {}).map(([key, speaker]) => [key, speaker?.name || '']));
+  const getSystemPrefersDark = () => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return true;
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  };
 
   const isDesktopMode = typeof window !== 'undefined' && Boolean(window.electron);
   const [projectPath, setProjectPath] = useState<string | null>(null);
@@ -361,7 +367,7 @@ function App() {
   const [loop, setLoop] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   
-  const [isDarkMode, setIsDarkMode] = useState(() => config.ui?.isDarkMode ?? DEFAULT_UI_CONFIG.isDarkMode);
+  const [isDarkMode, setIsDarkMode] = useState(() => getSystemPrefersDark());
   const [themeColorState, setThemeColorState] = useState(() => config.ui?.themeColor ?? DEFAULT_UI_CONFIG.themeColor);
   const [secondaryThemeColorState, setSecondaryThemeColorState] = useState(() => config.ui?.secondaryThemeColor ?? DEFAULT_UI_CONFIG.secondaryThemeColor);
   const [showSettings, setShowSettings] = useState(false);
@@ -844,13 +850,13 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const parsed = JSON.parse(saved);
       const validatedConfig = validateProjectConfig(parsed);
-      const hasBlobAudio = typeof validatedConfig.audioPath === 'string' && validatedConfig.audioPath.startsWith('blob:');
-      const restoredConfig = hasBlobAudio ? { ...validatedConfig, audioPath: '' } : validatedConfig;
+      const requiresAudioReload = Boolean(validatedConfig.audioPath);
+      const restoredConfig = requiresAudioReload ? { ...validatedConfig, audioPath: '' } : validatedConfig;
       setConfig(restoredConfig);
       setProjectPath('web-demo');
       setRecentProject(parsed?.projectTitle || 'web-demo');
       savedSpeakerNamesRef.current = getSpeakerNameSnapshot(restoredConfig.speakers);
-      if (hasBlobAudio) {
+      if (requiresAudioReload) {
         showToast('已恢复上次网页项目配置，请重新选择音频文件');
       }
       return true;
@@ -879,8 +885,27 @@ const [previewScale, setPreviewScale] = useState(1);
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyScheme = (matches: boolean) => {
+      setIsDarkMode(matches);
+    };
+
+    applyScheme(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      applyScheme(event.matches);
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  useEffect(() => {
     const ui = config.ui || DEFAULT_UI_CONFIG;
-    setIsDarkMode((prev: boolean) => (prev === ui.isDarkMode ? prev : ui.isDarkMode));
     setThemeColorState((prev: string) => (prev === ui.themeColor ? prev : ui.themeColor));
     setSecondaryThemeColorState((prev: string) => (prev === ui.secondaryThemeColor ? prev : ui.secondaryThemeColor));
     setSettingsPosition((prev: 'left' | 'right') => (prev === ui.settingsPosition ? prev : ui.settingsPosition));
@@ -1577,7 +1602,10 @@ const [previewScale, setPreviewScale] = useState(1);
       // Web mode fallback
       setProjectPath('web-demo');
       const cleanConfig = { ...createBlankProjectConfig(t('app.newProject')), ...safeOverrides };
-      setConfig(cleanConfig);
+      setConfig((prev: any) => ({
+        ...cleanConfig,
+        ui: prev?.ui || DEFAULT_UI_CONFIG
+      }));
       setShowSettings(true);
       return;
     }
@@ -1597,7 +1625,13 @@ const [previewScale, setPreviewScale] = useState(1);
         if (!window.electron) {
           localStorage.setItem(STORAGE_KEY + '_recent_project', result.filePath);
         }
-        setConfig(newConfig);
+        setConfig((prev: any) => ({
+          ...newConfig,
+          ui: {
+            ...(prev?.ui || DEFAULT_UI_CONFIG),
+            recentProject: result.filePath
+          }
+        }));
         savedSpeakerNamesRef.current = getSpeakerNameSnapshot(newConfig.speakers);
         setShowSettings(true);
         showToast(t('welcome.new'));
@@ -1699,7 +1733,13 @@ const [previewScale, setPreviewScale] = useState(1);
       setProjectPath(result.filePath);
       setRecentProject(result.filePath);
       localStorage.setItem('pomchat_recent_project', result.filePath);
-      setConfig(newConfig);
+      setConfig((prev: any) => ({
+        ...newConfig,
+        ui: {
+          ...(prev?.ui || DEFAULT_UI_CONFIG),
+          recentProject: result.filePath
+        }
+      }));
       savedSpeakerNamesRef.current = Object.fromEntries(Object.entries(newConfig.speakers || {}).map(([key, speaker]: [string, any]) => [key, speaker?.name || '']));
       setShowSettings(true);
       showToast(t('welcome.new'));
@@ -1757,7 +1797,13 @@ const [previewScale, setPreviewScale] = useState(1);
       if (!window.electron) {
         localStorage.setItem(STORAGE_KEY + '_recent_project', filePath);
       }
-      setConfig(validatedConfig);
+      setConfig((prev: any) => ({
+        ...validatedConfig,
+        ui: {
+          ...(prev?.ui || DEFAULT_UI_CONFIG),
+          recentProject: filePath
+        }
+      }));
       savedSpeakerNamesRef.current = getSpeakerNameSnapshot(validatedConfig.speakers);
       setShowSettings(true);
       showToast(t('app.projectLoaded'));
@@ -1840,7 +1886,13 @@ const [previewScale, setPreviewScale] = useState(1);
         const validatedConfig = validateProjectConfig(parsed);
         setProjectPath('web-demo');
         setRecentProject(file.name);
-        setConfig(validatedConfig);
+        setConfig((prev: any) => ({
+          ...validatedConfig,
+          ui: {
+            ...(prev?.ui || DEFAULT_UI_CONFIG),
+            recentProject: file.name
+          }
+        }));
         setWebAssContent(null);
         savedSpeakerNamesRef.current = getSpeakerNameSnapshot(validatedConfig.speakers);
         setShowSettings(true);
@@ -1911,7 +1963,13 @@ const [previewScale, setPreviewScale] = useState(1);
       const requiresAudioReload = !window.electron && Boolean(validatedConfig.audioPath);
       setProjectPath('web-demo');
       setRecentProject(file.name);
-      setConfig(requiresAudioReload ? { ...validatedConfig, audioPath: '' } : validatedConfig);
+      setConfig((prev: any) => ({
+        ...(requiresAudioReload ? { ...validatedConfig, audioPath: '' } : validatedConfig),
+        ui: {
+          ...(prev?.ui || DEFAULT_UI_CONFIG),
+          recentProject: file.name
+        }
+      }));
       setWebAssContent(null);
       savedSpeakerNamesRef.current = getSpeakerNameSnapshot(validatedConfig.speakers);
       setShowSettings(true);
