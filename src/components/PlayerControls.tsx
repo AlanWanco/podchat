@@ -89,7 +89,7 @@ export function PlayerControls({
 }: PlayerControlsProps) {
   const t = (key: string) => translate(language, key);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
-  const waveformHeight = compactMobile ? 34 : 48;
+  const waveformHeight = compactMobile ? 24 : 48;
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [regionTooltip, setRegionTooltip] = useState<{ start: number; end: number } | null>(null);
   const [timeInputMode, setTimeInputMode] = useState(false);
@@ -783,13 +783,42 @@ export function PlayerControls({
         )}
 
         {compactMobile && (
-          <div className="order-1 flex items-center gap-1.5 min-w-0">
-            <span className="text-[11px] font-mono" style={{ color: uiTheme.text }}>{formatTime(currentTime)}</span>
-            <span className="text-[9px] font-mono" style={{ color: uiTheme.textMuted }}>/ {formatTime(duration)}</span>
+          <div className="order-1 flex flex-col items-start gap-1 min-w-0">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onReset}
+                className={`p-1 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-300 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+                title={t('player.restart')}
+              >
+                <RotateCcw size={14} />
+              </button>
+              <button
+                onClick={onPlayPause}
+                className="w-8 h-8 min-w-8 min-h-8 aspect-square shrink-0 flex items-center justify-center rounded-full text-white"
+                style={{ backgroundColor: secondaryThemeColor, boxShadow: `0 6px 12px ${secondaryThemeColor}33` }}
+                title={isPlaying ? t('player.pause') : t('player.play')}
+              >
+                {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+              </button>
+              <button
+                className={`p-1 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-300 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+                title={t('player.stop')}
+                onClick={() => {
+                  if (isPlaying) onPlayPause();
+                  onReset();
+                }}
+              >
+                <SquareSquare size={14} />
+              </button>
+            </div>
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="text-[10px] font-mono" style={{ color: uiTheme.text }}>{formatTime(currentTime)}</span>
+              <span className="text-[8px] font-mono" style={{ color: uiTheme.textMuted }}>/ {formatTime(duration)}</span>
+            </div>
           </div>
         )}
 
-        <div className={`flex items-center min-w-0 ${textClass} ${compactMobile ? 'order-2 ml-auto justify-end gap-1 flex-nowrap overflow-x-auto [&>*]:shrink-0' : 'gap-3 flex-1 justify-end'}`}>
+        <div className={`flex items-center min-w-0 ${textClass} ${compactMobile ? 'order-2 ml-auto justify-end gap-1 flex-nowrap overflow-visible [&>*]:shrink-0' : 'gap-3 flex-1 justify-end'}`}>
           <button 
             onClick={() => onLoopChange(!loop)}
             className={`p-1 rounded transition-colors ${loop ? '' : (isDarkMode ? 'hover:text-white hover:bg-gray-800' : 'hover:text-gray-900 hover:bg-gray-100')}`}
@@ -799,37 +828,48 @@ export function PlayerControls({
             <Repeat size={14} />
           </button>
 
-          <div className="relative flex items-center" ref={speedMenuRef}>
-            <button 
-              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-              className={`flex items-center gap-1 p-1 text-[11px] font-mono font-bold rounded transition-colors ${isDarkMode ? 'hover:text-white hover:bg-gray-800' : 'hover:text-gray-900 hover:bg-gray-100'} ${showSpeedMenu ? (isDarkMode ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900') : ''}`}
-            >
-              <Settings2 size={12} />
-              {playbackRate.toFixed(1)}x
-            </button>
-            
-            {showSpeedMenu && (
-              <div className="absolute bottom-full right-0 mb-2 flex flex-col border rounded shadow-xl overflow-hidden z-50" style={{ backgroundColor: uiTheme.panelBgElevated, borderColor: uiTheme.border }}>
-                {rates.map(r => (
-                  <button 
-                    key={r}
-                    onClick={() => {
-                      onRateChange(r);
-                      setShowSpeedMenu(false);
-                    }}
-                     className={`px-4 py-2 text-xs font-mono text-left transition-colors ${
-                       playbackRate === r 
-                         ? '' 
-                         : (isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100')
-                     }`}
-                    style={playbackRate === r ? { color: themeColor, backgroundColor: `${secondaryThemeColor}18` } : undefined}
-                  >
-                    {r.toFixed(1)}x
-                  </button>
+          {compactMobile ? (
+            <div className="flex items-center gap-1 p-1 rounded-md shrink-0" style={{ backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22` }}>
+              <Settings2 size={11} />
+              <select
+                value={playbackRate}
+                onChange={(e) => onRateChange(Number(e.target.value))}
+                className="text-[10px] bg-transparent outline-none"
+                style={{ color: uiTheme.text }}
+              >
+                {rates.map((rate) => (
+                  <option key={rate} value={rate}>{rate.toFixed(1)}x</option>
                 ))}
-              </div>
-            )}
-          </div>
+              </select>
+            </div>
+          ) : (
+            <div className="relative flex items-center" ref={speedMenuRef}>
+              <button
+                onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                className={`flex items-center gap-1 p-1 text-[11px] font-mono font-bold rounded transition-colors ${isDarkMode ? 'hover:text-white hover:bg-gray-800' : 'hover:text-gray-900 hover:bg-gray-100'} ${showSpeedMenu ? (isDarkMode ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900') : ''}`}
+              >
+                <Settings2 size={12} />
+                {playbackRate.toFixed(1)}x
+              </button>
+              {showSpeedMenu && (
+                <div className="absolute bottom-full right-0 mb-2 flex flex-col border rounded shadow-xl overflow-hidden z-50" style={{ backgroundColor: uiTheme.panelBgElevated, borderColor: uiTheme.border }}>
+                  {rates.map(r => (
+                    <button
+                      key={r}
+                      onClick={() => {
+                        onRateChange(r);
+                        setShowSpeedMenu(false);
+                      }}
+                      className={`px-4 py-2 text-xs font-mono text-left transition-colors ${playbackRate === r ? '' : (isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100')}`}
+                      style={playbackRate === r ? { color: themeColor, backgroundColor: `${secondaryThemeColor}18` } : undefined}
+                    >
+                      {r.toFixed(1)}x
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {!compactMobile && (
           <div className="flex items-center gap-1.5 p-1 rounded-full" style={{ backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22`, boxShadow: `0 2px 10px ${secondaryThemeColor}14` }}>
