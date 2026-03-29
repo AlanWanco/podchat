@@ -207,6 +207,16 @@ On Windows, the workflow produces both:
 - If the app name or local config directory changes, old local preferences are not migrated automatically
 - Some exported videos may show slight 1-2 pixel jitter on certain elements, likely caused by sub-pixel layout values and per-frame rounding during rendering
 
+## Release Notes
+
+### v0.1.2
+
+- Added `SRT/LRC` subtitle import support, using the default non-annotation speaker and saving edits into project `content`
+- Added ASS style mapping and preset generation on import (color, opacity, and border width)
+- Enabled preset import/export in web mode to align behavior with desktop
+- Improved mobile web layout: adaptive preview scaling, collapsible/expandable/resizable bottom panel, and compact playback controls
+- Refactored waveform into a dedicated container that appears only after audio is successfully loaded
+
 ## Todo
 
 - [ ] Add GPU-accelerated export support, such as hardware encoder paths like macOS `VideoToolbox`
