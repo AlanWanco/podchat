@@ -158,17 +158,15 @@ export function MenuBar({
               </button>
               <button
                 onClick={() => executeAction(onImportPresets)}
-                disabled={!projectPath || isWebMode}
-                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${(!projectPath || isWebMode) && 'opacity-50 cursor-not-allowed'}`}
-                title={isWebMode ? t('welcome.webMode') : undefined}
+                disabled={!projectPath}
+                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${!projectPath && 'opacity-50 cursor-not-allowed'}`}
               >
                 <FolderOpen size={14} /> {t('menu.importPresets')}
               </button>
               <button
                 onClick={() => executeAction(onExportPresets)}
-                disabled={!projectPath || isWebMode}
-                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${(!projectPath || isWebMode) && 'opacity-50 cursor-not-allowed'}`}
-                title={isWebMode ? t('welcome.webMode') : undefined}
+                disabled={!projectPath}
+                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${!projectPath && 'opacity-50 cursor-not-allowed'}`}
               >
                 <Download size={14} /> {t('menu.exportPresets')}
               </button>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { app, BrowserWindow, ipcMain, dialog, clipboard, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';

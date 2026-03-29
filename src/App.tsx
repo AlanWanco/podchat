@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { demoConfig as initialConfig } from './projects/demo/config';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -378,7 +380,10 @@ function App() {
   // Panel Widths
   const [subtitleWidth, setSubtitleWidth] = useState(320);
   const [settingsWidth, setSettingsWidth] = useState(320);
-  const [activeTab, setActiveTab] = useState<'global' | 'project' | 'speakers' | 'annotation'>('speakers');
+  const [activeTab, setActiveTab] = useState<'subtitle' | 'global' | 'project' | 'speakers' | 'annotation'>(
+    !window.electron && window.innerWidth < 700 ? 'subtitle' : 'speakers'
+  );
+  const [isMobileSubtitleCollapsed, setIsMobileSubtitleCollapsed] = useState(false);
   const [editingSub, setEditingSub] = useState<{ id: string, start: number, end: number, text: string } | null>(null);
   const [importAssData, setImportAssData] = useState<{ path: string, content: string } | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -398,6 +403,7 @@ function App() {
   const [presets, setPresets] = useState<Record<string, any>>(() => config.ui?.presets ?? DEFAULT_UI_CONFIG.presets);
   const [webAudioObjectUrl, setWebAudioObjectUrl] = useState('');
   const [webAssContent, setWebAssContent] = useState<string | null>(null);
+  const webPresetInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const portraitAutoCollapseRef = useRef<{ subtitle: boolean; settings: boolean } | null>(null);
   const savedSpeakerNamesRef = useRef<Record<string, string>>(getSpeakerNameSnapshot(config.speakers));
@@ -427,6 +433,7 @@ function App() {
   
   const isPortraitCanvas = canvasHeight > canvasWidth;
   const shouldHideSidePanels = windowWidth < 700;
+  const isMobileWebLayout = !window.electron && shouldHideSidePanels;
   const aspectRatio = `${canvasWidth} / ${canvasHeight}`;
   const aspectLabel = `${canvasWidth}:${canvasHeight}`;
 const [previewScale, setPreviewScale] = useState(1);
@@ -732,7 +739,10 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const handleImportPresets = async () => {
-    if (!window.electron) return;
+    if (!window.electron) {
+      webPresetInputRef.current?.click();
+      return;
+    }
 
     try {
       const result = await window.electron.showOpenDialog({
@@ -791,7 +801,23 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const handleExportPresets = async () => {
-    if (!window.electron) return;
+    if (!window.electron) {
+      try {
+        const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'pomchat-presets.json';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        showToast(t('app.presetsExported'));
+      } catch (error) {
+        console.error('Failed to export presets:', error);
+      }
+      return;
+    }
 
     try {
       const result = await window.electron.showSaveDialog({
@@ -1458,7 +1484,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const startWidth = type === 'subtitle' ? subtitleWidth : settingsWidth;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      let delta = moveEvent.clientX - startX;
+      const delta = moveEvent.clientX - startX;
       
       // Determine direction based on position
       if (type === 'subtitle') {
@@ -1873,6 +1899,62 @@ const [previewScale, setPreviewScale] = useState(1);
     event.target.value = '';
   };
 
+  const handleWebPresetSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const content = await file.text();
+      const parsed = JSON.parse(content);
+      const existing = { ...presets };
+      const imported: Record<string, any> = {};
+
+      if (parsed?.speakers && typeof parsed.speakers === 'object') {
+        Object.entries(parsed.speakers).forEach(([speakerKey, speaker]: [string, any]) => {
+          const baseName = speaker?.name || speakerKey;
+          let presetName = baseName;
+          let counter = 2;
+          while (existing[presetName] || imported[presetName]) {
+            presetName = `${baseName} (${counter})`;
+            counter += 1;
+          }
+          imported[presetName] = {
+            style: JSON.parse(JSON.stringify(speaker?.style || {})),
+            avatar: speaker?.avatar || ''
+          };
+        });
+      }
+
+      if (parsed && typeof parsed === 'object' && !parsed.speakers) {
+        Object.entries(parsed).forEach(([presetName, presetValue]) => {
+          imported[presetName] = presetValue;
+        });
+      }
+
+      const speakerCount = parsed?.speakers && typeof parsed.speakers === 'object'
+        ? Object.keys(parsed.speakers).length
+        : 0;
+      const presetCount = Object.keys(imported).length;
+      if (presetCount === 0) {
+        showToast(t('app.dropUnsupported'));
+        return;
+      }
+
+      const confirmed = window.confirm(`检测到 ${presetCount} 个预设 / ${speakerCount} 个 speaker，确定导入吗？`);
+      if (!confirmed) {
+        return;
+      }
+
+      setPresets({ ...existing, ...imported });
+      showToast(t('app.presetsImported'));
+    } catch (error) {
+      console.error('Failed to import presets:', error);
+      showToast(t('app.dropUnsupported'));
+    } finally {
+      event.target.value = '';
+    }
+  };
+
   const importWebFile = useCallback(async (file: File, currentProjectPath: string | null) => {
     const normalizedName = file.name.toLowerCase();
     const isJson = normalizedName.endsWith('.json');
@@ -2062,6 +2144,13 @@ const [previewScale, setPreviewScale] = useState(1);
               className="hidden"
               onChange={handleWebSubtitleSelected}
             />
+            <input
+              ref={webPresetInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={handleWebPresetSelected}
+            />
           </>
         )}
         <WelcomeScreen 
@@ -2110,7 +2199,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 presets={presets}
                 onPresetsChange={setPresets}
                 globalOnly
-                activeTab={activeTab as 'global' | 'project' | 'speakers' | 'annotation'}
+                activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
               />
@@ -2191,6 +2280,13 @@ const [previewScale, setPreviewScale] = useState(1);
             className="hidden"
             onChange={handleWebSubtitleSelected}
           />
+          <input
+            ref={webPresetInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={handleWebPresetSelected}
+          />
         </>
       )}
 
@@ -2256,7 +2352,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                 onPresetsChange={setPresets}
-                activeTab={activeTab as 'global' | 'project' | 'speakers' | 'annotation'}
+                activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
               />
@@ -2277,48 +2373,59 @@ const [previewScale, setPreviewScale] = useState(1);
           {/* Top Toolbar */}
           <div className="h-12 border-b flex items-center px-4 justify-between shrink-0 z-30 shadow-sm" style={{ backgroundColor: uiTheme.toolbarBg, borderColor: uiTheme.border }}>
             <div className="flex items-center gap-2">
-              <button 
-                onClick={() => {
-                  setShowSubtitlePanel((prev) => {
-                    const next = !prev;
-                    if (shouldHideSidePanels && next) {
-                      setShowSettings(false);
-                    }
-                    return next;
-                  });
-                }}
-                className={`p-1.5 rounded transition-colors mr-2 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
-                title="切换字幕列表"
-              >
-                {showSubtitlePanel ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-              </button>
+              {!isMobileWebLayout && (
+                <button
+                  onClick={() => {
+                    setShowSubtitlePanel((prev) => {
+                      const next = !prev;
+                      if (shouldHideSidePanels && next) {
+                        setShowSettings(false);
+                      }
+                      return next;
+                    });
+                  }}
+                  className={`p-1.5 rounded transition-colors mr-2 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+                  title="切换字幕列表"
+                >
+                  {showSubtitlePanel ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+                </button>
+              )}
+              {isMobileWebLayout && (
+                <div className="text-xs px-2 py-1 rounded border" style={{ color: uiTheme.textMuted, backgroundColor: uiTheme.panelBgSubtle, borderColor: `${secondaryThemeColor}44` }}>
+                  {canvasWidth}x{canvasHeight} ({aspectLabel}) @ {config.fps}FPS
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-4">
-              <div className="text-xs px-2 py-1 rounded border" style={{ color: uiTheme.textMuted, backgroundColor: uiTheme.panelBgSubtle, borderColor: `${secondaryThemeColor}44`, boxShadow: `0 2px 10px ${secondaryThemeColor}14` }}>
-                {canvasWidth}x{canvasHeight} ({aspectLabel}) @ {config.fps}FPS
-              </div>
-              <button
-                onClick={() => {
-                  setShowSettings((prev) => {
-                    const next = !prev;
-                    if (shouldHideSidePanels && next) {
-                      setShowSubtitlePanel(false);
-                    }
-                    return next;
-                  });
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded transition-colors ${showSettings ? '' : (isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}`}
-                style={showSettings ? { backgroundColor: `${secondaryThemeColor}18`, color: secondaryThemeColor, border: `1px solid ${secondaryThemeColor}55`, boxShadow: `0 4px 12px ${secondaryThemeColor}22` } : { border: `1px solid ${secondaryThemeColor}22` }}
-                title={t('menu.settings')}
-              >
-                <Settings size={14} />
-                {t('menu.settings')}
-              </button>
+              {!isMobileWebLayout && (
+                <>
+                  <div className="text-xs px-2 py-1 rounded border" style={{ color: uiTheme.textMuted, backgroundColor: uiTheme.panelBgSubtle, borderColor: `${secondaryThemeColor}44`, boxShadow: `0 2px 10px ${secondaryThemeColor}14` }}>
+                    {canvasWidth}x{canvasHeight} ({aspectLabel}) @ {config.fps}FPS
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowSettings((prev) => {
+                        const next = !prev;
+                        if (shouldHideSidePanels && next) {
+                          setShowSubtitlePanel(false);
+                        }
+                        return next;
+                      });
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded transition-colors ${showSettings ? '' : (isDarkMode ? 'hover:bg-gray-800 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}`}
+                    style={showSettings ? { backgroundColor: `${secondaryThemeColor}18`, color: secondaryThemeColor, border: `1px solid ${secondaryThemeColor}55`, boxShadow: `0 4px 12px ${secondaryThemeColor}22` } : { border: `1px solid ${secondaryThemeColor}22` }}
+                    title={t('menu.settings')}
+                  >
+                    <Settings size={14} />
+                    {t('menu.settings')}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
           {/* Canvas Area (Preview) */}
-          {shouldHideSidePanels && showSubtitlePanel && (
+          {!isMobileWebLayout && shouldHideSidePanels && showSubtitlePanel && (
             <div className="absolute inset-x-0 top-12 bottom-0 z-40 flex">
               <div className="absolute inset-0 bg-black/25" onClick={() => setShowSubtitlePanel(false)} />
               <div
@@ -2347,7 +2454,7 @@ const [previewScale, setPreviewScale] = useState(1);
             </div>
           )}
 
-          {shouldHideSidePanels && showSettings && (
+          {!isMobileWebLayout && shouldHideSidePanels && showSettings && (
             <div className="absolute inset-x-0 top-12 bottom-0 z-40 flex justify-end">
               <div className="absolute inset-0 bg-black/25" onClick={() => setShowSettings(false)} />
               <div
@@ -2376,7 +2483,7 @@ const [previewScale, setPreviewScale] = useState(1);
                   showToast={showToast}
                   presets={presets}
                   onPresetsChange={setPresets}
-                  activeTab={activeTab as 'global' | 'project' | 'speakers' | 'annotation'}
+                  activeTab={activeTab}
                   setActiveTab={setActiveTab}
                   onSelectImage={handleSelectImage}
                 />
@@ -2564,7 +2671,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                 onPresetsChange={setPresets}
-                activeTab={activeTab as 'global' | 'project' | 'speakers' | 'annotation'}
+                activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
               />
@@ -2607,6 +2714,74 @@ const [previewScale, setPreviewScale] = useState(1);
           }
         }}
       />
+
+      {isMobileWebLayout && (
+        <div className="h-[42vh] min-h-[240px] border-t overflow-hidden" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBg }}>
+          <SettingsPanel
+            config={config}
+            onConfigChange={setConfig}
+            isDarkMode={isDarkMode}
+            language={language}
+            themeColor={themeColor}
+            secondaryThemeColor={secondaryThemeColor}
+            onThemeColorChange={setThemeColorState}
+            onSecondaryThemeColorChange={setSecondaryThemeColorState}
+            onLanguageChange={(nextLanguage: Language) => setConfig((prev: any) => ({ ...prev, language: nextLanguage }))}
+            onThemeChange={setIsDarkMode}
+            settingsPosition={settingsPosition}
+            onPositionChange={setSettingsPosition}
+            onClose={() => {
+              setIsMobileSubtitleCollapsed((prev) => !prev);
+              setActiveTab('subtitle');
+            }}
+            onSave={window.electron ? handleSaveProject : handleSaveConfig}
+            showToast={showToast}
+            presets={presets}
+            onPresetsChange={setPresets}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onSelectImage={handleSelectImage}
+            showSubtitleTab
+            subtitleContent={(
+              <div className="h-full min-h-0 flex flex-col">
+                <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}>
+                  <span className="text-sm font-medium" style={{ color: uiTheme.text }}>{t('subtitle.title')}</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileSubtitleCollapsed((prev) => !prev)}
+                    className="px-2.5 py-1 rounded text-xs border transition-colors"
+                    style={{ borderColor: uiTheme.border, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
+                  >
+                    {isMobileSubtitleCollapsed ? t('subtitle.expand') : t('subtitle.collapse')}
+                  </button>
+                </div>
+                {isMobileSubtitleCollapsed ? (
+                  <div className="flex-1 flex items-center justify-center text-sm" style={{ color: uiTheme.textMuted }}>
+                    {t('subtitle.collapsedHint')}
+                  </div>
+                ) : (
+                  <div className="flex-1 min-h-0">
+                    <SubtitlePanel
+                      subtitles={subtitles}
+                      currentTime={currentTime}
+                      isDarkMode={isDarkMode}
+                      language={language}
+                      themeColor={themeColor}
+                      secondaryThemeColor={secondaryThemeColor}
+                      speakers={config.speakers}
+                      onSeek={handleSeek}
+                      onUpdateSubtitle={handleUpdateSubtitle}
+                      onDeleteSubtitle={handleDeleteSubtitle}
+                      editingSub={editingSub}
+                      setEditingSub={setEditingSub}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          />
+        </div>
+      )}
 
        <ExportModal
          isOpen={showExportModal}
@@ -2652,7 +2827,7 @@ const [previewScale, setPreviewScale] = useState(1);
           themeColor={themeColor}
           secondaryThemeColor={secondaryThemeColor}
           onCancel={() => setImportAssData(null)}
-          onConfirm={async (path, newSpeakers) => {
+          onConfirm={async (path, newSpeakers, importedPresets) => {
             const sanitizedContent = sanitizeImportedAssContent(importAssData.content);
 
             if (window.electron && sanitizedContent !== importAssData.content) {
@@ -2668,6 +2843,12 @@ const [previewScale, setPreviewScale] = useState(1);
               assPath: path,
               speakers: newSpeakers
             }));
+            if (importedPresets && Object.keys(importedPresets).length > 0) {
+              setPresets((prev: Record<string, any>) => ({
+                ...prev,
+                ...importedPresets
+              }));
+            }
             if (!window.electron) {
               setWebAssContent(sanitizedContent);
             }

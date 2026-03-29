@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { Settings, Image as ImageIcon, Users, Save, Moon, Sun, Trash2, Plus, X, ArrowLeftRight, LayoutTemplate, Type, Box, Layout, FolderOpen } from 'lucide-react';
 import { translate, type Language } from '../i18n';
 import { createThemeTokens } from '../theme';
@@ -37,10 +37,12 @@ interface SettingsPanelProps {
   showToast: (msg: string) => void;
   presets: Record<string, any>;
   onPresetsChange: (presets: Record<string, any>) => void;
-  activeTab: 'global' | 'project' | 'speakers' | 'annotation';
-  setActiveTab: (tab: 'global' | 'project' | 'speakers' | 'annotation') => void;
+  activeTab: 'subtitle' | 'global' | 'project' | 'speakers' | 'annotation';
+  setActiveTab: (tab: 'subtitle' | 'global' | 'project' | 'speakers' | 'annotation') => void;
   onSelectImage?: () => Promise<string | null>;
   globalOnly?: boolean;
+  showSubtitleTab?: boolean;
+  subtitleContent?: ReactNode;
 }
 
 export function SettingsPanel({ 
@@ -48,7 +50,7 @@ export function SettingsPanel({
   isDarkMode, language, themeColor, secondaryThemeColor, onThemeColorChange, onSecondaryThemeColorChange, onLanguageChange, onThemeChange, 
   settingsPosition, onPositionChange,
   onClose, onSave, showToast, presets, onPresetsChange, activeTab, setActiveTab,
-  onSelectImage, globalOnly = false
+  onSelectImage, globalOnly = false, showSubtitleTab = false, subtitleContent = null
 }: SettingsPanelProps) {
   const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
@@ -71,6 +73,12 @@ export function SettingsPanel({
       setActiveTab('global');
     }
   }, [globalOnly, activeTab, setActiveTab]);
+
+  useEffect(() => {
+    if (!showSubtitleTab && activeTab === 'subtitle') {
+      setActiveTab('global');
+    }
+  }, [showSubtitleTab, activeTab, setActiveTab]);
 
   const updateConfig = (key: string, value: any) => {
     onConfigChange({ ...config, [key]: value });
@@ -316,6 +324,15 @@ export function SettingsPanel({
          </button>
          {!globalOnly && (
            <>
+         {showSubtitleTab && (
+           <button
+             className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'subtitle' ? 'border-b-2' : ''}`}
+             style={activeTab === 'subtitle' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
+             onClick={() => setActiveTab('subtitle')}
+           >
+             {t('tab.subtitle')}
+           </button>
+         )}
           <button
             className={`flex-1 py-2 font-medium transition-colors text-sm ${activeTab === 'project' ? 'border-b-2' : ''}`}
             style={activeTab === 'project' ? { borderColor: secondaryThemeColor, color: uiTheme.text } : { color: uiTheme.textSoft }}
@@ -341,7 +358,11 @@ export function SettingsPanel({
          )}
         </div>
 
-      <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeTab === 'speakers' ? 'px-4 pb-4 pt-0' : 'p-4'}`}>
+      <div className={`flex-1 overflow-y-auto custom-scrollbar ${activeTab === 'speakers' ? 'px-4 pb-4 pt-0' : activeTab === 'subtitle' ? 'p-0' : 'p-4'}`}>
+        {showSubtitleTab && activeTab === 'subtitle' && (
+          <div className="h-full min-h-0">{subtitleContent}</div>
+        )}
+
         {activeTab === 'global' && (
           <div className="space-y-6">
             <div className="space-y-2">

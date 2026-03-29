@@ -1,4 +1,5 @@
 import React from 'react';
+/* eslint-disable react-refresh/only-export-components */
 import { Composition, registerRoot } from 'remotion';
 import { PodchatComposition } from './PodchatComposition';
 import type { PodchatExportInput } from './types';

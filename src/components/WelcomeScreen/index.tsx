@@ -4,6 +4,11 @@ import { translate, type Language } from '../../i18n';
 import { createThemeTokens } from '../../theme';
 import pomchatIconWhite from '../../../pomchat-icon-white.svg';
 
+type CSSVarStyle = React.CSSProperties & {
+  ['--pomchat-scrollbar-thumb']?: string;
+  ['--pomchat-scrollbar-thumb-hover']?: string;
+};
+
 interface WelcomeScreenProps {
   onNewProject: () => void;
   onOpenProject: () => void;
@@ -30,9 +35,9 @@ export function WelcomeScreen({ onNewProject, onOpenProject, onOpenRecent, onOpe
         backgroundColor: isDarkMode ? uiTheme.appBg : uiTheme.panelBg,
         backgroundImage: `linear-gradient(180deg, transparent 0%, transparent 74%, ${secondaryThemeColor}${isDarkMode ? '14' : '0A'} 100%)`,
         color: uiTheme.text,
-        ['--pomchat-scrollbar-thumb' as any]: `${secondaryThemeColor}44`,
-        ['--pomchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}66`
-      }}
+        ['--pomchat-scrollbar-thumb']: `${secondaryThemeColor}44`,
+        ['--pomchat-scrollbar-thumb-hover']: `${secondaryThemeColor}66`
+      } as CSSVarStyle}
     >
       {onOpenSettings && (
         <button

@@ -50,7 +50,13 @@ type ImportedSpeakerMap = Record<string, {
   avatar: string;
   side: 'left' | 'right' | 'center';
   type?: 'annotation' | 'speaker';
+  preset?: string;
   style: Record<string, string | number>;
+}>;
+type ImportedPresetMap = Record<string, {
+  style: Record<string, string | number>;
+  avatar: string;
+  side: 'left' | 'right' | 'center';
 }>;
 type StylePreviewRow = {
   id: string;
@@ -59,9 +65,11 @@ type StylePreviewRow = {
   bubbleColor: AssColorInfo;
   borderColor: AssColorInfo;
   textColor: AssColorInfo;
+  borderWidth: number | null;
 };
 
 const PREVIEW_ROWS_PER_TAB = 8;
+const buildAssPresetKey = (styleName: string) => `ASS:${styleName || 'Default'}`;
 
 const getPreferredStylesByName = (dialogues: ParsedAssDialogue[]) => {
   const counts = new Map<string, Map<string, number>>();
@@ -114,7 +122,7 @@ const getImportedSpeakerStyle = (assStyle: ParsedAssStyle | undefined, isAnnotat
 interface AssImportModalProps {
   assPath: string;
   assContent: string;
-  onConfirm: (path: string, newSpeakers: ImportedSpeakerMap) => void | Promise<void>;
+  onConfirm: (path: string, newSpeakers: ImportedSpeakerMap, newPresets: ImportedPresetMap) => void | Promise<void>;
   onCancel: () => void;
   isDarkMode: boolean;
   language: Language;
@@ -188,6 +196,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
     );
     const preferredStylesByName = getPreferredStylesByName(latestParsedAss?.events?.dialogue || []);
     const newSpeakers: ImportedSpeakerMap = {};
+    const newPresets: ImportedPresetMap = {};
     let charCode = 65; // 'A'
     
     selectedItems.forEach(id => {
@@ -197,6 +206,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
       const speakerId = isAnnotation ? 'ANNOTATION' : String.fromCharCode(charCode++);
       const matchedStyleName = isName ? (preferredStylesByName.get(val) || val) : val;
       const importedStyle = getImportedSpeakerStyle(assStylesByName.get(matchedStyleName), isAnnotation);
+      const assPresetKey = buildAssPresetKey(matchedStyleName || val || speakerId);
       const baseStyle = {
         bgColor: isAnnotation ? '#111827' : (charCode % 2 === 0 ? '#2563eb' : '#f3f4f6'),
         textColor: isAnnotation ? '#ffffff' : (charCode % 2 === 0 ? '#ffffff' : '#111827'),
@@ -218,15 +228,27 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
         nameColor: '#ffffff',
         annotationPosition: 'bottom'
       };
+      const mergedStyle = {
+        ...baseStyle,
+        ...(applyDetectedStyle ? importedStyle : {})
+      };
+
+      if (applyDetectedStyle && !isAnnotation && !newPresets[assPresetKey]) {
+        newPresets[assPresetKey] = {
+          style: mergedStyle,
+          avatar: '',
+          side: 'left'
+        };
+      }
       
         newSpeakers[speakerId] = {
           name: isAnnotation ? '注释' : (val || `角色${speakerId}`),
           avatar: isAnnotation ? '' : `https://api.dicebear.com/7.x/adventurer/svg?seed=${val || speakerId}`,
           side: isAnnotation ? 'center' : (charCode % 2 === 0 ? "left" : "right"),
           type: isAnnotation ? 'annotation' : 'speaker',
+          preset: applyDetectedStyle && !isAnnotation ? assPresetKey : undefined,
           style: {
-            ...baseStyle,
-            ...(applyDetectedStyle ? importedStyle : {})
+            ...mergedStyle
           }
         };
     });
@@ -243,7 +265,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
       };
     }
     
-    await onConfirm(assPath, newSpeakers);
+    await onConfirm(assPath, newSpeakers, newPresets);
   };
 
   const itemBg = isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100';
@@ -254,13 +276,15 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
     const val = isName ? id.substring(5) : id.substring(6);
     const matchedStyleName = isName ? (preferredStylesByName.get(val) || val) : val;
     const matchedStyle = assStylesByName.get(matchedStyleName);
+    const outlineWidth = Number(matchedStyle?.Outline);
     return {
       id,
       speakerLabel: val || t('import.empty'),
       matchedStyleName,
       bubbleColor: parseAssColor(matchedStyle?.OutlineColour),
       borderColor: parseAssColor(matchedStyle?.BackColour),
-      textColor: parseAssColor(matchedStyle?.PrimaryColour)
+      textColor: parseAssColor(matchedStyle?.PrimaryColour),
+      borderWidth: Number.isFinite(outlineWidth) ? Math.max(0, Math.round(outlineWidth)) : null
     };
   });
   const totalPreviewTabs = Math.max(1, Math.ceil(previewRows.length / PREVIEW_ROWS_PER_TAB));
@@ -320,6 +344,52 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
             </div>
           )}
 
+          <div className="rounded-lg border p-3 space-y-3" style={{ borderColor: uiTheme.border }}>
+            {names.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase opacity-50">{t('import.name')}</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {names.map(a => {
+                    const id = `name:${a}`;
+                    const isSel = selectedItems.has(id);
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => toggleItem(id)}
+                        className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${isSel ? '' : `border-transparent ${itemBg}`}`}
+                        style={isSel ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` } : undefined}
+                      >
+                        <div className="font-medium truncate">{a || t('import.empty')}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {styles.length > 0 && (
+              <div className="space-y-2 mt-2">
+                <h4 className="text-xs font-semibold uppercase opacity-50">{t('import.style')}</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {styles.map(s => {
+                    const id = `style:${s}`;
+                    const isSel = selectedItems.has(id);
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => toggleItem(id)}
+                        className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${isSel ? '' : `border-transparent ${itemBg}`}`}
+                        style={isSel ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` } : undefined}
+                      >
+                        <div className="font-medium truncate">{s || t('import.empty')}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {previewRows.length > 0 && (
             <div className="rounded-lg border p-3 space-y-3" style={{ borderColor: uiTheme.border }}>
               <div className="flex items-center justify-between gap-3">
@@ -347,6 +417,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
                       <th className="text-left px-3 py-2">{t('import.previewBubbleColor')}</th>
                       <th className="text-left px-3 py-2">{t('import.previewBorderColor')}</th>
                       <th className="text-left px-3 py-2">{t('import.previewTextColor')}</th>
+                      <th className="text-left px-3 py-2">{t('import.previewBorderWidth')}</th>
                       <th className="text-left px-3 py-2">{t('import.previewBubbleOpacity')}</th>
                       <th className="text-left px-3 py-2">{t('import.previewBorderOpacity')}</th>
                     </tr>
@@ -359,56 +430,13 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
                         <td className="px-3 py-2">{renderColorBadge(row.bubbleColor)}</td>
                         <td className="px-3 py-2">{renderColorBadge(row.borderColor)}</td>
                         <td className="px-3 py-2">{renderColorBadge(row.textColor)}</td>
+                        <td className="px-3 py-2">{typeof row.borderWidth === 'number' ? `${row.borderWidth}px` : '--'}</td>
                         <td className="px-3 py-2">{row.bubbleColor ? `${Math.round(row.bubbleColor.opacity * 100)}%` : '--'}</td>
                         <td className="px-3 py-2">{row.borderColor ? `${Math.round(row.borderColor.opacity * 100)}%` : '--'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            </div>
-          )}
-           
-          {names.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase opacity-50">{t('import.name')}</h4>
-              <div className="grid grid-cols-2 gap-2">
-                {names.map(a => {
-                  const id = `name:${a}`;
-                  const isSel = selectedItems.has(id);
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => toggleItem(id)}
-                      className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${isSel ? '' : `border-transparent ${itemBg}`}`}
-                      style={isSel ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` } : undefined}
-                    >
-                      <div className="font-medium truncate">{a || t('import.empty')}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {styles.length > 0 && (
-            <div className="space-y-2 mt-4">
-              <h4 className="text-xs font-semibold uppercase opacity-50">{t('import.style')}</h4>
-              <div className="grid grid-cols-2 gap-2">
-                {styles.map(s => {
-                  const id = `style:${s}`;
-                  const isSel = selectedItems.has(id);
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => toggleItem(id)}
-                      className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${isSel ? '' : `border-transparent ${itemBg}`}`}
-                      style={isSel ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` } : undefined}
-                    >
-                      <div className="font-medium truncate">{s || t('import.empty')}</div>
-                    </button>
-                  );
-                })}
               </div>
             </div>
           )}
