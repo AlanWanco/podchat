@@ -211,7 +211,7 @@ On Windows, the workflow produces both:
 
 ## Release Notes
 
-### v0.1.4.1
+### v0.1.5-beta.1
 
 - Fixed Windows local file path compatibility: audio, images, and other local assets now correctly handle `#`, `?`, `%`, spaces, and non-ASCII characters in paths
 - Fixed Electron export dependency downloads: the Remotion browser is now bundled during packaging so first export no longer blocks on downloading under weak network conditions
