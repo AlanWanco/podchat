@@ -532,23 +532,33 @@ export const PlayerControls = memo(function PlayerControls({
       
       {/* Waveform Track */}
       <div
-        className="relative z-10 w-full overflow-hidden"
+        className="relative z-10 w-full overflow-visible"
         style={{
           height: showWaveformContainer ? undefined : 0,
           marginBottom: showWaveformContainer ? '0.5rem' : 0
         }}
       >
-          <div
-            className="w-full cursor-pointer"
-            ref={waveformRef}
-            title={t('player.waveformTitle')}
-            style={{ visibility: isWaveformReady ? 'visible' : 'hidden' }}
-          />
           {showWaveformContainer && editingSub && regionTooltip && (
-            <div className="absolute top-1 right-2 px-2 py-1 rounded-md text-[10px] font-mono z-[70] pointer-events-none bg-gray-950/95" style={{ color: secondaryThemeColor, border: `1px solid ${secondaryThemeColor}55` }}>
+            <div
+              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2 py-1 rounded-md text-[10px] font-mono z-[70] pointer-events-none whitespace-nowrap"
+              style={{
+                backgroundColor: isDarkMode ? `${themeColor}F2` : uiTheme.panelBgElevated,
+                color: isDarkMode ? '#ffffff' : uiTheme.text,
+                border: `1px solid ${secondaryThemeColor}`,
+                boxShadow: isDarkMode ? `0 8px 22px ${secondaryThemeColor}22` : `0 8px 20px ${secondaryThemeColor}1A`
+              }}
+            >
               {formatTime(regionTooltip.start)} - {formatTime(regionTooltip.end)}
             </div>
           )}
+          <div className="w-full overflow-hidden">
+            <div
+              className="w-full cursor-pointer"
+              ref={waveformRef}
+              title={t('player.waveformTitle')}
+              style={{ visibility: isWaveformReady ? 'visible' : 'hidden' }}
+            />
+          </div>
       </div>
 
       {/* Controls Row */}
@@ -600,7 +610,7 @@ export const PlayerControls = memo(function PlayerControls({
         )}
 
         {!compactMobile && (
-        <div className={`flex items-center gap-3 shrink-0 ${compactMobile ? 'order-1 basis-full overflow-x-auto pb-1 justify-start' : 'justify-center'}`}>
+        <div className={`relative flex items-center gap-3 shrink-0 ${compactMobile ? 'order-1 basis-full overflow-x-auto pb-1 justify-start' : 'justify-center'}`}>
           <div className="flex items-center gap-1.5 rounded-full px-2 py-1.5" style={{ backgroundColor: `${secondaryThemeColor}10`, border: `1px solid ${secondaryThemeColor}22`, boxShadow: `0 4px 14px ${secondaryThemeColor}10` }}>
             <button
               type="button"

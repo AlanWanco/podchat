@@ -18,22 +18,42 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const topPadding = (props.chatLayout?.paddingTop ?? 48) * effectiveScale;
   const bottomPadding = (props.chatLayout?.paddingBottom ?? 80) * effectiveScale;
 
-  const appearedMessages = props.content.filter((item) => {
+  const speakerMessages = props.content.filter((item) => {
     const speaker = props.speakers[item.speaker];
-    if (!speaker || speaker.type === 'annotation') {
-      return false;
-    }
+    return Boolean(speaker && speaker.type !== 'annotation');
+  });
 
+  const appearedMessages = speakerMessages.filter((item) => {
     const appearanceTime = Math.max(0, item.start - ((props.chatLayout?.animationStyle || 'rise') === 'none' ? 0 : animationDuration));
     return currentTime >= appearanceTime;
   });
-  const timeWindowMessages = appearedMessages.filter((item) => (
+  const timeWindowMessages = speakerMessages.filter((item) => (
     item.start >= currentTime - MESSAGE_LOOKBACK_SECONDS &&
     item.start <= currentTime + MESSAGE_LOOKAHEAD_SECONDS
   ));
-  const visibleMessages = timeWindowMessages.length >= MESSAGE_FALLBACK_COUNT
-    ? timeWindowMessages
-    : appearedMessages.slice(-MESSAGE_FALLBACK_COUNT);
+  const visibleMessages = (() => {
+    if (timeWindowMessages.length >= MESSAGE_FALLBACK_COUNT) {
+      return timeWindowMessages;
+    }
+
+    if (appearedMessages.length <= MESSAGE_FALLBACK_COUNT) {
+      return appearedMessages;
+    }
+
+    const fallbackAnchorIndex = (() => {
+      const activeIndex = appearedMessages.findIndex((item) => currentTime >= item.start && currentTime <= item.end);
+      if (activeIndex >= 0) return activeIndex;
+
+      return Math.max(0, appearedMessages.length - 1);
+    })();
+
+    const windowStart = Math.max(0, Math.min(
+      fallbackAnchorIndex - Math.floor(MESSAGE_FALLBACK_COUNT / 2),
+      appearedMessages.length - MESSAGE_FALLBACK_COUNT,
+    ));
+
+    return appearedMessages.slice(windowStart, windowStart + MESSAGE_FALLBACK_COUNT);
+  })();
 
   const visibleAnnotations = props.content.filter((item) => {
     const speaker = props.speakers[item.speaker];

@@ -2493,9 +2493,12 @@ const [previewScale, setPreviewScale] = useState(1);
     return currentTime >= appearanceTime && currentTime <= item.end;
   });
   const visibleMessages = useMemo(() => {
-    const appeared = subtitles.filter((item) => {
+    const speakerMessages = subtitles.filter((item) => {
       const speaker = config.speakers[item.speakerId];
-      if (!speaker || speaker.type === 'annotation') return false;
+      return Boolean(speaker && speaker.type !== 'annotation');
+    });
+
+    const appeared = speakerMessages.filter((item) => {
       const animationStyle = config.chatLayout?.animationStyle || 'rise';
       const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
       const animationLeadTime = animationStyle === 'none' ? 0 : animationDuration;
@@ -2503,14 +2506,32 @@ const [previewScale, setPreviewScale] = useState(1);
       return currentTime >= appearanceTime;
     });
 
-    const inWindow = appeared.filter((item) => (
+    const inWindow = speakerMessages.filter((item) => (
       item.start >= currentTime - MESSAGE_LOOKBACK_SECONDS &&
       item.start <= currentTime + MESSAGE_LOOKAHEAD_SECONDS
     ));
 
-    return inWindow.length >= MESSAGE_FALLBACK_COUNT
-      ? inWindow
-      : appeared.slice(-MESSAGE_FALLBACK_COUNT);
+    if (inWindow.length >= MESSAGE_FALLBACK_COUNT) {
+      return inWindow;
+    }
+
+    if (appeared.length <= MESSAGE_FALLBACK_COUNT) {
+      return appeared;
+    }
+
+    const fallbackAnchorIndex = (() => {
+      const activeIndex = appeared.findIndex((item) => currentTime >= item.start && currentTime <= item.end);
+      if (activeIndex >= 0) return activeIndex;
+
+      return Math.max(0, appeared.length - 1);
+    })();
+
+    const windowStart = Math.max(0, Math.min(
+      fallbackAnchorIndex - Math.floor(MESSAGE_FALLBACK_COUNT / 2),
+      appeared.length - MESSAGE_FALLBACK_COUNT,
+    ));
+
+    return appeared.slice(windowStart, windowStart + MESSAGE_FALLBACK_COUNT);
   }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, currentTime]);
   const latestVisibleMessageId = visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1].id : '';
 
