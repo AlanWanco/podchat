@@ -438,6 +438,7 @@ function App() {
   const [webAssContent, setWebAssContent] = useState<string | null>(null);
   const webPresetInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [seekTick, setSeekTick] = useState(0);
   const portraitAutoCollapseRef = useRef<{ subtitle: boolean; settings: boolean } | null>(null);
   const savedSpeakerNamesRef = useRef<Record<string, string>>(getSpeakerNameSnapshot(config.speakers));
   const exportRangeTouchedRef = useRef(false);
@@ -1390,6 +1391,7 @@ const [previewScale, setPreviewScale] = useState(1);
   const handleSeek = useCallback((time: number) => {
     if (audioRef.current) audioRef.current.currentTime = time;
     setCurrentTime(time);
+    setSeekTick((prev) => prev + 1);
   }, []);
 
   // Keep preview chat anchored by virtualized render window.
@@ -2478,6 +2480,7 @@ const [previewScale, setPreviewScale] = useState(1);
       ? inWindow
       : appeared.slice(-MESSAGE_FALLBACK_COUNT);
   }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, currentTime]);
+  const latestVisibleMessageId = visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1].id : '';
 
   useEffect(() => {
     if (!isPlaying || !scrollRef.current) {
@@ -2489,7 +2492,7 @@ const [previewScale, setPreviewScale] = useState(1);
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
     });
-  }, [visibleMessages.length, isPlaying]);
+  }, [latestVisibleMessageId, isPlaying, seekTick]);
 
   const previewChatLayout = useMemo(() => {
     if (!isMobileWebLayout) {
