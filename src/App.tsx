@@ -804,6 +804,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const handleCopyPreviewToClipboard = async (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!window.electron || !previewFrameRef.current) return;
 
     const rect = previewFrameRef.current.getBoundingClientRect();
@@ -833,6 +834,33 @@ const [previewScale, setPreviewScale] = useState(1);
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
+
+  useEffect(() => {
+    if (window.electron || projectPath) {
+      return;
+    }
+
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(saved);
+      const validatedConfig = validateProjectConfig(parsed);
+      const hasBlobAudio = typeof validatedConfig.audioPath === 'string' && validatedConfig.audioPath.startsWith('blob:');
+      const restoredConfig = hasBlobAudio ? { ...validatedConfig, audioPath: '' } : validatedConfig;
+      setConfig(restoredConfig);
+      setProjectPath('web-demo');
+      setRecentProject(parsed?.projectTitle || 'web-demo');
+      savedSpeakerNamesRef.current = getSpeakerNameSnapshot(restoredConfig.speakers);
+      if (hasBlobAudio) {
+        showToast('已恢复上次网页项目配置，请重新选择音频文件');
+      }
+    } catch (error) {
+      console.error('Failed to restore web project from localStorage:', error);
+    }
+  }, [projectPath, showToast]);
 
   useEffect(() => {
     const ui = config.ui || DEFAULT_UI_CONFIG;
@@ -916,6 +944,16 @@ const [previewScale, setPreviewScale] = useState(1);
       );
     }, 500);
     
+    return () => clearTimeout(saveTimer);
+  }, [config]);
+
+  useEffect(() => {
+    if (window.electron) return;
+
+    const saveTimer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    }, 250);
+
     return () => clearTimeout(saveTimer);
   }, [config]);
 
@@ -1931,6 +1969,31 @@ const [previewScale, setPreviewScale] = useState(1);
   if (!projectPath) {
     return (
       <div className="relative w-full h-screen" style={{ background: appBackground, color: uiTheme.text, ['--pomchat-scrollbar-thumb' as any]: `${secondaryThemeColor}77`, ['--pomchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}AA` }} onDragOver={handleAppDragOver} onDragLeave={handleAppDragLeave} onDrop={handleAppDrop}>
+        {!window.electron && (
+          <>
+            <input
+              ref={webProjectInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={handleWebProjectSelected}
+            />
+            <input
+              ref={webAudioInputRef}
+              type="file"
+              accept="audio/*,.mp3,.wav,.aac,.m4a,.flac"
+              className="hidden"
+              onChange={handleWebAudioSelected}
+            />
+            <input
+              ref={webSubtitleInputRef}
+              type="file"
+              accept=".ass,text/plain"
+              className="hidden"
+              onChange={handleWebSubtitleSelected}
+            />
+          </>
+        )}
         <WelcomeScreen 
           onNewProject={handleNewProject} 
           onOpenProject={handleOpenProject} 
@@ -2171,6 +2234,7 @@ const [previewScale, setPreviewScale] = useState(1);
             <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
               <div 
                 ref={previewFrameRef}
+                onContextMenuCapture={handleCopyPreviewToClipboard}
                 onContextMenu={handleCopyPreviewToClipboard}
                 className="relative pointer-events-auto bg-transparent rounded-lg overflow-hidden flex flex-col border shrink-0"
                 style={{
