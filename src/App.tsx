@@ -454,6 +454,40 @@ function App() {
     () => subtitles.find((sub) => currentTime >= sub.start && currentTime <= sub.end) ?? null,
     [subtitles, currentTime]
   );
+  const nearestSubtitleIndex = useMemo(() => {
+    if (subtitles.length === 0) {
+      return -1;
+    }
+
+    const activeIndex = subtitles.findIndex((sub) => currentTime >= sub.start && currentTime <= sub.end);
+    if (activeIndex >= 0) {
+      return activeIndex;
+    }
+
+    let closestIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    subtitles.forEach((sub, index) => {
+      const distance = currentTime < sub.start
+        ? sub.start - currentTime
+        : currentTime > sub.end
+          ? currentTime - sub.end
+          : 0;
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    return closestIndex;
+  }, [subtitles, currentTime]);
+  const nearbyPlaybackSubtitles = useMemo(() => {
+    if (nearestSubtitleIndex < 0) {
+      return [];
+    }
+    const start = Math.max(0, nearestSubtitleIndex - 2);
+    const end = Math.min(subtitles.length, nearestSubtitleIndex + 3);
+    return subtitles.slice(start, end);
+  }, [subtitles, nearestSubtitleIndex]);
   const canvasWidth = config.dimensions?.width || 1920;
   const canvasHeight = config.dimensions?.height || 1080;
   
@@ -3046,6 +3080,7 @@ const [previewScale, setPreviewScale] = useState(1);
         onExportRangeChange={updateExportRange}
         editingSub={editingSub}
         rangeSubtitle={editingSub ?? activePlaybackSubtitle}
+        nearbySubtitles={nearbyPlaybackSubtitles}
         onEditingSubChange={(start, end) => {
           if (editingSub) {
             setEditingSub({ ...editingSub, start, end });

@@ -30,6 +30,7 @@ interface PlayerControlsProps {
   onExportRangeChange: (range: { start?: number; end?: number }) => void;
   editingSub?: { id: string, start: number, end: number, text: string } | null;
   rangeSubtitle?: { id: string, start: number, end: number, text: string } | null;
+  nearbySubtitles?: Array<{ id: string; start: number; end: number; text: string }>;
   onEditingSubChange?: (start: number, end: number) => void;
   compactMobile?: boolean;
 }
@@ -84,6 +85,7 @@ export function PlayerControls({
   onExportRangeChange,
   editingSub,
   rangeSubtitle,
+  nearbySubtitles = [],
   onEditingSubChange,
   compactMobile = false
 }: PlayerControlsProps) {
@@ -208,34 +210,35 @@ export function PlayerControls({
           host.shadowRoot.appendChild(style);
         }
 
-        if (!host.shadowRoot.querySelector('#ws-region-style')) {
-          const regionStyle = document.createElement('style');
-          regionStyle.id = 'ws-region-style';
-          regionStyle.textContent = `
-            .region {
-              border: 1px solid ${themeColor} !important;
-              box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2), 0 0 0 1px rgba(0,0,0,0.08);
-            }
-            .region::before,
-            .region::after {
-              content: '';
-              position: absolute;
-              top: 50%;
-              transform: translateY(-50%);
-              width: 12px;
-              height: 34px;
-              border-radius: 999px;
-              background: linear-gradient(180deg, rgba(255,255,255,0.98), ${themeColor}44);
-              border: 1px solid ${themeColor};
-              box-shadow: 0 2px 10px rgba(0,0,0,0.22);
-              z-index: 5;
-              pointer-events: none;
-            }
-            .region::before { left: -7px; }
-            .region::after { right: -7px; }
-          `;
-          host.shadowRoot.appendChild(regionStyle);
-        }
+          if (!host.shadowRoot.querySelector('#ws-region-style')) {
+            const regionStyle = document.createElement('style');
+            regionStyle.id = 'ws-region-style';
+            regionStyle.textContent = `
+              .region {
+               border: 2px solid ${themeColor} !important;
+               background: linear-gradient(90deg, ${themeColor}1f, ${secondaryThemeColor}26) !important;
+               box-shadow: inset 0 0 0 1px rgba(255,255,255,0.34), 0 0 0 1px rgba(0,0,0,0.14);
+              }
+              .region::before,
+              .region::after {
+                content: '';
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+               width: 16px;
+               height: 42px;
+                border-radius: 999px;
+               background: linear-gradient(180deg, rgba(255,255,255,0.98), ${themeColor}66);
+               border: 2px solid ${themeColor};
+               box-shadow: 0 4px 12px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.24);
+               z-index: 5;
+               pointer-events: none;
+              }
+             .region::before { left: -9px; }
+             .region::after { right: -9px; }
+            `;
+            host.shadowRoot.appendChild(regionStyle);
+          }
       }
     };
 
@@ -396,13 +399,15 @@ export function PlayerControls({
     backdropFilter: 'blur(14px) saturate(140%)',
     WebkitBackdropFilter: 'blur(14px) saturate(140%)'
   };
+  const subtitleWindow = nearbySubtitles.slice(0, 5);
+  const subtitleWindowHasItems = subtitleWindow.length > 0;
 
   return (
     <div className={`border-t flex flex-col shrink-0 z-20 transition-colors duration-300 [&_.text-xs]:text-sm ${compactMobile ? 'h-auto px-2.5 py-1.5' : 'h-auto px-6 py-2'}`} style={{ backgroundColor: uiTheme.toolbarBg, borderColor: uiTheme.border, boxShadow: `0 -4px 14px ${secondaryThemeColor}16` }}>
       
       {/* Waveform Track */}
       <div
-        className="relative w-full overflow-hidden"
+        className="relative z-10 w-full overflow-hidden"
         style={{
           height: showWaveformContainer ? undefined : 0,
           marginBottom: showWaveformContainer ? '0.5rem' : 0
@@ -415,14 +420,55 @@ export function PlayerControls({
             style={{ visibility: isWaveformReady ? 'visible' : 'hidden' }}
           />
           {showWaveformContainer && regionTooltip && (
-            <div className={`absolute top-1 right-2 px-2 py-1 rounded-md text-[10px] font-mono z-20 pointer-events-none ${isDarkMode ? 'bg-gray-950/95' : 'bg-white/95 shadow-sm'}`} style={{ color: secondaryThemeColor, border: `1px solid ${secondaryThemeColor}55` }}>
+            <div className={`absolute top-1 right-2 px-2 py-1 rounded-md text-[10px] font-mono z-[70] pointer-events-none ${isDarkMode ? 'bg-gray-950/95' : 'bg-white/95 shadow-sm'}`} style={{ color: secondaryThemeColor, border: `1px solid ${secondaryThemeColor}55` }}>
               {formatTime(regionTooltip.start)} - {formatTime(regionTooltip.end)}
             </div>
           )}
       </div>
 
+      {subtitleWindowHasItems && (
+        <div
+          className="mb-2 rounded-lg border px-2 py-1.5"
+          style={{
+            borderColor: `${secondaryThemeColor}33`,
+            backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.55)' : 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)'
+          }}
+        >
+          <div className="flex gap-1 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded-full" style={{ ['--tw-scrollbar-thumb' as any]: `${secondaryThemeColor}66` }}>
+            {subtitleWindow.map((sub, index) => {
+              const isCurrent = currentTime >= sub.start && currentTime <= sub.end;
+              return (
+                <button
+                  key={`${sub.id}-${sub.start}`}
+                  type="button"
+                  onClick={() => onSeek(sub.start)}
+                  className="shrink-0 rounded-md border px-2 py-1 text-[11px] font-mono transition-colors"
+                  style={isCurrent
+                    ? {
+                      color: '#ffffff',
+                      borderColor: secondaryThemeColor,
+                      backgroundColor: secondaryThemeColor,
+                      boxShadow: `0 4px 12px ${secondaryThemeColor}33`
+                    }
+                    : {
+                      color: uiTheme.text,
+                      borderColor: `${secondaryThemeColor}33`,
+                      backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.45)' : 'rgba(255,255,255,0.72)'
+                    }}
+                  title={sub.text || `Subtitle ${index + 1}`}
+                >
+                  {formatTime(sub.start)}-{formatTime(sub.end)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Controls Row */}
-      <div className={`flex items-center gap-2 pb-2 min-w-0 ${compactMobile ? 'justify-between' : 'justify-between'}`}>
+      <div className={`relative z-40 flex items-center gap-2 pb-2 min-w-0 ${compactMobile ? 'justify-between' : 'justify-between'}`}>
         {!compactMobile && (
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
           {timeInputMode ? (
@@ -500,6 +546,7 @@ export function PlayerControls({
               onClick={() => {
                 if (rangeSubtitle) {
                   onExportRangeChange({ start: rangeSubtitle.start });
+                  onSeek(rangeSubtitle.start);
                 }
               }}
               className="rounded-full p-1.5 transition-all duration-200 relative group disabled:cursor-not-allowed disabled:hover:scale-100"
@@ -735,6 +782,7 @@ export function PlayerControls({
               onClick={() => {
                 if (rangeSubtitle) {
                   onExportRangeChange({ end: rangeSubtitle.end });
+                  onSeek(rangeSubtitle.end);
                 }
               }}
               className="rounded-full p-1.5 transition-all duration-200 relative group disabled:cursor-not-allowed disabled:hover:scale-100"
