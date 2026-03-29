@@ -211,12 +211,12 @@ On Windows, the workflow produces both:
 
 ## Release Notes
 
-### v0.1.3
+### v0.1.4.1
 
-- Improved chat rendering performance: both preview and export now use time-windowed virtual rendering to reduce load in long conversation scenes
-- Clarified project setting copy and behavior: “top range limit” is now explicitly described as “Top chat inset” to reduce confusion
-- Improved Windows installer experience: the NSIS installer now supports choosing an installation directory instead of one-click only
-- Cleaned up release asset naming: removed duplicated platform suffixes such as `win-windows-x64` and `mac-macos-arm64`
+- Fixed Windows local file path compatibility: audio, images, and other local assets now correctly handle `#`, `?`, `%`, spaces, and non-ASCII characters in paths
+- Fixed Electron export dependency downloads: the Remotion browser is now bundled during packaging so first export no longer blocks on downloading under weak network conditions
+- Fixed preview/export chat drift in long conversations: export ranges now reset correctly on project switches, and the chat stack keeps a stable bottom-anchored follow behavior
+- Fixed waveform-to-timeline mismatch: default waveform zoom is now calibrated from the real audio duration so the waveform length better matches the actual track
 
 ## Todo
 

@@ -104,12 +104,17 @@ export const PlayerControls = memo(function PlayerControls({
   const waveformRef = useRef<HTMLDivElement>(null);
   const wavesurfer = useRef<WaveSurfer | null>(null);
   const wsRegions = useRef<WaveformRegionsPlugin | null>(null);
+  const hasUserAdjustedZoomRef = useRef(false);
   
   const [volume, setVolume] = useState(0.8);
   const [zoomLevel, setZoomLevel] = useState(50);
   const [minZoom, setMinZoom] = useState(10);
   const [isWaveformReady, setIsWaveformReady] = useState(false);
   const [displayCurrentTime, setDisplayCurrentTime] = useState(0);
+
+  useEffect(() => {
+    hasUserAdjustedZoomRef.current = false;
+  }, [audioPath]);
 
   useEffect(() => {
     onEditingSubChangeRef.current = onEditingSubChange;
@@ -349,15 +354,19 @@ export const PlayerControls = memo(function PlayerControls({
     // Calculate minimum zoom to fit the entire audio
     wavesurfer.current.on('decode', () => {
       if (waveformRef.current && wavesurfer.current) {
-        const dur = wavesurfer.current.getDuration();
+        const dur = Math.max(duration || 0, wavesurfer.current.getDuration() || 0);
         if (dur > 0) {
           const containerWidth = waveformRef.current.clientWidth;
           const calculatedMin = containerWidth / dur;
           setMinZoom(calculatedMin);
-          // If current zoom is less than minimum, bump it up, else keep it.
-          // Or if we want default to fit:
-          // setZoomLevel(calculatedMin);
-          // wavesurfer.current.zoom(calculatedMin);
+
+          if (!hasUserAdjustedZoomRef.current) {
+            setZoomLevel(calculatedMin);
+            wavesurfer.current.zoom(calculatedMin);
+          } else if ((wavesurfer.current.options.minPxPerSec || 0) < calculatedMin) {
+            setZoomLevel(calculatedMin);
+            wavesurfer.current.zoom(calculatedMin);
+          }
         }
       }
     });
@@ -399,6 +408,7 @@ export const PlayerControls = memo(function PlayerControls({
       const zoomFactor = e.deltaY < 0 ? 1.2 : 0.8;
       const newZoom = Math.max(minZoom, Math.min(1000, currentZoom * zoomFactor));
       
+      hasUserAdjustedZoomRef.current = true;
       wavesurfer.current.zoom(newZoom);
       setZoomLevel(newZoom);
     };
@@ -1033,6 +1043,7 @@ export const PlayerControls = memo(function PlayerControls({
           <div className="flex items-center gap-1.5 p-1 rounded-full" style={{ backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22`, boxShadow: `0 2px 10px ${secondaryThemeColor}14` }}>
             <ZoomOut size={14} className="opacity-50 cursor-pointer hover:opacity-100" onClick={() => {
               const z = Math.max(minZoom, zoomLevel * 0.8);
+              hasUserAdjustedZoomRef.current = true;
               setZoomLevel(z);
             }} />
             <input 
@@ -1040,12 +1051,14 @@ export const PlayerControls = memo(function PlayerControls({
               value={zoomLevel} 
               onChange={e => {
                 const z = Number(e.target.value);
+                hasUserAdjustedZoomRef.current = true;
                 setZoomLevel(z);
               }}
               className="w-16 h-1" style={{ accentColor: secondaryThemeColor }}
             />
             <ZoomIn size={14} className="opacity-50 cursor-pointer hover:opacity-100" onClick={() => {
               const z = Math.min(1000, zoomLevel * 1.2);
+              hasUserAdjustedZoomRef.current = true;
               setZoomLevel(z);
             }} />
           </div>
@@ -1055,6 +1068,7 @@ export const PlayerControls = memo(function PlayerControls({
             <div className="flex items-center gap-1 p-1 rounded-md shrink-0" style={{ backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22` }}>
               <ZoomOut size={11} className="opacity-60 cursor-pointer hover:opacity-100 shrink-0" onClick={() => {
                 const z = Math.max(minZoom, zoomLevel * 0.8);
+                hasUserAdjustedZoomRef.current = true;
                 setZoomLevel(z);
               }} />
               <div className="text-[9px] font-mono leading-none min-w-[28px] text-center" style={{ color: uiTheme.textMuted }}>
@@ -1062,6 +1076,7 @@ export const PlayerControls = memo(function PlayerControls({
               </div>
               <ZoomIn size={11} className="opacity-60 cursor-pointer hover:opacity-100 shrink-0" onClick={() => {
                 const z = Math.min(1000, zoomLevel * 1.2);
+                hasUserAdjustedZoomRef.current = true;
                 setZoomLevel(z);
               }} />
             </div>

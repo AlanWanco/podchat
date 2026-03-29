@@ -3,14 +3,13 @@ import { AbsoluteFill, Audio, Img, Sequence, useCurrentFrame, useVideoConfig } f
 import type { PodchatExportInput } from './types';
 import { ChatAnnotationBubble, ChatMessageBubble } from '../components/chat/SharedChatBubbles';
 
-const MESSAGE_LOOKBACK_SECONDS = 5;
-const MESSAGE_LOOKAHEAD_SECONDS = 2;
 const MESSAGE_FALLBACK_COUNT = 32;
 
 export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const currentTime = props.exportRange.start + frame / fps;
+  const sortedContent = [...props.content].sort((a, b) => a.start - b.start || a.end - b.end);
   const layoutScale = width / (props.dimensions.width || width);
   const effectiveScale = Math.max(0.35, layoutScale);
   const animationDuration = props.chatLayout?.animationDuration ?? 0.2;
@@ -18,44 +17,18 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const topPadding = (props.chatLayout?.paddingTop ?? 48) * effectiveScale;
   const bottomPadding = (props.chatLayout?.paddingBottom ?? 80) * effectiveScale;
 
-  const speakerMessages = props.content.filter((item) => {
+  const appearedMessages = sortedContent.filter((item) => {
     const speaker = props.speakers[item.speaker];
-    return Boolean(speaker && speaker.type !== 'annotation');
-  });
+    if (!speaker || speaker.type === 'annotation') {
+      return false;
+    }
 
-  const appearedMessages = speakerMessages.filter((item) => {
     const appearanceTime = Math.max(0, item.start - ((props.chatLayout?.animationStyle || 'rise') === 'none' ? 0 : animationDuration));
     return currentTime >= appearanceTime;
   });
-  const timeWindowMessages = speakerMessages.filter((item) => (
-    item.start >= currentTime - MESSAGE_LOOKBACK_SECONDS &&
-    item.start <= currentTime + MESSAGE_LOOKAHEAD_SECONDS
-  ));
-  const visibleMessages = (() => {
-    if (timeWindowMessages.length >= MESSAGE_FALLBACK_COUNT) {
-      return timeWindowMessages;
-    }
+  const visibleMessages = appearedMessages.slice(-MESSAGE_FALLBACK_COUNT);
 
-    if (appearedMessages.length <= MESSAGE_FALLBACK_COUNT) {
-      return appearedMessages;
-    }
-
-    const fallbackAnchorIndex = (() => {
-      const activeIndex = appearedMessages.findIndex((item) => currentTime >= item.start && currentTime <= item.end);
-      if (activeIndex >= 0) return activeIndex;
-
-      return Math.max(0, appearedMessages.length - 1);
-    })();
-
-    const windowStart = Math.max(0, Math.min(
-      fallbackAnchorIndex - Math.floor(MESSAGE_FALLBACK_COUNT / 2),
-      appearedMessages.length - MESSAGE_FALLBACK_COUNT,
-    ));
-
-    return appearedMessages.slice(windowStart, windowStart + MESSAGE_FALLBACK_COUNT);
-  })();
-
-  const visibleAnnotations = props.content.filter((item) => {
+  const visibleAnnotations = sortedContent.filter((item) => {
     const speaker = props.speakers[item.speaker];
     return Boolean(speaker?.type === 'annotation' && currentTime >= item.start && currentTime <= item.end);
   });
@@ -96,8 +69,8 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
           justifyContent: 'space-between'
         }}
       >
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          <div style={{ width: '100%', minHeight: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: bottomPadding }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: bottomPadding, display: 'flex', flexDirection: 'column' }}>
             {visibleMessages.map((item) => {
               const speaker = props.speakers[item.speaker];
               if (!speaker) {

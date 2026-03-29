@@ -19,8 +19,6 @@ const LIGHT_THEME_DEFAULT = '#9ca4b8';
 const DARK_THEME_DEFAULT = '#545454';
 const SECONDARY_THEME_DEFAULT = '#ed7e96';
 const THEME_COLOR_VALUES = ['#545454', '#ed7e96', '#e7d600', '#01b7ee', '#485ec6', '#ff5800', '#a764a1', '#d71c30', '#83c36e', '#9ca4b8', '#36b583', '#aaa898', '#f8c9c4'];
-const MESSAGE_LOOKBACK_SECONDS = 5;
-const MESSAGE_LOOKAHEAD_SECONDS = 2;
 const MESSAGE_FALLBACK_COUNT = 32;
 
 // Web-only local storage key
@@ -872,7 +870,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
       const merged = { ...subtitle, ...updates };
       return updates.speakerId ? normalizeSubtitleSpeakerFields(merged) : merged;
-    });
+    }).sort((a: any, b: any) => a.start - b.start || a.end - b.end);
 
     setSubtitles(nextSubtitles);
 
@@ -1469,7 +1467,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const restConfig: any = Object.fromEntries(Object.entries(config).filter(([key]) => key !== 'ui'));
     return {
       ...restConfig,
-      content: subtitles.map(s => ({
+      content: [...subtitles].sort((a, b) => a.start - b.start || a.end - b.end).map(s => ({
         start: s.start,
         end: s.end,
         speaker: s.speakerId,
@@ -1544,6 +1542,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
   useEffect(() => {
     exportRangeTouchedRef.current = false;
+    setExportRange({ start: 0, end: 0 });
     setExportOutputPath('');
     setExportStatusMessage(null);
     setLastExportSucceeded(false);
@@ -2493,12 +2492,9 @@ const [previewScale, setPreviewScale] = useState(1);
     return currentTime >= appearanceTime && currentTime <= item.end;
   });
   const visibleMessages = useMemo(() => {
-    const speakerMessages = subtitles.filter((item) => {
+    const appeared = subtitles.filter((item) => {
       const speaker = config.speakers[item.speakerId];
-      return Boolean(speaker && speaker.type !== 'annotation');
-    });
-
-    const appeared = speakerMessages.filter((item) => {
+      if (!speaker || speaker.type === 'annotation') return false;
       const animationStyle = config.chatLayout?.animationStyle || 'rise';
       const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
       const animationLeadTime = animationStyle === 'none' ? 0 : animationDuration;
@@ -2506,37 +2502,12 @@ const [previewScale, setPreviewScale] = useState(1);
       return currentTime >= appearanceTime;
     });
 
-    const inWindow = speakerMessages.filter((item) => (
-      item.start >= currentTime - MESSAGE_LOOKBACK_SECONDS &&
-      item.start <= currentTime + MESSAGE_LOOKAHEAD_SECONDS
-    ));
-
-    if (inWindow.length >= MESSAGE_FALLBACK_COUNT) {
-      return inWindow;
-    }
-
-    if (appeared.length <= MESSAGE_FALLBACK_COUNT) {
-      return appeared;
-    }
-
-    const fallbackAnchorIndex = (() => {
-      const activeIndex = appeared.findIndex((item) => currentTime >= item.start && currentTime <= item.end);
-      if (activeIndex >= 0) return activeIndex;
-
-      return Math.max(0, appeared.length - 1);
-    })();
-
-    const windowStart = Math.max(0, Math.min(
-      fallbackAnchorIndex - Math.floor(MESSAGE_FALLBACK_COUNT / 2),
-      appeared.length - MESSAGE_FALLBACK_COUNT,
-    ));
-
-    return appeared.slice(windowStart, windowStart + MESSAGE_FALLBACK_COUNT);
+    return appeared.slice(-MESSAGE_FALLBACK_COUNT);
   }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, currentTime]);
   const latestVisibleMessageId = visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1].id : '';
 
   useEffect(() => {
-    if (!isPlaying || !scrollRef.current) {
+    if (!scrollRef.current) {
       return;
     }
 
@@ -2545,7 +2516,7 @@ const [previewScale, setPreviewScale] = useState(1);
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
     });
-  }, [latestVisibleMessageId, isPlaying, seekTick]);
+  }, [latestVisibleMessageId, seekTick]);
 
   const previewChatLayout = useMemo(() => {
     if (!isMobileWebLayout) {
