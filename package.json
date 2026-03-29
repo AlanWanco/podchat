@@ -76,6 +76,10 @@
         "zip"
       ]
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "linux": {
       "icon": "build/icons",
       "target": [
