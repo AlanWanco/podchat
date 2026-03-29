@@ -2126,6 +2126,22 @@ const [previewScale, setPreviewScale] = useState(1);
     return currentTime >= appearanceTime && currentTime <= item.end;
   });
 
+  const previewChatLayout = useMemo(() => {
+    if (!isMobileWebLayout) {
+      return config.chatLayout;
+    }
+
+    const baseBubbleScale = config.chatLayout?.bubbleScale ?? 1.5;
+    const baseAvatarSize = config.chatLayout?.avatarSize ?? 80;
+    const baseSpeakerNameSize = config.chatLayout?.speakerNameSize ?? 22;
+    return {
+      ...config.chatLayout,
+      bubbleScale: Math.max(0.8, baseBubbleScale * 0.78),
+      avatarSize: Math.max(42, Math.round(baseAvatarSize * 0.82)),
+      speakerNameSize: Math.max(12, Math.round(baseSpeakerNameSize * 0.86))
+    };
+  }, [config.chatLayout, isMobileWebLayout]);
+
   const handleAppDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -2602,10 +2618,10 @@ const [previewScale, setPreviewScale] = useState(1);
                 ref={scrollRef}
                 className="preview-scroll-hidden relative z-20 flex-1 overflow-y-auto flex flex-col"
                 style={{
-                  paddingTop: `${(config.chatLayout?.paddingTop ?? 48) * Math.max(0.35, previewScale)}px`,
-                  paddingBottom: `${(config.chatLayout?.paddingBottom ?? 80) * Math.max(0.35, previewScale)}px`,
-                  paddingLeft: `${(config.chatLayout?.paddingLeft ?? config.chatLayout?.paddingX ?? 48) * Math.max(0.35, previewScale)}px`,
-                  paddingRight: `${(config.chatLayout?.paddingRight ?? config.chatLayout?.paddingX ?? 48) * Math.max(0.35, previewScale)}px`
+                  paddingTop: `${(previewChatLayout?.paddingTop ?? 48) * Math.max(0.35, previewScale)}px`,
+                  paddingBottom: `${(previewChatLayout?.paddingBottom ?? 80) * Math.max(0.35, previewScale)}px`,
+                  paddingLeft: `${(previewChatLayout?.paddingLeft ?? previewChatLayout?.paddingX ?? 48) * Math.max(0.35, previewScale)}px`,
+                  paddingRight: `${(previewChatLayout?.paddingRight ?? previewChatLayout?.paddingX ?? 48) * Math.max(0.35, previewScale)}px`
                 }}
               >
                 {subtitlesLoading ? (
@@ -2631,7 +2647,7 @@ const [previewScale, setPreviewScale] = useState(1);
                         currentTime={currentTime}
                         canvasWidth={canvasWidth}
                         layoutScale={previewScale}
-                        chatLayout={config.chatLayout}
+                        chatLayout={previewChatLayout}
                         fallbackAvatarBorderColor={isDarkMode ? '#1f2937' : '#ffffff'}
                         renderAvatar={({ src, alt, style }) => (
                           <img
@@ -2679,7 +2695,7 @@ const [previewScale, setPreviewScale] = useState(1);
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
                             layoutScale={previewScale}
-                            chatLayout={{ ...config.chatLayout, bubbleScale: config.chatLayout?.bubbleScale }}
+                            chatLayout={{ ...previewChatLayout, bubbleScale: previewChatLayout?.bubbleScale }}
                           />
                         </div>
                       );
@@ -2694,7 +2710,7 @@ const [previewScale, setPreviewScale] = useState(1);
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
                             layoutScale={previewScale}
-                            chatLayout={{ ...config.chatLayout, bubbleScale: config.chatLayout?.bubbleScale }}
+                            chatLayout={{ ...previewChatLayout, bubbleScale: previewChatLayout?.bubbleScale }}
                           />
                         </div>
                       );
