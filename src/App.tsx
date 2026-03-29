@@ -178,6 +178,7 @@ const sanitizeProjectConfig = (parsed: any) => {
 
 const createBlankProjectConfig = (projectTitle: string) => ({
   ...initialConfig,
+  fps: 30,
   projectId: `project-${Date.now()}`,
   projectTitle,
   audioPath: '',
@@ -1544,6 +1545,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const startHeight = mobileBottomPanelHeight;
 
     const onTouchMove = (moveEvent: TouchEvent) => {
+      moveEvent.preventDefault();
       const currentY = moveEvent.touches[0]?.clientY ?? startY;
       const delta = startY - currentY;
       const next = Math.max(220, Math.min(560, startHeight + delta));
@@ -2164,7 +2166,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
   if (!projectPath) {
     return (
-      <div className="relative w-full h-screen" style={{ background: appBackground, color: uiTheme.text, ['--pomchat-scrollbar-thumb' as any]: `${secondaryThemeColor}77`, ['--pomchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}AA` }} onDragOver={handleAppDragOver} onDragLeave={handleAppDragLeave} onDrop={handleAppDrop}>
+      <div className="relative w-full h-[100dvh]" style={{ background: appBackground, color: uiTheme.text, ['--pomchat-scrollbar-thumb' as any]: `${secondaryThemeColor}77`, ['--pomchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}AA` }} onDragOver={handleAppDragOver} onDragLeave={handleAppDragLeave} onDrop={handleAppDrop}>
         {!window.electron && (
           <>
             <input
@@ -2264,7 +2266,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
   return (
     <div
-      className={`w-full h-screen flex flex-col font-sans ${textClass} overflow-hidden transition-colors duration-300 relative`}
+      className={`w-full h-[100dvh] flex flex-col font-sans ${textClass} overflow-hidden transition-colors duration-300 relative`}
       style={{ background: appBackground, ['--pomchat-scrollbar-thumb' as any]: `${secondaryThemeColor}77`, ['--pomchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}AA` }}
       onDragOver={handleAppDragOver}
       onDragLeave={handleAppDragLeave}
@@ -2439,15 +2441,6 @@ const [previewScale, setPreviewScale] = useState(1);
                   <div className="text-xs px-2 py-1 rounded border" style={{ color: uiTheme.textMuted, backgroundColor: uiTheme.panelBgSubtle, borderColor: `${secondaryThemeColor}44` }}>
                     {canvasWidth}x{canvasHeight} ({aspectLabel}) @ {config.fps}FPS
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveProject()}
-                    className="text-xs px-2 py-1 rounded border transition-colors"
-                    style={{ color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12`, borderColor: `${secondaryThemeColor}44` }}
-                    title={t('settings.save')}
-                  >
-                    {t('settings.save')}
-                  </button>
                 </div>
               )}
             </div>
@@ -2475,6 +2468,17 @@ const [previewScale, setPreviewScale] = useState(1);
                     {t('menu.settings')}
                   </button>
                 </>
+              )}
+              {isMobileWebLayout && (
+                <button
+                  type="button"
+                  onClick={() => void handleSaveProject()}
+                  className="text-xs px-2 py-1 rounded border transition-colors"
+                  style={{ color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12`, borderColor: `${secondaryThemeColor}44` }}
+                  title={t('settings.save')}
+                >
+                  {t('settings.save')}
+                </button>
               )}
             </div>
           </div>
@@ -2552,7 +2556,7 @@ const [previewScale, setPreviewScale] = useState(1);
               {toastMessage}
             </div>
           )}
-          <div ref={previewAreaRef} className={`flex-1 min-w-0 min-h-0 relative z-10 p-8 overflow-hidden ${canvasBg}`}>
+          <div ref={previewAreaRef} className={`flex-1 min-w-0 min-h-0 relative z-10 ${isMobileWebLayout ? 'p-2' : 'p-8'} overflow-hidden ${canvasBg}`}>
             <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
               <div 
                 ref={previewFrameRef}
@@ -2560,8 +2564,8 @@ const [previewScale, setPreviewScale] = useState(1);
                 onContextMenu={handleCopyPreviewToClipboard}
                 className="relative pointer-events-auto bg-transparent rounded-lg overflow-hidden flex flex-col border shrink-0"
                 style={{
-                  width: `${(isMobileWebLayout ? previewFrameSize.width * 0.94 : previewFrameSize.width)}px`,
-                  height: `${(isMobileWebLayout ? previewFrameSize.height * 0.94 : previewFrameSize.height)}px`,
+                  width: `${(isMobileWebLayout ? previewFrameSize.width * 0.98 : previewFrameSize.width)}px`,
+                  height: `${(isMobileWebLayout ? previewFrameSize.height * 0.98 : previewFrameSize.height)}px`,
                   aspectRatio,
                   borderColor: isDarkMode ? '#1f2937' : '#d1d5db',
                   isolation: 'isolate',
@@ -2778,6 +2782,7 @@ const [previewScale, setPreviewScale] = useState(1);
               className="h-2 cursor-row-resize border-b flex items-center justify-center"
               onMouseDown={startMobileBottomResize}
               onTouchStart={startMobileBottomResizeTouch}
+              onTouchMove={(e) => e.preventDefault()}
               style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}
               title={t('app.dragHint')}
             >

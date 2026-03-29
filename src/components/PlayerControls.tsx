@@ -401,7 +401,12 @@ export function PlayerControls({
       
       {/* Waveform Track */}
       <div className="relative w-full mb-2">
-        <div className="w-full cursor-pointer" ref={waveformRef} title={t('player.waveformTitle')} />
+        <div
+          className="w-full cursor-pointer"
+          ref={waveformRef}
+          title={t('player.waveformTitle')}
+          style={{ visibility: isWaveformReady ? 'visible' : 'hidden' }}
+        />
         {regionTooltip && (
           <div className={`absolute top-1 right-2 px-2 py-1 rounded-md text-[10px] font-mono z-20 pointer-events-none ${isDarkMode ? 'bg-gray-950/95' : 'bg-white/95 shadow-sm'}`} style={{ color: secondaryThemeColor, border: `1px solid ${secondaryThemeColor}55` }}>
             {formatTime(regionTooltip.start)} - {formatTime(regionTooltip.end)}
@@ -768,36 +773,36 @@ export function PlayerControls({
         </div>
         )}
 
+        {compactMobile && (
+          <div className="order-1 basis-full flex items-center justify-center gap-4 pb-1">
+            <button
+              onClick={onReset}
+              className={`p-1.5 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+              title={t('player.restart')}
+            >
+              <RotateCcw size={15} />
+            </button>
+            <button
+              onClick={onPlayPause}
+              className="w-10 h-10 min-w-10 min-h-10 aspect-square shrink-0 flex items-center justify-center rounded-full text-white"
+              style={{ backgroundColor: secondaryThemeColor, boxShadow: `0 6px 14px ${secondaryThemeColor}30` }}
+            >
+              {isPlaying ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" className="ml-0.5" />}
+            </button>
+            <button
+              className={`p-1.5 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+              title={t('player.stop')}
+              onClick={() => {
+                if (isPlaying) onPlayPause();
+                onReset();
+              }}
+            >
+              <SquareSquare size={15} />
+            </button>
+          </div>
+        )}
+
         <div className={`flex items-center gap-4 min-w-0 ${textClass} ${compactMobile ? 'order-2 ml-auto basis-auto justify-end' : 'flex-1 justify-end'}`}>
-          {compactMobile && (
-            <>
-              <button
-                onClick={onReset}
-                className={`p-1.5 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
-                title={t('player.restart')}
-              >
-                <RotateCcw size={15} />
-              </button>
-              <button
-                onClick={onPlayPause}
-                className="w-9 h-9 min-w-9 min-h-9 aspect-square shrink-0 flex items-center justify-center rounded-full text-white"
-                style={{ backgroundColor: secondaryThemeColor, boxShadow: `0 6px 14px ${secondaryThemeColor}30` }}
-              >
-                {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
-              </button>
-              <button
-                className={`p-1.5 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
-                title={t('player.stop')}
-                onClick={() => {
-                  if (isPlaying) onPlayPause();
-                  onReset();
-                }}
-              >
-                <SquareSquare size={15} />
-              </button>
-            </>
-          )}
-          
           <button 
             onClick={() => onLoopChange(!loop)}
             className={`p-1.5 rounded transition-colors ${loop ? '' : (isDarkMode ? 'hover:text-white hover:bg-gray-800' : 'hover:text-gray-900 hover:bg-gray-100')}`}
@@ -861,14 +866,40 @@ export function PlayerControls({
           </div>
           )}
 
-          <div className={`flex items-center ${compactMobile ? 'gap-1.5' : 'gap-2'}`}>
+          {compactMobile && (
+            <div className="flex items-center gap-1 p-1.5 rounded-md" style={{ backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22` }}>
+              <ZoomOut size={13} className="opacity-60 cursor-pointer hover:opacity-100" onClick={() => {
+                const z = Math.max(minZoom, zoomLevel * 0.8);
+                setZoomLevel(z);
+              }} />
+              <input
+                type="range"
+                min={minZoom}
+                max="1000"
+                value={zoomLevel}
+                onChange={e => {
+                  const z = Number(e.target.value);
+                  setZoomLevel(z);
+                }}
+                className="h-14 w-4"
+                style={{ accentColor: secondaryThemeColor, transform: 'rotate(-90deg)' }}
+              />
+              <ZoomIn size={13} className="opacity-60 cursor-pointer hover:opacity-100" onClick={() => {
+                const z = Math.min(1000, zoomLevel * 1.2);
+                setZoomLevel(z);
+              }} />
+            </div>
+          )}
+
+          <div className={`flex items-center ${compactMobile ? 'gap-1' : 'gap-2'}`}>
             <Volume1 size={compactMobile ? 14 : 16} />
             <input 
               type="range" 
               min="0" max="1" step="0.01" 
               value={volume}
               onChange={e => setVolume(parseFloat(e.target.value))}
-              className={`${compactMobile ? 'w-12' : 'w-16'} h-1`} style={{ accentColor: secondaryThemeColor }}
+              className={`${compactMobile ? 'h-14 w-4' : 'w-16 h-1'}`}
+              style={compactMobile ? { accentColor: secondaryThemeColor, transform: 'rotate(-90deg)' } : { accentColor: secondaryThemeColor }}
             />
           </div>
         </div>
