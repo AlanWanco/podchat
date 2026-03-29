@@ -416,7 +416,8 @@ export function PlayerControls({
 
       {/* Controls Row */}
       <div className={`flex items-center gap-4 pb-2 min-w-0 ${compactMobile ? 'flex-wrap justify-between' : 'justify-between'}`}>
-        <div className={`flex items-center gap-4 min-w-0 ${compactMobile ? 'order-2 basis-auto' : 'flex-1'}`}>
+        {!compactMobile && (
+        <div className="flex items-center gap-4 flex-1 min-w-0">
           {timeInputMode ? (
             <input
               type="text"
@@ -459,6 +460,7 @@ export function PlayerControls({
           )}
           <span className={`${compactMobile ? 'text-sm' : 'text-lg'} font-mono ${textClass}`}>/ {formatTime(duration)}</span>
         </div>
+        )}
 
         {!compactMobile && (
         <div className={`flex items-center gap-3 shrink-0 ${compactMobile ? 'order-1 basis-full overflow-x-auto pb-1 justify-start' : 'justify-center'}`}>
@@ -775,6 +777,7 @@ export function PlayerControls({
 
         {compactMobile && (
           <div className="order-1 basis-full flex items-center justify-center gap-4 pb-1">
+            <span className="text-xs font-mono" style={{ color: uiTheme.textMuted }}>{formatTime(currentTime)}</span>
             <button
               onClick={onReset}
               className={`p-1.5 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
@@ -786,9 +789,9 @@ export function PlayerControls({
               onClick={onPlayPause}
               className="w-10 h-10 min-w-10 min-h-10 aspect-square shrink-0 flex items-center justify-center rounded-full text-white"
               style={{ backgroundColor: secondaryThemeColor, boxShadow: `0 6px 14px ${secondaryThemeColor}30` }}
-            >
-              {isPlaying ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" className="ml-0.5" />}
-            </button>
+              >
+                {isPlaying ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" className="ml-0.5" />}
+              </button>
             <button
               className={`p-1.5 rounded-full shrink-0 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
               title={t('player.stop')}
@@ -796,13 +799,14 @@ export function PlayerControls({
                 if (isPlaying) onPlayPause();
                 onReset();
               }}
-            >
-              <SquareSquare size={15} />
-            </button>
+              >
+                <SquareSquare size={15} />
+              </button>
+            <span className="text-xs font-mono" style={{ color: uiTheme.textMuted }}>{formatTime(duration)}</span>
           </div>
         )}
 
-        <div className={`flex items-center gap-4 min-w-0 ${textClass} ${compactMobile ? 'order-2 ml-auto basis-auto justify-end' : 'flex-1 justify-end'}`}>
+        <div className={`flex items-center min-w-0 ${textClass} ${compactMobile ? 'order-2 basis-full justify-center gap-2 flex-nowrap overflow-x-auto pb-1' : 'gap-4 flex-1 justify-end'}`}>
           <button 
             onClick={() => onLoopChange(!loop)}
             className={`p-1.5 rounded transition-colors ${loop ? '' : (isDarkMode ? 'hover:text-white hover:bg-gray-800' : 'hover:text-gray-900 hover:bg-gray-100')}`}
@@ -867,23 +871,14 @@ export function PlayerControls({
           )}
 
           {compactMobile && (
-            <div className="flex items-center gap-1 p-1.5 rounded-md" style={{ backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22` }}>
+            <div className="flex flex-col items-center gap-1 p-1.5 rounded-md shrink-0" style={{ backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22` }}>
               <ZoomOut size={13} className="opacity-60 cursor-pointer hover:opacity-100" onClick={() => {
                 const z = Math.max(minZoom, zoomLevel * 0.8);
                 setZoomLevel(z);
               }} />
-              <input
-                type="range"
-                min={minZoom}
-                max="1000"
-                value={zoomLevel}
-                onChange={e => {
-                  const z = Number(e.target.value);
-                  setZoomLevel(z);
-                }}
-                className="h-14 w-4"
-                style={{ accentColor: secondaryThemeColor, transform: 'rotate(-90deg)' }}
-              />
+              <div className="text-[10px] font-mono leading-none" style={{ color: uiTheme.textMuted }}>
+                {Math.round((zoomLevel / 50) * 10) / 10}x
+              </div>
               <ZoomIn size={13} className="opacity-60 cursor-pointer hover:opacity-100" onClick={() => {
                 const z = Math.min(1000, zoomLevel * 1.2);
                 setZoomLevel(z);
@@ -891,16 +886,40 @@ export function PlayerControls({
             </div>
           )}
 
-          <div className={`flex items-center ${compactMobile ? 'gap-1' : 'gap-2'}`}>
+          <div className={`${compactMobile ? 'flex flex-col items-center gap-1 p-1.5 rounded-md shrink-0' : 'flex items-center gap-2'}`} style={compactMobile ? { backgroundColor: `${secondaryThemeColor}12`, border: `1px solid ${secondaryThemeColor}22` } : undefined}>
             <Volume1 size={compactMobile ? 14 : 16} />
-            <input 
-              type="range" 
-              min="0" max="1" step="0.01" 
-              value={volume}
-              onChange={e => setVolume(parseFloat(e.target.value))}
-              className={`${compactMobile ? 'h-14 w-4' : 'w-16 h-1'}`}
-              style={compactMobile ? { accentColor: secondaryThemeColor, transform: 'rotate(-90deg)' } : { accentColor: secondaryThemeColor }}
-            />
+            {compactMobile ? (
+              <>
+                <button
+                  type="button"
+                  className="text-[10px] leading-none"
+                  onClick={() => setVolume((prev) => Math.min(1, Number((prev + 0.1).toFixed(2))))}
+                  style={{ color: secondaryThemeColor }}
+                >
+                  +
+                </button>
+                <div className="text-[10px] font-mono leading-none" style={{ color: uiTheme.textMuted }}>
+                  {Math.round(volume * 100)}%
+                </div>
+                <button
+                  type="button"
+                  className="text-[10px] leading-none"
+                  onClick={() => setVolume((prev) => Math.max(0, Number((prev - 0.1).toFixed(2))))}
+                  style={{ color: secondaryThemeColor }}
+                >
+                  -
+                </button>
+              </>
+            ) : (
+              <input
+                type="range"
+                min="0" max="1" step="0.01"
+                value={volume}
+                onChange={e => setVolume(parseFloat(e.target.value))}
+                className="w-16 h-1"
+                style={{ accentColor: secondaryThemeColor }}
+              />
+            )}
           </div>
         </div>
       </div>

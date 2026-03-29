@@ -462,7 +462,11 @@ const [previewScale, setPreviewScale] = useState(1);
       if (!availableWidth || !availableHeight) {
         return;
       }
-      const nextScale = Math.min(availableWidth / canvasWidth, availableHeight / canvasHeight);
+      const widthRatio = availableWidth / canvasWidth;
+      const heightRatio = availableHeight / canvasHeight;
+      const nextScale = isMobileWebLayout
+        ? Math.min(widthRatio, heightRatio * 1.04)
+        : Math.min(widthRatio, heightRatio);
       const safeScale = Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1;
       setPreviewScale(safeScale);
       setPreviewFrameSize({
@@ -484,7 +488,7 @@ const [previewScale, setPreviewScale] = useState(1);
       observer.disconnect();
       window.removeEventListener('resize', updateScale);
     };
-  }, [canvasWidth, canvasHeight, showSubtitlePanel, showSettings, subtitleWidth, settingsWidth, shouldHideSidePanels]);
+  }, [canvasWidth, canvasHeight, showSubtitlePanel, showSettings, subtitleWidth, settingsWidth, shouldHideSidePanels, isMobileWebLayout]);
 
   const formatAssTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -1558,7 +1562,7 @@ const [previewScale, setPreviewScale] = useState(1);
       document.removeEventListener('touchcancel', onTouchEnd);
     };
 
-    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
     document.addEventListener('touchend', onTouchEnd);
     document.addEventListener('touchcancel', onTouchEnd);
   };
@@ -2786,7 +2790,7 @@ const [previewScale, setPreviewScale] = useState(1);
               style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}
               title={t('app.dragHint')}
             >
-              <div className="h-1 w-10 rounded-full" style={{ backgroundColor: `${secondaryThemeColor}66` }} />
+              <div className="h-1.5 w-14 rounded-full" style={{ backgroundColor: `${secondaryThemeColor}66` }} />
             </div>
           )}
           <SettingsPanel
