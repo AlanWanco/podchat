@@ -1096,8 +1096,6 @@ export function SettingsPanel({
                       </div>
                     </div>
 
-                    <hr style={{ borderColor: uiTheme.border }} />
-
                     {/* Colors & Background */}
                     <div className="space-y-2">
                       <span className="text-xs font-semibold flex items-center gap-1 opacity-80"><div className="w-3 h-3 rounded-full flex items-center justify-center border shadow-sm" style={{ backgroundColor: themeColor }}></div> {t('speakers.colors')}</span>
@@ -1119,13 +1117,19 @@ export function SettingsPanel({
                       <div className="space-y-1 pt-1">
                         <button
                           type="button"
-                          className="w-full px-2 py-1.5 text-[10px] rounded border transition-colors"
-                          style={{ borderColor: uiTheme.border, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
+                          className="text-xs px-2 py-1 rounded transition-colors shrink-0"
+                          style={{ backgroundColor: uiTheme.panelBgSubtle, color: uiTheme.text }}
                           onClick={() => {
                             const currentBg = speaker.style?.bgColor || '#3B82F6';
                             const currentText = speaker.style?.textColor || '#FFFFFF';
-                            updateSpeakerStyle(key, 'bgColor', currentText);
-                            updateSpeakerStyle(key, 'textColor', currentBg);
+                            updateSpeaker(key, (currentSpeaker) => ({
+                              ...currentSpeaker,
+                              style: {
+                                ...(currentSpeaker.style || {}),
+                                bgColor: currentText,
+                                textColor: currentBg
+                              }
+                            }));
                           }}
                         >
                           {t('speakers.swapBgText')}
