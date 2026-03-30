@@ -30,7 +30,7 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
   const [searchOpen, setSearchOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchMatches = subtitles.filter((sub) => sub.text.toLowerCase().includes(searchQuery.trim().toLowerCase()));
-  const currentSearchMatchId = searchMatches.length > 0 ? searchMatches[searchIndex % searchMatches.length]?.id : undefined;
+  const currentSearchMatchId = searchQuery.trim() && searchMatches.length > 0 ? searchMatches[searchIndex % searchMatches.length]?.id : undefined;
 
   const scrollToSubtitle = (subtitleId: string) => {
     const el = document.getElementById(`sub-${subtitleId}`);
