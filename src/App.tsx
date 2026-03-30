@@ -1215,7 +1215,7 @@ const [previewScale, setPreviewScale] = useState(1);
         : { ...restoredConfig, subtitleFormat: restoredConfig.assPath ? 'ass' : (restoredConfig.content?.length ? 'srt' : 'ass') };
       setConfig(normalizedRestoredConfig);
       if (normalizedRestoredConfig.subtitleFormat === 'ass' && normalizedRestoredConfig.assPath) {
-        setWebAssContent(normalizedRestoredConfig.assPath);
+        // do not set webAssContent to a path string
       } else {
         setWebAssContent(null);
       }
@@ -1685,7 +1685,6 @@ const [previewScale, setPreviewScale] = useState(1);
   const isSameRange = (a: { start: number; end: number }, b: { start: number; end: number }) => a.start === b.start && a.end === b.end;
 
   const updateExportRange = useCallback((updates: { start?: number; end?: number }, markTouched = true) => {
-    const defaults = getDefaultExportRange();
     pushHistorySnapshot();
     if (markTouched) {
       exportRangeTouchedRef.current = true;
@@ -1695,12 +1694,20 @@ const [previewScale, setPreviewScale] = useState(1);
       const rawStart = updates.start ?? prev.start;
       const rawEnd = updates.end ?? prev.end;
       const nextStart = Number(Math.max(0, Math.min(rawStart, rawEnd)).toFixed(2));
-      const maxEnd = Math.max(defaults.end, rawEnd, nextStart);
-      const nextEnd = Number(Math.max(nextStart, Math.min(rawEnd, maxEnd)).toFixed(2));
+      const nextEnd = Number(Math.max(nextStart, rawEnd).toFixed(2));
       return { start: nextStart, end: nextEnd };
     });
     markProjectDirty();
-  }, [getDefaultExportRange, markProjectDirty, pushHistorySnapshot]);
+  }, [markProjectDirty, pushHistorySnapshot]);
+
+  useEffect(() => {
+    if (!audioRef.current || duration <= 0) return;
+    if (exportRangeTouchedRef.current || config.exportRangeCustomized) return;
+    
+    // Only auto-expand if range hasn't been touched
+    const defaults = getDefaultExportRange();
+    setExportRange((prev) => isSameRange(prev, defaults) ? prev : defaults);
+  }, [duration, subtitles.length]); // deliberately lightweight dependency
 
   const handleExportQualityChange = useCallback((nextQuality: 'fast' | 'balance' | 'high') => {
     if (exportQuality === nextQuality) {
@@ -1752,30 +1759,17 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [config.projectId]);
 
   useEffect(() => {
-    const defaults = getDefaultExportRange();
-    
-    if (exportRangeTouchedRef.current || config.exportRangeCustomized) {
-      const sourceRange = exportRangeTouchedRef.current ? undefined : config.exportRange;
-      
-      if (sourceRange && sourceRange.start !== undefined && sourceRange.end !== undefined) {
-        setExportRange((prev) => {
-          const nextStart = Math.max(0, sourceRange.start);
-          const nextEnd = Math.max(nextStart, sourceRange.end);
-          const nextRange = { start: nextStart, end: nextEnd };
-          return isSameRange(prev, nextRange) ? prev : nextRange;
-        });
-        exportRangeTouchedRef.current = true;
-      } else {
-        setExportRange((prev) => {
-          if (prev.start <= prev.end) return prev;
-          return { start: prev.start, end: prev.start };
-        });
-      }
-      return;
+    if (config.exportRangeCustomized) {
+      exportRangeTouchedRef.current = true;
     }
-    
-    setExportRange((prev) => isSameRange(prev, defaults) ? prev : defaults);
-  }, [getDefaultExportRange, config.exportRange, config.exportRangeCustomized]);
+    const sourceRange = config.exportRange;
+    if (sourceRange && typeof sourceRange.start === 'number' && typeof sourceRange.end === 'number') {
+      setExportRange({
+        start: Math.max(0, sourceRange.start),
+        end: Math.max(sourceRange.start, sourceRange.end)
+      });
+    }
+  }, [config.projectId]); // Only run on project load/change, not continuously
 
   useEffect(() => {
     const nextQuality = config.exportQuality === 'fast' || config.exportQuality === 'balance' || config.exportQuality === 'high'
