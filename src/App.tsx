@@ -13,6 +13,7 @@ import { useAssSubtitle } from './hooks/useAssSubtitle';
 import { translate, type Language } from './i18n';
 import { createThemeTokens } from './theme';
 import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
+import { Tooltip } from './components/ui/Tooltip';
 import './App.css';
 
 const LIGHT_THEME_DEFAULT = '#9ca4b8';
@@ -20,6 +21,19 @@ const DARK_THEME_DEFAULT = '#545454';
 const SECONDARY_THEME_DEFAULT = '#ed7e96';
 const THEME_COLOR_VALUES = ['#545454', '#ed7e96', '#e7d600', '#01b7ee', '#485ec6', '#ff5800', '#a764a1', '#d71c30', '#83c36e', '#9ca4b8', '#36b583', '#aaa898', '#f8c9c4'];
 const MESSAGE_FALLBACK_COUNT = 32;
+const HISTORY_LIMIT = 80;
+
+type HistorySnapshot = {
+  config: any;
+  subtitles: any[];
+  webAssContent: string | null;
+  exportRange: { start: number; end: number };
+  exportRangeTouched: boolean;
+  exportQuality: 'fast' | 'balance' | 'high';
+  filenameTemplate: 'default' | 'timestamp' | 'unix' | 'custom';
+  customFilename: string;
+  persistedCustomFilename: string;
+};
 
 // Web-only local storage key
 const STORAGE_KEY = 'pomchat_config';
@@ -69,6 +83,7 @@ const DEFAULT_UI_CONFIG = {
   isDarkMode: true,
   themeColor: DARK_THEME_DEFAULT,
   secondaryThemeColor: SECONDARY_THEME_DEFAULT,
+  autoSaveProject: false,
   proxy: '',
   settingsPosition: 'right' as 'left' | 'right',
   recentProject: null as string | null,
@@ -202,6 +217,7 @@ const sanitizeProjectConfig = (parsed: any) => {
       secondaryThemeColor: typeof parsed?.ui?.secondaryThemeColor === 'string' && THEME_COLOR_VALUES.includes(parsed.ui.secondaryThemeColor)
         ? parsed.ui.secondaryThemeColor
         : DEFAULT_UI_CONFIG.secondaryThemeColor,
+      autoSaveProject: parsed?.ui?.autoSaveProject === true,
       proxy: typeof parsed?.ui?.proxy === 'string' ? parsed.ui.proxy : '',
       settingsPosition: parsed?.ui?.settingsPosition === 'left' ? 'left' : 'right',
       recentProject: typeof parsed?.ui?.recentProject === 'string' ? parsed.ui.recentProject : null,
@@ -415,6 +431,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => getSystemPrefersDark());
   const [themeColorState, setThemeColorState] = useState(() => config.ui?.themeColor ?? DEFAULT_UI_CONFIG.themeColor);
   const [secondaryThemeColorState, setSecondaryThemeColorState] = useState(() => config.ui?.secondaryThemeColor ?? DEFAULT_UI_CONFIG.secondaryThemeColor);
+  const [autoSaveProject, setAutoSaveProject] = useState(() => config.ui?.autoSaveProject ?? DEFAULT_UI_CONFIG.autoSaveProject);
   const [proxyState, setProxyState] = useState(() => config.ui?.proxy ?? DEFAULT_UI_CONFIG.proxy);
   const [showSettings, setShowSettings] = useState(false);
   const [showSubtitlePanel, setShowSubtitlePanel] = useState(true);
@@ -458,6 +475,13 @@ function App() {
   const exportRangeTouchedRef = useRef(false);
   const lastPlaybackPersistAtRef = useRef(0);
   const lastUiFrameAtRef = useRef(0);
+  const historyPastRef = useRef<HistorySnapshot[]>([]);
+  const historyFutureRef = useRef<HistorySnapshot[]>([]);
+  const isRestoringHistoryRef = useRef(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [isProjectDirty, setIsProjectDirty] = useState(false);
+  const [projectChangeTick, setProjectChangeTick] = useState(0);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const webAudioInputRef = useRef<HTMLInputElement>(null);
@@ -468,6 +492,95 @@ function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const subtitleFormat = (config.subtitleFormat || 'ass') as SubtitleFormat;
   const { subtitles, setSubtitles, loading: subtitlesLoading } = useAssSubtitle(config.assPath, config.speakers, webAssContent, config.content, subtitleFormat);
+  const cloneHistorySnapshot = useCallback((snapshot: HistorySnapshot): HistorySnapshot => JSON.parse(JSON.stringify(snapshot)), []);
+  const createHistorySnapshot = useCallback((): HistorySnapshot => ({
+    config: JSON.parse(JSON.stringify(config)),
+    subtitles: JSON.parse(JSON.stringify(subtitles)),
+    webAssContent,
+    exportRange: JSON.parse(JSON.stringify(exportRange)),
+    exportRangeTouched: exportRangeTouchedRef.current,
+    exportQuality,
+    filenameTemplate,
+    customFilename,
+    persistedCustomFilename,
+  }), [config, subtitles, webAssContent, exportRange, exportQuality, filenameTemplate, customFilename, persistedCustomFilename]);
+  const syncHistoryAvailability = useCallback(() => {
+    setCanUndo(historyPastRef.current.length > 0);
+    setCanRedo(historyFutureRef.current.length > 0);
+  }, []);
+  const markProjectDirty = useCallback(() => {
+    setIsProjectDirty(true);
+    setProjectChangeTick((prev) => prev + 1);
+  }, []);
+  const clearProjectDirty = useCallback(() => {
+    setIsProjectDirty(false);
+  }, []);
+  const clearHistory = useCallback(() => {
+    historyPastRef.current = [];
+    historyFutureRef.current = [];
+    syncHistoryAvailability();
+  }, [syncHistoryAvailability]);
+  const pushHistorySnapshot = useCallback(() => {
+    if (isRestoringHistoryRef.current) {
+      return;
+    }
+
+    historyPastRef.current.push(createHistorySnapshot());
+    if (historyPastRef.current.length > HISTORY_LIMIT) {
+      historyPastRef.current.shift();
+    }
+    historyFutureRef.current = [];
+    syncHistoryAvailability();
+  }, [createHistorySnapshot, syncHistoryAvailability]);
+  const restoreHistorySnapshot = useCallback((snapshot: HistorySnapshot) => {
+    isRestoringHistoryRef.current = true;
+    setConfig(sanitizeProjectConfig(snapshot.config));
+    setWebAssContent(snapshot.webAssContent);
+    setSubtitles(JSON.parse(JSON.stringify(snapshot.subtitles)));
+    exportRangeTouchedRef.current = snapshot.exportRangeTouched;
+    setExportRange(snapshot.exportRange);
+    setExportQuality(snapshot.exportQuality);
+    setFilenameTemplate(snapshot.filenameTemplate);
+    setCustomFilename(snapshot.customFilename);
+    setPersistedCustomFilename(snapshot.persistedCustomFilename);
+    setEditingSub(null);
+    markProjectDirty();
+    window.setTimeout(() => {
+      isRestoringHistoryRef.current = false;
+    }, 0);
+  }, [markProjectDirty, setSubtitles]);
+  const applyTrackedConfigChange = useCallback((nextConfig: any) => {
+    pushHistorySnapshot();
+    setConfig(nextConfig);
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
+  const applyTrackedConfigUpdater = useCallback((updater: (prev: any) => any) => {
+    pushHistorySnapshot();
+    setConfig((prev: any) => updater(prev));
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
+  const undoProjectChange = useCallback(() => {
+    const previousSnapshot = historyPastRef.current.pop();
+    if (!previousSnapshot) {
+      syncHistoryAvailability();
+      return;
+    }
+
+    historyFutureRef.current.unshift(createHistorySnapshot());
+    restoreHistorySnapshot(cloneHistorySnapshot(previousSnapshot));
+    syncHistoryAvailability();
+  }, [cloneHistorySnapshot, createHistorySnapshot, restoreHistorySnapshot, syncHistoryAvailability]);
+  const redoProjectChange = useCallback(() => {
+    const nextSnapshot = historyFutureRef.current.shift();
+    if (!nextSnapshot) {
+      syncHistoryAvailability();
+      return;
+    }
+
+    historyPastRef.current.push(createHistorySnapshot());
+    restoreHistorySnapshot(cloneHistorySnapshot(nextSnapshot));
+    syncHistoryAvailability();
+  }, [cloneHistorySnapshot, createHistorySnapshot, restoreHistorySnapshot, syncHistoryAvailability]);
   const activePlaybackSubtitle = useMemo(
     () => subtitles.find((sub) => currentTime >= sub.start && currentTime <= sub.end) ?? null,
     [subtitles, currentTime]
@@ -875,6 +988,7 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const handleUpdateSubtitle = async (id: string, updates: Partial<any>) => {
+    pushHistorySnapshot();
     const nextSubtitles = subtitles.map((subtitle: any) => {
       if (subtitle.id !== id) {
         return subtitle;
@@ -885,6 +999,7 @@ const [previewScale, setPreviewScale] = useState(1);
     }).sort((a: any, b: any) => a.start - b.start || a.end - b.end);
 
     setSubtitles(nextSubtitles);
+    markProjectDirty();
 
     if (updates.speakerId) {
       await persistSubtitlesToAss(nextSubtitles);
@@ -905,11 +1020,13 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const handleDeleteSubtitle = async (id: string) => {
     try {
+      pushHistorySnapshot();
       const nextSubtitles = subtitles.filter((sub: any) => sub.id !== id);
       await persistSubtitlesToAss(nextSubtitles);
       if (editingSub?.id === id) {
         setEditingSub(null);
       }
+      markProjectDirty();
       showToast(t('app.subtitleDeleted'));
     } catch (e) {
       console.error('Failed to delete subtitle:', e);
@@ -917,6 +1034,7 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const handleAddSubtitle = async () => {
+    pushHistorySnapshot();
     const speakerId = Object.keys(config.speakers || {}).find((key) => config.speakers[key]?.type !== 'annotation') || 'A';
     const start = Number(currentTime.toFixed(2));
     const end = Number(Math.max(start + 2, start + 0.5).toFixed(2));
@@ -940,12 +1058,15 @@ const [previewScale, setPreviewScale] = useState(1);
       setEditingSub({ id: createdSubtitle.id, start: createdSubtitle.start, end: createdSubtitle.end, text: createdSubtitle.text });
     }
 
+    markProjectDirty();
     showToast(t('app.subtitleAdded'));
   };
 
   const handleSortSubtitles = async () => {
+    pushHistorySnapshot();
     const nextSubtitles = [...subtitles].sort((a, b) => a.start - b.start || a.end - b.end);
     await persistSubtitlesToAss(nextSubtitles);
+    markProjectDirty();
     showToast(t('app.subtitleSorted'));
   };
 
@@ -1153,6 +1274,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const ui = config.ui || DEFAULT_UI_CONFIG;
     setThemeColorState((prev: string) => (prev === ui.themeColor ? prev : ui.themeColor));
     setSecondaryThemeColorState((prev: string) => (prev === ui.secondaryThemeColor ? prev : ui.secondaryThemeColor));
+    setAutoSaveProject((prev: boolean) => (prev === Boolean(ui.autoSaveProject) ? prev : Boolean(ui.autoSaveProject)));
     setProxyState((prev: string) => (prev === (ui.proxy || '') ? prev : (ui.proxy || '')));
     setSettingsPosition((prev: 'left' | 'right') => (prev === ui.settingsPosition ? prev : ui.settingsPosition));
     if (window.electron) {
@@ -1168,6 +1290,7 @@ const [previewScale, setPreviewScale] = useState(1);
         isDarkMode,
         themeColor: themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT),
         secondaryThemeColor: secondaryThemeColorState || DEFAULT_UI_CONFIG.secondaryThemeColor,
+        autoSaveProject,
         proxy: proxyState.trim(),
         settingsPosition,
         recentProject,
@@ -1180,7 +1303,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
       return { ...prev, ui: nextUi };
     });
-  }, [isDarkMode, themeColorState, secondaryThemeColorState, proxyState, settingsPosition, recentProject, presets]);
+  }, [autoSaveProject, isDarkMode, themeColorState, secondaryThemeColorState, proxyState, settingsPosition, recentProject, presets]);
 
   useEffect(() => {
     if (!window.electron) return;
@@ -1188,6 +1311,46 @@ const [previewScale, setPreviewScale] = useState(1);
       console.error('Failed to apply proxy settings:', err);
     });
   }, [proxyState]);
+
+  const handleThemeColorChangeTracked = useCallback((color: string) => {
+    pushHistorySnapshot();
+    setThemeColorState(color);
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
+
+  const handleSecondaryThemeColorChangeTracked = useCallback((color: string) => {
+    pushHistorySnapshot();
+    setSecondaryThemeColorState(color);
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
+
+  const handleProxyChangeTracked = useCallback((nextProxy: string) => {
+    pushHistorySnapshot();
+    setProxyState(nextProxy);
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
+
+  const handleLanguageChangeTracked = useCallback((nextLanguage: Language) => {
+    applyTrackedConfigUpdater((prev: any) => ({ ...prev, language: nextLanguage }));
+  }, [applyTrackedConfigUpdater]);
+
+  const handleThemeModeChangeTracked = useCallback((nextDarkMode: boolean) => {
+    pushHistorySnapshot();
+    setIsDarkMode(nextDarkMode);
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
+
+  const handlePositionChangeTracked = useCallback((nextPosition: 'left' | 'right') => {
+    pushHistorySnapshot();
+    setSettingsPosition(nextPosition);
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
+
+  const handlePresetsChangeTracked = useCallback((nextPresets: Record<string, any>) => {
+    pushHistorySnapshot();
+    setPresets(nextPresets);
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
 
    // Save config explicitly
    const handleSaveConfig = () => {
@@ -1523,6 +1686,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const updateExportRange = useCallback((updates: { start?: number; end?: number }, markTouched = true) => {
     const defaults = getDefaultExportRange();
+    pushHistorySnapshot();
     if (markTouched) {
       exportRangeTouchedRef.current = true;
     }
@@ -1535,7 +1699,35 @@ const [previewScale, setPreviewScale] = useState(1);
       const nextEnd = Number(Math.max(nextStart, Math.min(rawEnd, maxEnd)).toFixed(2));
       return { start: nextStart, end: nextEnd };
     });
-  }, [getDefaultExportRange]);
+    markProjectDirty();
+  }, [getDefaultExportRange, markProjectDirty, pushHistorySnapshot]);
+
+  const handleExportQualityChange = useCallback((nextQuality: 'fast' | 'balance' | 'high') => {
+    if (exportQuality === nextQuality) {
+      return;
+    }
+    pushHistorySnapshot();
+    setExportQuality(nextQuality);
+    markProjectDirty();
+  }, [exportQuality, markProjectDirty, pushHistorySnapshot]);
+
+  const handleFilenameTemplateChange = useCallback((nextTemplate: 'default' | 'timestamp' | 'unix' | 'custom') => {
+    if (filenameTemplate === nextTemplate) {
+      return;
+    }
+    pushHistorySnapshot();
+    setFilenameTemplate(nextTemplate);
+    markProjectDirty();
+  }, [filenameTemplate, markProjectDirty, pushHistorySnapshot]);
+
+  const handleCustomFilenameChange = useCallback((nextFilename: string) => {
+    if (customFilename === nextFilename) {
+      return;
+    }
+    pushHistorySnapshot();
+    setCustomFilename(nextFilename);
+    markProjectDirty();
+  }, [customFilename, markProjectDirty, pushHistorySnapshot]);
 
   const loadExportPaths = useCallback(async () => {
     if (!window.electron) {
@@ -1954,6 +2146,8 @@ const [previewScale, setPreviewScale] = useState(1);
       // Web mode fallback
       setProjectPath('web-demo');
       const cleanConfig = { ...createBlankProjectConfig(t('app.newProject')), ...safeOverrides };
+      clearHistory();
+      clearProjectDirty();
       setConfig((prev: any) => ({
         ...cleanConfig,
         ui: prev?.ui || DEFAULT_UI_CONFIG
@@ -1972,6 +2166,8 @@ const [previewScale, setPreviewScale] = useState(1);
       if (!result.canceled && result.filePath) {
         const newConfig = { ...createBlankProjectConfig(t('app.newProject')), ...safeOverrides };
         await window.electron.writeFile(result.filePath, JSON.stringify(newConfig, null, 2));
+        clearHistory();
+        clearProjectDirty();
         setProjectPath(result.filePath);
         setRecentProject(result.filePath);
         if (!window.electron) {
@@ -1994,6 +2190,8 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const handleCloseProject = () => {
+    clearHistory();
+    clearProjectDirty();
     setProjectPath(null);
     setShowSettings(false);
     if (!window.electron) {
@@ -2018,7 +2216,7 @@ const [previewScale, setPreviewScale] = useState(1);
         properties: ['openFile']
       });
       if (!res.canceled && res.filePaths.length > 0) {
-        setConfig((prev: any) => ({ ...prev, audioPath: res.filePaths[0] }));
+        applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: res.filePaths[0] }));
         showToast(t('app.audioUpdated'));
       }
     } catch (e: any) {
@@ -2046,7 +2244,7 @@ const [previewScale, setPreviewScale] = useState(1);
         } else {
           const rows = lower.endsWith('.srt') ? parseSrtSubtitles(content) : parseLrcSubtitles(content);
           const projectContent = buildPlainSubtitleProjectContent(rows, config.speakers);
-          setConfig((prev: any) => ({
+          applyTrackedConfigUpdater((prev: any) => ({
             ...prev,
             assPath: '',
             subtitleFormat: lower.endsWith('.srt') ? 'srt' : 'lrc',
@@ -2146,7 +2344,7 @@ const [previewScale, setPreviewScale] = useState(1);
       const content = await window.electron.readFile(filePath);
       const rows = isSrt ? parseSrtSubtitles(content) : parseLrcSubtitles(content);
       const projectContent = buildPlainSubtitleProjectContent(rows, config.speakers);
-      setConfig((prev: any) => ({
+      applyTrackedConfigUpdater((prev: any) => ({
         ...prev,
         subtitleFormat: isSrt ? 'srt' : 'lrc',
         assPath: '',
@@ -2158,7 +2356,7 @@ const [previewScale, setPreviewScale] = useState(1);
     }
 
     if (isAudio) {
-      setConfig((prev: any) => ({ ...prev, audioPath: filePath }));
+      applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: filePath }));
       showToast(t('app.audioImported'));
       return;
     }
@@ -2197,6 +2395,8 @@ const [previewScale, setPreviewScale] = useState(1);
       
       setProjectPath(filePath);
       setRecentProject(filePath);
+      clearHistory();
+      clearProjectDirty();
       if (!window.electron) {
         localStorage.setItem(STORAGE_KEY + '_recent_project', filePath);
       }
@@ -2259,7 +2459,7 @@ const [previewScale, setPreviewScale] = useState(1);
     }
 
     setWebAudioObjectUrl(nextObjectUrl);
-    setConfig((prev: any) => ({ ...prev, audioPath: nextObjectUrl }));
+    applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: nextObjectUrl }));
     showToast(t('app.audioImported'));
     event.target.value = '';
   };
@@ -2280,7 +2480,7 @@ const [previewScale, setPreviewScale] = useState(1);
     } else if (normalizedName.endsWith('.srt') || normalizedName.endsWith('.lrc')) {
       const rows = normalizedName.endsWith('.srt') ? parseSrtSubtitles(content) : parseLrcSubtitles(content);
       const projectContent = buildPlainSubtitleProjectContent(rows, config.speakers);
-      setConfig((prev: any) => ({
+      applyTrackedConfigUpdater((prev: any) => ({
         ...prev,
         subtitleFormat: normalizedName.endsWith('.srt') ? 'srt' : 'lrc',
         assPath: '',
@@ -2340,7 +2540,9 @@ const [previewScale, setPreviewScale] = useState(1);
         return;
       }
 
+      pushHistorySnapshot();
       setPresets({ ...existing, ...imported });
+      markProjectDirty();
       showToast(t('app.presetsImported'));
     } catch (error) {
       console.error('Failed to import presets:', error);
@@ -2369,6 +2571,8 @@ const [previewScale, setPreviewScale] = useState(1);
         const shouldUseAssSource = normalizedConfig.subtitleFormat === 'ass' && Boolean(normalizedConfig.assPath);
         setProjectPath('web-demo');
         setRecentProject(file.name);
+        clearHistory();
+        clearProjectDirty();
         setConfig((prev: any) => ({
           ...normalizedConfig,
           ui: {
@@ -2430,7 +2634,7 @@ const [previewScale, setPreviewScale] = useState(1);
         setShowSettings(true);
       }
       setWebAudioObjectUrl(nextObjectUrl);
-      setConfig((prev: any) => ({ ...prev, audioPath: nextObjectUrl }));
+      applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: nextObjectUrl }));
       showToast(t('app.audioImported'));
       return;
     }
@@ -2438,12 +2642,15 @@ const [previewScale, setPreviewScale] = useState(1);
     showToast(t('app.dropUnsupported'));
   }, [config.speakers, showToast, t, validateProjectConfig, webAudioObjectUrl]);
 
-  const handleSaveProject = async () => {
+  const handleSaveProject = useCallback(async (options?: { silent?: boolean }) => {
     if (!window.electron || !projectPath || projectPath === 'web-demo') {
       const finalConfig = getProjectConfig();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(finalConfig));
       setRecentProject(finalConfig.projectTitle || 'web-demo');
-      showToast(t('app.projectSaved'));
+      clearProjectDirty();
+      if (!options?.silent) {
+        showToast(t('app.projectSaved'));
+      }
       return;
     }
 
@@ -2453,11 +2660,14 @@ const [previewScale, setPreviewScale] = useState(1);
       const finalConfig = getProjectConfig();
       await window.electron.writeFile(projectPath, JSON.stringify(finalConfig, null, 2));
       savedSpeakerNamesRef.current = getSpeakerNameSnapshot(config.speakers);
-      showToast(t('app.projectSaved'));
+      clearProjectDirty();
+      if (!options?.silent) {
+        showToast(t('app.projectSaved'));
+      }
     } catch (e: any) {
       alert('保存失败: ' + e.message);
     }
-  };
+  }, [backupAssIfSpeakerNamesChanged, clearProjectDirty, config.speakers, getProjectConfig, persistSubtitlesToAss, projectPath, showToast, subtitles, t]);
 
   const handleWebProjectSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -2474,6 +2684,8 @@ const [previewScale, setPreviewScale] = useState(1);
       const shouldUseAssSource = normalizedConfig.subtitleFormat === 'ass' && Boolean(normalizedConfig.assPath);
       setProjectPath('web-demo');
       setRecentProject(file.name);
+      clearHistory();
+      clearProjectDirty();
       setConfig((prev: any) => ({
         ...(requiresAudioReload ? { ...normalizedConfig, audioPath: '' } : normalizedConfig),
         ui: {
@@ -2492,6 +2704,62 @@ const [previewScale, setPreviewScale] = useState(1);
       event.target.value = '';
     }
   };
+
+  useEffect(() => {
+    if (!autoSaveProject || !isProjectDirty || !projectPath) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void handleSaveProject({ silent: true });
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [autoSaveProject, handleSaveProject, isProjectDirty, projectChangeTick, projectPath]);
+
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      const tag = target.tagName;
+      return target.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === 'z' && !event.shiftKey) {
+        if (isEditableTarget(event.target)) {
+          return;
+        }
+        event.preventDefault();
+        undoProjectChange();
+        return;
+      }
+
+      if (key === 'y' || (key === 'z' && event.shiftKey)) {
+        if (isEditableTarget(event.target)) {
+          return;
+        }
+        event.preventDefault();
+        redoProjectChange();
+        return;
+      }
+
+      if (key === 's') {
+        event.preventDefault();
+        void handleSaveProject();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSaveProject, redoProjectChange, undoProjectChange]);
 
   const textClass = isDarkMode ? "text-white" : "text-gray-900";
   const canvasBg = isDarkMode ? "bg-[#111]" : "bg-gray-200/50";
@@ -2654,24 +2922,30 @@ const [previewScale, setPreviewScale] = useState(1);
             <div style={{ width: shouldHideSidePanels ? Math.min(windowWidth - 24, 420) : settingsWidth }} className="relative h-full shrink-0 flex flex-col min-h-0 overflow-hidden shadow-2xl">
               <SettingsPanel
                 config={config}
-                onConfigChange={setConfig}
+                onConfigChange={applyTrackedConfigChange}
                 isDarkMode={isDarkMode}
                 language={language}
                 themeColor={themeColor}
                 secondaryThemeColor={secondaryThemeColor}
+                autoSaveProject={autoSaveProject}
                 proxy={proxyState}
-                onThemeColorChange={setThemeColorState}
-                onSecondaryThemeColorChange={setSecondaryThemeColorState}
-                onProxyChange={setProxyState}
-                onLanguageChange={(nextLanguage: Language) => setConfig((prev: any) => ({ ...prev, language: nextLanguage }))}
-                onThemeChange={setIsDarkMode}
+                onThemeColorChange={handleThemeColorChangeTracked}
+                onSecondaryThemeColorChange={handleSecondaryThemeColorChangeTracked}
+                onAutoSaveProjectChange={(enabled: boolean) => {
+                  pushHistorySnapshot();
+                  setAutoSaveProject(enabled);
+                  markProjectDirty();
+                }}
+                onProxyChange={handleProxyChangeTracked}
+                onLanguageChange={handleLanguageChangeTracked}
+                onThemeChange={handleThemeModeChangeTracked}
                 settingsPosition={settingsPosition}
-                onPositionChange={setSettingsPosition}
+                onPositionChange={handlePositionChangeTracked}
                 onClose={() => setShowSettings(false)}
                 onSave={handleSaveConfig}
                 showToast={showToast}
                 presets={presets}
-                onPresetsChange={setPresets}
+                onPresetsChange={handlePresetsChangeTracked}
                 globalOnly
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
@@ -2720,6 +2994,10 @@ const [previewScale, setPreviewScale] = useState(1);
         onImportPresets={handleImportPresets}
         onExportPresets={handleExportPresets}
         onSortSubtitles={handleSortSubtitles}
+        onUndo={undoProjectChange}
+        onRedo={redoProjectChange}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onCloseProject={handleCloseProject}
         onExportVideo={() => {
           if (!window.electron) {
@@ -2810,24 +3088,30 @@ const [previewScale, setPreviewScale] = useState(1);
             <div style={{ width: settingsWidth }} className="h-full shrink-0 flex flex-col min-h-0 overflow-hidden">
               <SettingsPanel 
                 config={config} 
-                onConfigChange={setConfig} 
+                onConfigChange={applyTrackedConfigChange} 
                 isDarkMode={isDarkMode}
                 language={language}
                 themeColor={themeColor}
                 secondaryThemeColor={secondaryThemeColor}
+                autoSaveProject={autoSaveProject}
                 proxy={proxyState}
-                onThemeColorChange={setThemeColorState}
-                onSecondaryThemeColorChange={setSecondaryThemeColorState}
-                onProxyChange={setProxyState}
-                onLanguageChange={(nextLanguage: Language) => setConfig((prev: any) => ({ ...prev, language: nextLanguage }))}
-                onThemeChange={setIsDarkMode}
+                onThemeColorChange={handleThemeColorChangeTracked}
+                onSecondaryThemeColorChange={handleSecondaryThemeColorChangeTracked}
+                onAutoSaveProjectChange={(enabled: boolean) => {
+                  pushHistorySnapshot();
+                  setAutoSaveProject(enabled);
+                  markProjectDirty();
+                }}
+                onProxyChange={handleProxyChangeTracked}
+                onLanguageChange={handleLanguageChangeTracked}
+                onThemeChange={handleThemeModeChangeTracked}
                 settingsPosition={settingsPosition}
-                onPositionChange={setSettingsPosition}
+                onPositionChange={handlePositionChangeTracked}
                 onClose={() => setShowSettings(false)}
                 onSave={handleSaveProject}
                 showToast={showToast}
                 presets={presets}
-                onPresetsChange={setPresets}
+                onPresetsChange={handlePresetsChangeTracked}
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
@@ -2850,21 +3134,30 @@ const [previewScale, setPreviewScale] = useState(1);
           <div className="h-12 border-b flex items-center px-4 justify-between shrink-0 z-30 shadow-sm" style={{ backgroundColor: uiTheme.toolbarBg, borderColor: uiTheme.border }}>
             <div className="flex items-center gap-2">
               {!isMobileWebLayout && (
-                <button
-                  onClick={() => {
-                    setShowSubtitlePanel((prev) => {
-                      const next = !prev;
-                      if (shouldHideSidePanels && next) {
-                        setShowSettings(false);
-                      }
-                      return next;
-                    });
-                  }}
-                  className={`p-1.5 rounded transition-colors mr-2 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
-                  title="切换字幕列表"
+                <Tooltip
+                  content={showSubtitlePanel ? t('subtitle.collapseTip') : t('subtitle.expand')}
+                  placement="bottom"
+                  width={180}
+                  backgroundColor={isDarkMode ? 'rgba(17, 24, 39, 0.78)' : 'rgba(255, 255, 255, 0.78)'}
+                  borderColor={`${secondaryThemeColor}33`}
+                  textColor={uiTheme.text}
                 >
-                  {showSubtitlePanel ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-                </button>
+                  <button
+                    onClick={() => {
+                      setShowSubtitlePanel((prev) => {
+                        const next = !prev;
+                        if (shouldHideSidePanels && next) {
+                          setShowSettings(false);
+                        }
+                        return next;
+                      });
+                    }}
+                    className={`p-1.5 rounded transition-colors mr-2 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+                    title="切换字幕列表"
+                  >
+                    {showSubtitlePanel ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+                  </button>
+                </Tooltip>
               )}
               {isMobileWebLayout && (
                 <div className="flex items-center gap-2">
@@ -2956,24 +3249,30 @@ const [previewScale, setPreviewScale] = useState(1);
               >
                 <SettingsPanel
                   config={config}
-                  onConfigChange={setConfig}
+                  onConfigChange={applyTrackedConfigChange}
                   isDarkMode={isDarkMode}
                    language={language}
                    themeColor={themeColor}
                    secondaryThemeColor={secondaryThemeColor}
+                   autoSaveProject={autoSaveProject}
                    proxy={proxyState}
-                   onThemeColorChange={setThemeColorState}
-                   onSecondaryThemeColorChange={setSecondaryThemeColorState}
-                   onProxyChange={setProxyState}
-                   onLanguageChange={(nextLanguage: Language) => setConfig((prev: any) => ({ ...prev, language: nextLanguage }))}
-                   onThemeChange={setIsDarkMode}
+                   onThemeColorChange={handleThemeColorChangeTracked}
+                   onSecondaryThemeColorChange={handleSecondaryThemeColorChangeTracked}
+                   onAutoSaveProjectChange={(enabled: boolean) => {
+                     pushHistorySnapshot();
+                     setAutoSaveProject(enabled);
+                     markProjectDirty();
+                   }}
+                   onProxyChange={handleProxyChangeTracked}
+                   onLanguageChange={handleLanguageChangeTracked}
+                   onThemeChange={handleThemeModeChangeTracked}
                   settingsPosition={settingsPosition}
-                  onPositionChange={setSettingsPosition}
+                  onPositionChange={handlePositionChangeTracked}
                   onClose={() => setShowSettings(false)}
                   onSave={handleSaveProject}
                   showToast={showToast}
                   presets={presets}
-                  onPresetsChange={setPresets}
+                  onPresetsChange={handlePresetsChangeTracked}
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
                   onSelectImage={handleSelectImage}
@@ -3148,24 +3447,30 @@ const [previewScale, setPreviewScale] = useState(1);
             <div style={{ width: settingsWidth }} className="h-full shrink-0 flex flex-col min-h-0 overflow-hidden">
               <SettingsPanel 
                 config={config} 
-                onConfigChange={setConfig} 
+                onConfigChange={applyTrackedConfigChange} 
                 isDarkMode={isDarkMode}
                 language={language}
                 themeColor={themeColor}
                 secondaryThemeColor={secondaryThemeColor}
+                autoSaveProject={autoSaveProject}
                 proxy={proxyState}
-                onThemeColorChange={setThemeColorState}
-                onSecondaryThemeColorChange={setSecondaryThemeColorState}
-                onProxyChange={setProxyState}
-                onLanguageChange={(nextLanguage: Language) => setConfig((prev: any) => ({ ...prev, language: nextLanguage }))}
-                onThemeChange={setIsDarkMode}
+                onThemeColorChange={handleThemeColorChangeTracked}
+                onSecondaryThemeColorChange={handleSecondaryThemeColorChangeTracked}
+                onAutoSaveProjectChange={(enabled: boolean) => {
+                  pushHistorySnapshot();
+                  setAutoSaveProject(enabled);
+                  markProjectDirty();
+                }}
+                onProxyChange={handleProxyChangeTracked}
+                onLanguageChange={handleLanguageChangeTracked}
+                onThemeChange={handleThemeModeChangeTracked}
                 settingsPosition={settingsPosition}
-                onPositionChange={setSettingsPosition}
+                onPositionChange={handlePositionChangeTracked}
                 onClose={() => setShowSettings(false)}
                 onSave={handleSaveProject}
                 showToast={showToast}
                 presets={presets}
-                onPresetsChange={setPresets}
+                onPresetsChange={handlePresetsChangeTracked}
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
@@ -3236,26 +3541,32 @@ const [previewScale, setPreviewScale] = useState(1);
           )}
           <SettingsPanel
             config={config}
-            onConfigChange={setConfig}
+            onConfigChange={applyTrackedConfigChange}
             isDarkMode={isDarkMode}
             language={language}
             themeColor={themeColor}
             secondaryThemeColor={secondaryThemeColor}
+            autoSaveProject={autoSaveProject}
             proxy={proxyState}
-            onThemeColorChange={setThemeColorState}
-            onSecondaryThemeColorChange={setSecondaryThemeColorState}
-            onProxyChange={setProxyState}
-            onLanguageChange={(nextLanguage: Language) => setConfig((prev: any) => ({ ...prev, language: nextLanguage }))}
-            onThemeChange={setIsDarkMode}
+            onThemeColorChange={handleThemeColorChangeTracked}
+            onSecondaryThemeColorChange={handleSecondaryThemeColorChangeTracked}
+            onAutoSaveProjectChange={(enabled: boolean) => {
+              pushHistorySnapshot();
+              setAutoSaveProject(enabled);
+              markProjectDirty();
+            }}
+            onProxyChange={handleProxyChangeTracked}
+            onLanguageChange={handleLanguageChangeTracked}
+            onThemeChange={handleThemeModeChangeTracked}
             settingsPosition={settingsPosition}
-            onPositionChange={setSettingsPosition}
+            onPositionChange={handlePositionChangeTracked}
             onClose={() => {
               setIsMobileBottomPanelCollapsed((prev) => !prev);
             }}
             onSave={window.electron ? handleSaveProject : handleSaveConfig}
             showToast={showToast}
             presets={presets}
-            onPresetsChange={setPresets}
+            onPresetsChange={handlePresetsChangeTracked}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             onSelectImage={handleSelectImage}
@@ -3316,9 +3627,9 @@ const [previewScale, setPreviewScale] = useState(1);
          onChoosePath={handleChooseExportPath}
          onQuickSave={() => setExportOutputPath(quickSavePath)}
          onRangeChange={updateExportRange}
-         onQualityChange={setExportQuality}
-         onFilenameTemplateChange={setFilenameTemplate}
-         onCustomFilenameChange={setCustomFilename}
+         onQualityChange={handleExportQualityChange}
+         onFilenameTemplateChange={handleFilenameTemplateChange}
+         onCustomFilenameChange={handleCustomFilenameChange}
          onStartExport={handleStartExport}
          onRevealOutput={handleRevealExport}
        />
@@ -3343,6 +3654,7 @@ const [previewScale, setPreviewScale] = useState(1);
               }
             }
 
+            pushHistorySnapshot();
             setConfig((prev: any) => ({
               ...prev,
               subtitleFormat: 'ass',
@@ -3358,6 +3670,7 @@ const [previewScale, setPreviewScale] = useState(1);
             if (!window.electron) {
               setWebAssContent(sanitizedContent);
             }
+            markProjectDirty();
             setImportAssData(null);
             showToast(t('app.subtitleImported'));
           }}

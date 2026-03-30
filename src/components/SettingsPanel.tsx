@@ -26,9 +26,11 @@ interface SettingsPanelProps {
   language: Language;
   themeColor: string;
   secondaryThemeColor: string;
+  autoSaveProject: boolean;
   proxy: string;
   onThemeColorChange: (color: string) => void;
   onSecondaryThemeColorChange: (color: string) => void;
+  onAutoSaveProjectChange: (enabled: boolean) => void;
   onProxyChange: (proxy: string) => void;
   onLanguageChange: (language: Language) => void;
   onThemeChange: (isDark: boolean) => void;
@@ -55,7 +57,7 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ 
   config, onConfigChange, 
-  isDarkMode, language, themeColor, secondaryThemeColor, proxy, onThemeColorChange, onSecondaryThemeColorChange, onProxyChange, onLanguageChange, onThemeChange, 
+  isDarkMode, language, themeColor, secondaryThemeColor, autoSaveProject, proxy, onThemeColorChange, onSecondaryThemeColorChange, onAutoSaveProjectChange, onProxyChange, onLanguageChange, onThemeChange, 
   settingsPosition, onPositionChange,
   onClose, onSave, showToast, presets, onPresetsChange, activeTab, setActiveTab,
   onSelectImage, globalOnly = false, showSubtitleTab = false, subtitleContent = null,
@@ -397,14 +399,23 @@ export function SettingsPanel({
             </>
           )}
           {onTogglePanelCollapsed && (
-            <button
-              className="px-3 py-2 text-xs font-medium border-l"
-              style={{ borderColor: uiTheme.border, color: panelCollapsed ? secondaryThemeColor : uiTheme.textSoft, backgroundColor: panelCollapsed ? `${secondaryThemeColor}12` : 'transparent' }}
-              onClick={onTogglePanelCollapsed}
-              title={panelCollapsed ? t('subtitle.expand') : t('subtitle.collapse')}
+            <Tooltip
+              content={panelCollapsed ? t('subtitle.expand') : t('subtitle.collapseTip')}
+              placement="bottom"
+              width={180}
+              backgroundColor={isDarkMode ? 'rgba(17, 24, 39, 0.78)' : 'rgba(255, 255, 255, 0.78)'}
+              borderColor={`${secondaryThemeColor}33`}
+              textColor={uiTheme.text}
             >
-              {panelCollapsed ? t('subtitle.expand') : t('subtitle.collapse')}
-            </button>
+              <button
+                className="px-3 py-2 text-xs font-medium border-l"
+                style={{ borderColor: uiTheme.border, color: panelCollapsed ? secondaryThemeColor : uiTheme.textSoft, backgroundColor: panelCollapsed ? `${secondaryThemeColor}12` : 'transparent' }}
+                onClick={onTogglePanelCollapsed}
+                title={panelCollapsed ? t('subtitle.expand') : t('subtitle.collapse')}
+              >
+                {panelCollapsed ? t('subtitle.expand') : t('subtitle.collapse')}
+              </button>
+            </Tooltip>
           )}
          </div>
 
@@ -517,6 +528,23 @@ export function SettingsPanel({
                   <ArrowLeftRight size={14} /> {t('global.position.right')}
                 </button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-medium uppercase tracking-wider opacity-70">{t('global.autoSaveProject')}</label>
+              <button
+                type="button"
+                onClick={() => onAutoSaveProjectChange(!autoSaveProject)}
+                className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
+                style={{
+                  backgroundColor: autoSaveProject ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
+                  borderColor: autoSaveProject ? `${secondaryThemeColor}55` : uiTheme.border,
+                  color: uiTheme.text,
+                }}
+              >
+                <span>{autoSaveProject ? t('common.enabled') : t('common.disabled')}</span>
+                <span className="text-xs opacity-70">{t('global.autoSaveProjectHint')}</span>
+              </button>
             </div>
 
             {window.electron && (

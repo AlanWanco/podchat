@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, FolderOpen, Plus, Download, ChevronDown, Music, Subtitles, XCircle } from 'lucide-react';
+import { Save, FolderOpen, Plus, Download, ChevronDown, Music, Subtitles, XCircle, Undo2, Redo2 } from 'lucide-react';
 import { translate, type Language } from '../../i18n';
 import { createThemeTokens } from '../../theme';
 
@@ -21,6 +21,10 @@ interface MenuBarProps {
   onImportPresets: () => void;
   onExportPresets: () => void;
   onSortSubtitles: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   onCloseProject: () => void;
   onExportVideo: () => void;
   onExportConfig: () => void;
@@ -43,6 +47,10 @@ export function MenuBar({
   onImportPresets,
   onExportPresets,
   onSortSubtitles,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   onCloseProject,
   onExportVideo,
   onExportConfig
@@ -131,6 +139,37 @@ export function MenuBar({
                 className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 text-red-500 hover:bg-red-500/10 ${!projectPath && 'opacity-50 cursor-not-allowed'}`}
               >
                 <XCircle size={14} /> {t('menu.closeProject')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button
+            onClick={(e) => toggleMenu(e, 'edit')}
+            className={`px-3 py-1 text-sm rounded transition-colors ${activeMenu === 'edit' ? '' : hoverClass}`}
+            onMouseEnter={(e) => { if (activeMenu !== 'edit') (e.currentTarget.style.backgroundColor = uiTheme.hoverBg); }}
+            onMouseLeave={(e) => { if (activeMenu !== 'edit') e.currentTarget.style.backgroundColor = 'transparent'; }}
+            style={activeMenu === 'edit' ? activeMenuStyle : undefined}
+          >
+            {t('menu.edit')}
+          </button>
+
+          {activeMenu === 'edit' && (
+            <div className="absolute top-full left-0 mt-1 w-48 rounded shadow-xl border py-1 z-50" style={{ backgroundColor: uiTheme.panelBgElevated, borderColor: uiTheme.border }}>
+              <button
+                onClick={() => executeAction(onUndo)}
+                disabled={!canUndo}
+                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${!canUndo ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <Undo2 size={14} /> {t('menu.undo')}
+              </button>
+              <button
+                onClick={() => executeAction(onRedo)}
+                disabled={!canRedo}
+                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${!canRedo ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <Redo2 size={14} /> {t('menu.redo')}
               </button>
             </div>
           )}
