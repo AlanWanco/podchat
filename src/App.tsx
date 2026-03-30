@@ -92,6 +92,8 @@ const DEFAULT_PROJECT_CONFIG = {
   audioPath: '',
   assPath: '',
   subtitleFormat: 'ass' as SubtitleFormat,
+  exportRange: { start: 0, end: 0 },
+  exportRangeCustomized: false,
   content: [] as any[],
   speakers: {
     A: {
@@ -156,10 +158,20 @@ const sanitizeImportedAssContent = (content: string) => {
 };
 
 const sanitizeProjectConfig = (parsed: any) => {
+  const parsedExportRange = parsed?.exportRange;
   const legacyPaddingX = parsed?.chatLayout?.paddingX;
   const merged = {
     ...DEFAULT_PROJECT_CONFIG,
     ...parsed,
+    exportRange: {
+      start: typeof parsedExportRange?.start === 'number' && Number.isFinite(parsedExportRange.start)
+        ? parsedExportRange.start
+        : DEFAULT_PROJECT_CONFIG.exportRange.start,
+      end: typeof parsedExportRange?.end === 'number' && Number.isFinite(parsedExportRange.end)
+        ? parsedExportRange.end
+        : DEFAULT_PROJECT_CONFIG.exportRange.end,
+    },
+    exportRangeCustomized: parsed?.exportRangeCustomized === true,
     dimensions: { ...DEFAULT_PROJECT_CONFIG.dimensions, ...(parsed?.dimensions || {}) },
     chatLayout: {
       ...DEFAULT_CHAT_LAYOUT,
@@ -1552,7 +1564,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const defaults = getDefaultExportRange();
     
     // Try to restore from config if available
-    if (config.exportRange && config.exportRange.start !== undefined && config.exportRange.end !== undefined) {
+    if (config.exportRangeCustomized && config.exportRange && config.exportRange.start !== undefined && config.exportRange.end !== undefined) {
       const saved = config.exportRange;
       const nextStart = Number(Math.max(0, Math.min(saved.start, defaults.end)).toFixed(2));
       const nextEnd = Number(Math.max(nextStart, Math.min(saved.end, Math.max(defaults.end, saved.end))).toFixed(2));
@@ -1575,7 +1587,7 @@ const [previewScale, setPreviewScale] = useState(1);
       const nextRange = { start: nextStart, end: nextEnd };
       return isSameRange(prev, nextRange) ? prev : nextRange;
     });
-  }, [getDefaultExportRange, config.exportRange]);
+  }, [getDefaultExportRange, config.exportRange, config.exportRangeCustomized]);
 
   useEffect(() => {
     const nextQuality = config.exportQuality === 'fast' || config.exportQuality === 'balance' || config.exportQuality === 'high'
@@ -1606,17 +1618,19 @@ const [previewScale, setPreviewScale] = useState(1);
       const sameExportRange =
         prev.exportRange?.start === exportRange.start &&
         prev.exportRange?.end === exportRange.end;
+      const sameExportRangeCustomized = Boolean(prev.exportRangeCustomized) === exportRangeTouchedRef.current;
       const sameQuality = prev.exportQuality === exportQuality;
       const sameTemplate = prev.filenameTemplate === filenameTemplate;
       const sameCustomFilename = prev.customFilename === persistedCustomFilename;
 
-      if (sameExportRange && sameQuality && sameTemplate && sameCustomFilename) {
+      if (sameExportRange && sameExportRangeCustomized && sameQuality && sameTemplate && sameCustomFilename) {
         return prev;
       }
 
       return {
         ...prev,
         exportRange,
+        exportRangeCustomized: exportRangeTouchedRef.current,
         exportQuality,
         filenameTemplate,
         customFilename: persistedCustomFilename

@@ -1,5 +1,5 @@
 import { Play, Pause, SquareSquare, RotateCcw, Volume1, Repeat, Settings2, Clock3, SkipBack, SkipForward, ArrowRight, ArrowLeft, ArrowDown } from 'lucide-react';
-import { memo, useState, useRef, useEffect } from 'react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import { ZoomIn, ZoomOut } from 'lucide-react';
@@ -37,6 +37,7 @@ interface PlayerControlsProps {
 interface WaveformRegion {
   start: number;
   end: number;
+  element?: HTMLElement | null;
   on: (event: 'update' | 'update-end', callback: () => void) => void;
   un: (event: 'update' | 'update-end', callback: () => void) => void;
 }
@@ -90,6 +91,12 @@ export const PlayerControls = memo(function PlayerControls({
   const t = (key: string) => translate(language, key);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
   const waveformHeight = compactMobile ? 24 : 48;
+  const exportBarHeight = compactMobile ? 5 : 6;
+  const exportHandleSize = compactMobile ? 9 : 10;
+  const waveformBaseColor = rgba(secondaryThemeColor, isDarkMode ? 0.72 : 0.56);
+  const waveformProgressColor = secondaryThemeColor;
+  const exportBarBaseColor = rgba(themeColor, isDarkMode ? 0.42 : 0.58);
+  const exportBarFillColor = secondaryThemeColor;
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [regionTooltip, setRegionTooltip] = useState<{ start: number; end: number } | null>(null);
   const [timeInputMode, setTimeInputMode] = useState(false);
@@ -105,16 +112,25 @@ export const PlayerControls = memo(function PlayerControls({
   const wavesurfer = useRef<WaveSurfer | null>(null);
   const wsRegions = useRef<WaveformRegionsPlugin | null>(null);
   const hasUserAdjustedZoomRef = useRef(false);
+  const exportRangeDragRef = useRef<'start' | 'end' | null>(null);
   
   const [volume, setVolume] = useState(0.8);
   const [zoomLevel, setZoomLevel] = useState(50);
   const [minZoom, setMinZoom] = useState(10);
   const [isWaveformReady, setIsWaveformReady] = useState(false);
   const [displayCurrentTime, setDisplayCurrentTime] = useState(0);
+  const [waveformOverlayMetrics, setWaveformOverlayMetrics] = useState({ scrollLeft: 0, wrapperWidth: 0, viewportWidth: 0 });
+  const [dragPreviewRange, setDragPreviewRange] = useState<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
     hasUserAdjustedZoomRef.current = false;
   }, [audioPath]);
+
+  useEffect(() => {
+    if (!exportRangeDragRef.current) {
+      setDragPreviewRange(null);
+    }
+  }, [exportRangeStart, exportRangeEnd]);
 
   useEffect(() => {
     onEditingSubChangeRef.current = onEditingSubChange;
@@ -209,19 +225,17 @@ export const PlayerControls = memo(function PlayerControls({
     setExportEndInputMode(false);
   };
 
-  useEffect(() => {
-    if (!exportStartInputMode) {
-      const timer = window.setTimeout(() => setExportStartInputValue(formatTime(exportRangeStart)), 0);
-      return () => window.clearTimeout(timer);
+  const getWaveformOverlayElements = useCallback(() => {
+    const host = waveformRef.current?.firstElementChild as HTMLElement | null;
+    const shadowRoot = host?.shadowRoot;
+    if (!shadowRoot) {
+      return { scrollElement: null, wrapperElement: null };
     }
-  }, [exportRangeStart, exportStartInputMode]);
 
-  useEffect(() => {
-    if (!exportEndInputMode) {
-      const timer = window.setTimeout(() => setExportEndInputValue(formatTime(exportRangeEnd)), 0);
-      return () => window.clearTimeout(timer);
-    }
-  }, [exportRangeEnd, exportEndInputMode]);
+    const scrollElement = shadowRoot.querySelector('.scroll, [part="scroll"]') as HTMLElement | null;
+    const wrapperElement = shadowRoot.querySelector('.wrapper, [part="wrapper"]') as HTMLElement | null;
+    return { scrollElement, wrapperElement };
+  }, []);
 
   // Initialize WaveSurfer
   useEffect(() => {
@@ -229,11 +243,12 @@ export const PlayerControls = memo(function PlayerControls({
     if (!audioRef?.current) return;
 
     const readyResetTimer = window.setTimeout(() => setIsWaveformReady(false), 0);
+    waveformRef.current.innerHTML = '';
 
     wavesurfer.current = WaveSurfer.create({
       container: waveformRef.current,
-      waveColor: rgba(secondaryThemeColor, isDarkMode ? 0.55 : 0.35),
-      progressColor: secondaryThemeColor,
+      waveColor: waveformBaseColor,
+      progressColor: waveformProgressColor,
       cursorColor: isDarkMode ? '#ffffff' : '#111827',
       barWidth: 2,
       barGap: 1,
@@ -266,8 +281,8 @@ export const PlayerControls = memo(function PlayerControls({
             regionStyle.id = 'ws-region-style';
             regionStyle.textContent = `
               .region[data-pomchat-nearby="1"] {
-               border: 1px solid transparent !important;
-               background:
+                border: 1px solid transparent !important;
+                background:
                  linear-gradient(
                    to right,
                    ${rgba(secondaryThemeColor, 0.62)} 0,
@@ -278,12 +293,12 @@ export const PlayerControls = memo(function PlayerControls({
                    ${rgba(secondaryThemeColor, 0.62)} 100%
                  ),
                  ${rgba(secondaryThemeColor, 0.16)} !important;
-               box-shadow: none !important;
-              }
-              .region {
-               border: 1px solid transparent !important;
-               background:
-                 linear-gradient(
+                box-shadow: none !important;
+               }
+               .region {
+                border: 1px solid transparent !important;
+                background:
+                  linear-gradient(
                    to right,
                    ${rgba(secondaryThemeColor, 0.95)} 0,
                    ${rgba(secondaryThemeColor, 0.95)} 2px,
@@ -293,13 +308,13 @@ export const PlayerControls = memo(function PlayerControls({
                    ${rgba(secondaryThemeColor, 0.95)} 100%
                  ),
                  linear-gradient(90deg, ${secondaryThemeColor}55, ${secondaryThemeColor}2f) !important;
-               box-shadow: none !important;
-              }
-              .region::before,
-              .region::after {
-                content: '';
-                position: absolute;
-                top: 50%;
+                box-shadow: none !important;
+               }
+               .region::before,
+               .region::after {
+                 content: '';
+                 position: absolute;
+                 top: 50%;
                 transform: translateY(-50%);
                width: 7px;
                height: 20px;
@@ -307,19 +322,19 @@ export const PlayerControls = memo(function PlayerControls({
                background: ${secondaryThemeColor};
                border: 1px solid rgba(255,255,255,0.9);
                box-shadow: 0 2px 8px rgba(0,0,0,0.24);
-                z-index: 5;
-                pointer-events: none;
-              }
-             .region::before { left: -4px; }
-             .region::after { right: -4px; }
-              .region-handle,
-              .handle,
-              [part~="region-handle"],
-              [part~="region-handle-left"],
-              [part~="region-handle-right"] {
-               width: 7px !important;
-               height: 20px !important;
-               top: 50% !important;
+                 z-index: 5;
+                 pointer-events: none;
+               }
+              .region::before { left: -4px; }
+              .region::after { right: -4px; }
+               .region .region-handle,
+               .region .handle,
+               .region [part~="region-handle"],
+               .region [part~="region-handle-left"],
+               .region [part~="region-handle-right"] {
+                width: 7px !important;
+                height: 20px !important;
+                top: 50% !important;
                transform: translateY(-50%) !important;
                margin-top: 0 !important;
                border-radius: 999px !important;
@@ -328,16 +343,16 @@ export const PlayerControls = memo(function PlayerControls({
                box-shadow: 0 2px 8px rgba(0,0,0,0.24) !important;
                opacity: 1 !important;
              }
-             .region[data-pomchat-nearby="1"]::before,
-             .region[data-pomchat-nearby="1"]::after,
-             .region[data-pomchat-nearby="1"] .region-handle,
-             .region[data-pomchat-nearby="1"] .handle,
-             .region[data-pomchat-nearby="1"] [part~="region-handle"],
-             .region[data-pomchat-nearby="1"] [part~="region-handle-left"],
-             .region[data-pomchat-nearby="1"] [part~="region-handle-right"] {
-               display: none !important;
-             }
-            `;
+               .region[data-pomchat-nearby="1"]::before,
+               .region[data-pomchat-nearby="1"]::after,
+               .region[data-pomchat-nearby="1"] .region-handle,
+               .region[data-pomchat-nearby="1"] .handle,
+               .region[data-pomchat-nearby="1"] [part~="region-handle"],
+               .region[data-pomchat-nearby="1"] [part~="region-handle-left"],
+               .region[data-pomchat-nearby="1"] [part~="region-handle-right"] {
+                display: none !important;
+              }
+             `;
             host.shadowRoot.appendChild(regionStyle);
           }
       }
@@ -386,8 +401,51 @@ export const PlayerControls = memo(function PlayerControls({
       window.clearTimeout(readyResetTimer);
       setIsWaveformReady(false);
       wavesurfer.current?.destroy();
+      wavesurfer.current = null;
+      wsRegions.current = null;
+      if (waveformRef.current) {
+        waveformRef.current.innerHTML = '';
+      }
     };
-  }, [audioPath, isDarkMode, onSeek, audioRef, themeColor, secondaryThemeColor, waveformHeight]);
+  }, [audioPath, isDarkMode, onSeek, audioRef, waveformBaseColor, waveformHeight, waveformProgressColor, secondaryThemeColor]);
+
+  useEffect(() => {
+    if (!isWaveformReady) {
+      setWaveformOverlayMetrics({ scrollLeft: 0, wrapperWidth: 0, viewportWidth: 0 });
+      return;
+    }
+
+    const updateOverlayMetrics = () => {
+      const { scrollElement, wrapperElement } = getWaveformOverlayElements();
+      setWaveformOverlayMetrics({
+        scrollLeft: scrollElement?.scrollLeft ?? 0,
+        wrapperWidth: wrapperElement?.clientWidth ?? 0,
+        viewportWidth: scrollElement?.clientWidth ?? waveformRef.current?.clientWidth ?? 0,
+      });
+    };
+
+    const { scrollElement, wrapperElement } = getWaveformOverlayElements();
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => updateOverlayMetrics())
+      : null;
+
+    scrollElement?.addEventListener('scroll', updateOverlayMetrics, { passive: true });
+    resizeObserver?.observe(waveformRef.current!);
+    if (scrollElement) {
+      resizeObserver?.observe(scrollElement);
+    }
+    if (wrapperElement) {
+      resizeObserver?.observe(wrapperElement);
+    }
+    updateOverlayMetrics();
+    const syncTimer = window.setTimeout(updateOverlayMetrics, 80);
+
+    return () => {
+      window.clearTimeout(syncTimer);
+      scrollElement?.removeEventListener('scroll', updateOverlayMetrics);
+      resizeObserver?.disconnect();
+    };
+  }, [audioPath, getWaveformOverlayElements, isWaveformReady, zoomLevel]);
 
   useEffect(() => {
     if (wavesurfer.current && isWaveformReady) {
@@ -447,7 +505,7 @@ export const PlayerControls = memo(function PlayerControls({
         color: `${secondaryThemeColor}14`,
         drag: false,
         resize: false,
-      }) as any;
+      });
 
       if (region?.element?.dataset) {
         region.element.dataset.pomchatNearby = '1';
@@ -467,9 +525,8 @@ export const PlayerControls = memo(function PlayerControls({
         setRegionTooltip({ start: sourceRegion.start, end: sourceRegion.end });
       }, 0);
 
-      const regionAny = region as any;
-      if (regionAny?.element?.dataset) {
-        regionAny.element.dataset.pomchatNearby = '0';
+      if (region.element?.dataset) {
+        region.element.dataset.pomchatNearby = '0';
       }
 
       if (!editingSub) {
@@ -508,7 +565,64 @@ export const PlayerControls = memo(function PlayerControls({
     return () => {
       window.clearTimeout(tooltipResetTimer);
     };
-  }, [editingSub, rangeSubtitle, nearbySubtitles, themeColor, secondaryThemeColor, isDarkMode, zoomLevel]);
+  }, [editingSub, nearbySubtitles, rangeSubtitle, secondaryThemeColor, isDarkMode, zoomLevel]);
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const dragTarget = exportRangeDragRef.current;
+      if (!dragTarget || !waveformOverlayMetrics.wrapperWidth) {
+        return;
+      }
+
+      const waveformDuration = Math.max(duration || 0, defaultExportEnd || 0, exportRangeEnd || 0);
+      const { scrollElement } = getWaveformOverlayElements();
+      const viewportRect = waveformRef.current?.getBoundingClientRect();
+      if (!viewportRect || waveformDuration <= 0) {
+        return;
+      }
+
+      const scrollLeft = scrollElement?.scrollLeft ?? waveformOverlayMetrics.scrollLeft;
+      const relativeX = event.clientX - viewportRect.left + scrollLeft;
+      const clampedX = Math.max(0, Math.min(relativeX, waveformOverlayMetrics.wrapperWidth));
+      const nextTime = Number(((clampedX / waveformOverlayMetrics.wrapperWidth) * waveformDuration).toFixed(2));
+
+      if (dragTarget === 'start') {
+        setDragPreviewRange((prev) => {
+          const currentEnd = prev?.end ?? exportRangeEnd;
+          return {
+            start: Math.min(nextTime, currentEnd),
+            end: currentEnd,
+          };
+        });
+      } else {
+        setDragPreviewRange((prev) => {
+          const currentStart = prev?.start ?? exportRangeStart;
+          return {
+            start: currentStart,
+            end: Math.max(nextTime, currentStart),
+          };
+        });
+      }
+    };
+
+    const handlePointerUp = () => {
+      if (exportRangeDragRef.current && dragPreviewRange) {
+        onExportRangeChange(dragPreviewRange);
+      }
+      exportRangeDragRef.current = null;
+      setDragPreviewRange(null);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [defaultExportEnd, dragPreviewRange, duration, exportRangeEnd, exportRangeStart, getWaveformOverlayElements, onExportRangeChange, waveformOverlayMetrics]);
 
   // Removed manual Sync effect since WaveSurfer syncs via the media element automatically.
   // UI time display is read directly from the audio element.
@@ -528,6 +642,15 @@ export const PlayerControls = memo(function PlayerControls({
   const textClass = isDarkMode ? "text-gray-400" : "text-gray-600";
   const showWaveformContainer = Boolean(audioPath && isWaveformReady);
   const liveCurrentTime = audioRef.current?.currentTime ?? displayCurrentTime;
+  const displayedExportRangeStart = dragPreviewRange?.start ?? exportRangeStart;
+  const displayedExportRangeEnd = dragPreviewRange?.end ?? exportRangeEnd;
+  const formattedExportRangeStart = formatTime(displayedExportRangeStart);
+  const formattedExportRangeEnd = formatTime(displayedExportRangeEnd);
+  const waveformDuration = Math.max(duration || 0, defaultExportEnd || 0, displayedExportRangeEnd || 0);
+  const clampedExportStart = waveformDuration > 0 ? Math.max(0, Math.min(displayedExportRangeStart, waveformDuration)) : 0;
+  const clampedExportEnd = waveformDuration > 0 ? Math.max(clampedExportStart, Math.min(displayedExportRangeEnd, waveformDuration)) : 0;
+  const exportBarStartPercent = waveformDuration > 0 ? (clampedExportStart / waveformDuration) * 100 : 0;
+  const exportBarWidthPercent = waveformDuration > 0 ? ((clampedExportEnd - clampedExportStart) / waveformDuration) * 100 : 0;
   const hasStartRangeSubtitle = Boolean(rangeSubtitle && rangeSubtitle.start >= 0);
   const hasEndRangeSubtitle = Boolean(rangeSubtitle && rangeSubtitle.end >= 0);
   const rangeTooltipStyle = {
@@ -550,7 +673,7 @@ export const PlayerControls = memo(function PlayerControls({
       >
           {showWaveformContainer && editingSub && regionTooltip && (
             <div
-              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-2 py-1 rounded-md text-[10px] font-mono z-[70] pointer-events-none whitespace-nowrap"
+              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 rounded-md text-[10px] font-mono z-[70] pointer-events-none whitespace-nowrap"
               style={{
                 backgroundColor: isDarkMode ? `${themeColor}F2` : uiTheme.panelBgElevated,
                 color: isDarkMode ? '#ffffff' : uiTheme.text,
@@ -559,6 +682,91 @@ export const PlayerControls = memo(function PlayerControls({
               }}
             >
               {formatTime(regionTooltip.start)} - {formatTime(regionTooltip.end)}
+            </div>
+          )}
+          {showWaveformContainer && waveformOverlayMetrics.wrapperWidth > 0 && waveformDuration > 0 && (
+            <div className="relative w-full overflow-hidden mb-2" style={{ height: `${Math.max(exportHandleSize + 2, 14)}px` }}>
+              <div
+                className="absolute top-1/2 left-0"
+                style={{
+                  width: `${waveformOverlayMetrics.wrapperWidth}px`,
+                  height: `${exportBarHeight}px`,
+                  transform: `translate(${-waveformOverlayMetrics.scrollLeft}px, -50%)`,
+                  backgroundColor: exportBarBaseColor,
+                  borderRadius: 9999,
+                  boxShadow: `inset 0 0 0 1px ${rgba(themeColor, isDarkMode ? 0.2 : 0.12)}`,
+                }}
+              >
+                <div
+                  className="absolute top-0 h-full rounded-full"
+                  style={{
+                    left: `${exportBarStartPercent}%`,
+                    width: `${exportBarWidthPercent}%`,
+                    minWidth: exportBarWidthPercent > 0 ? `${exportHandleSize}px` : 0,
+                    backgroundColor: exportBarFillColor,
+                    boxShadow: `0 0 0 1px ${rgba(secondaryThemeColor, isDarkMode ? 0.3 : 0.18)}, 0 3px 12px ${rgba(secondaryThemeColor, isDarkMode ? 0.26 : 0.18)}`,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full border pointer-events-auto transition-all duration-150 hover:scale-110"
+                    style={{
+                      left: 0,
+                      width: `${exportHandleSize}px`,
+                      height: `${exportHandleSize}px`,
+                      backgroundColor: uiTheme.panelBgElevated,
+                      borderColor: secondaryThemeColor,
+                      boxShadow: `0 2px 8px ${rgba(secondaryThemeColor, isDarkMode ? 0.3 : 0.18)}`,
+                      touchAction: 'none',
+                    }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.backgroundColor = '#ffffff';
+                      event.currentTarget.style.boxShadow = `0 0 0 3px ${rgba(secondaryThemeColor, isDarkMode ? 0.18 : 0.14)}, 0 4px 14px ${rgba(secondaryThemeColor, isDarkMode ? 0.34 : 0.24)}`;
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.backgroundColor = uiTheme.panelBgElevated;
+                      event.currentTarget.style.boxShadow = `0 2px 8px ${rgba(secondaryThemeColor, isDarkMode ? 0.3 : 0.18)}`;
+                    }}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      exportRangeDragRef.current = 'start';
+                      document.body.style.userSelect = 'none';
+                      document.body.style.cursor = 'ew-resize';
+                    }}
+                    aria-label={t('export.rangeStart')}
+                  />
+                  <button
+                    type="button"
+                    className="absolute top-1/2 translate-x-1/2 -translate-y-1/2 rounded-full border pointer-events-auto transition-all duration-150 hover:scale-110"
+                    style={{
+                      right: 0,
+                      width: `${exportHandleSize}px`,
+                      height: `${exportHandleSize}px`,
+                      backgroundColor: uiTheme.panelBgElevated,
+                      borderColor: secondaryThemeColor,
+                      boxShadow: `0 2px 8px ${rgba(secondaryThemeColor, isDarkMode ? 0.3 : 0.18)}`,
+                      touchAction: 'none',
+                    }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.backgroundColor = '#ffffff';
+                      event.currentTarget.style.boxShadow = `0 0 0 3px ${rgba(secondaryThemeColor, isDarkMode ? 0.18 : 0.14)}, 0 4px 14px ${rgba(secondaryThemeColor, isDarkMode ? 0.34 : 0.24)}`;
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.backgroundColor = uiTheme.panelBgElevated;
+                      event.currentTarget.style.boxShadow = `0 2px 8px ${rgba(secondaryThemeColor, isDarkMode ? 0.3 : 0.18)}`;
+                    }}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      exportRangeDragRef.current = 'end';
+                      document.body.style.userSelect = 'none';
+                      document.body.style.cursor = 'ew-resize';
+                    }}
+                    aria-label={t('export.rangeEnd')}
+                  />
+                </div>
+              </div>
             </div>
           )}
           <div className="w-full overflow-hidden">
@@ -740,17 +948,17 @@ export const PlayerControls = memo(function PlayerControls({
                   </div>
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setExportStartInputValue(formatTime(exportRangeStart));
-                    setExportStartInputMode(true);
-                  }}
-                  className="px-1 text-[11px] font-mono tabular-nums transition-opacity hover:opacity-80"
-                  style={{ color: secondaryThemeColor }}
-                  title={t('export.start')}
-                >
-                  {formatTime(exportRangeStart)}
-                </button>
+                   type="button"
+                   onClick={() => {
+                     setExportStartInputValue(formattedExportRangeStart);
+                     setExportStartInputMode(true);
+                   }}
+                   className="inline-flex w-[82px] justify-center px-1 text-[11px] font-mono tabular-nums transition-opacity hover:opacity-80"
+                   style={{ color: secondaryThemeColor }}
+                   title={t('export.start')}
+                 >
+                   {formattedExportRangeStart}
+                 </button>
               </>
              )}
           </div>
@@ -823,17 +1031,17 @@ export const PlayerControls = memo(function PlayerControls({
             ) : (
               <>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setExportEndInputValue(formatTime(exportRangeEnd));
-                    setExportEndInputMode(true);
-                  }}
-                  className="px-1 text-[11px] font-mono tabular-nums transition-opacity hover:opacity-80"
-                  style={{ color: secondaryThemeColor }}
-                  title={t('export.end')}
-                >
-                  {formatTime(exportRangeEnd)}
-                </button>
+                   type="button"
+                   onClick={() => {
+                     setExportEndInputValue(formattedExportRangeEnd);
+                     setExportEndInputMode(true);
+                   }}
+                   className="inline-flex w-[82px] justify-center px-1 text-[11px] font-mono tabular-nums transition-opacity hover:opacity-80"
+                   style={{ color: secondaryThemeColor }}
+                   title={t('export.end')}
+                 >
+                   {formattedExportRangeEnd}
+                 </button>
                 <button
                   type="button"
                   onClick={() => onSeek(exportRangeEnd)}
