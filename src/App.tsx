@@ -35,6 +35,12 @@ type HistorySnapshot = {
   persistedCustomFilename: string;
 };
 
+type SpeakerReplaceDialogState = {
+  speakerKey: string;
+  replacementKey: string;
+  affectedCount: number;
+};
+
 // Web-only local storage key
 const STORAGE_KEY = 'pomchat_config';
 
@@ -132,23 +138,6 @@ const DEFAULT_PROJECT_CONFIG = {
         textColor: '#111827',
         nameColor: '#ffffff'
       }
-    },
-    ANNOTATION: {
-      name: '注释',
-      avatar: '',
-      side: 'center',
-      type: 'annotation',
-      style: {
-        ...DEFAULT_BUBBLE_STYLE,
-        bgColor: '#111827',
-        textColor: '#ffffff',
-        borderRadius: 999,
-        paddingX: 18,
-        paddingY: 10,
-        maxWidth: 720,
-        fontSize: 24,
-        annotationPosition: 'bottom'
-      }
     }
   }
 };
@@ -244,23 +233,6 @@ const createBlankProjectConfig = (projectTitle: string) => ({
       avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=A',
       side: 'left',
       style: { ...DEFAULT_BUBBLE_STYLE }
-    },
-    ANNOTATION: {
-      name: '注释',
-      avatar: '',
-      side: 'center',
-      type: 'annotation',
-      style: {
-        ...DEFAULT_BUBBLE_STYLE,
-        bgColor: '#111827',
-        textColor: '#ffffff',
-        borderRadius: 999,
-        paddingX: 18,
-        paddingY: 10,
-        maxWidth: 720,
-        fontSize: 24,
-        annotationPosition: 'bottom'
-      }
     }
   },
   ui: { ...DEFAULT_UI_CONFIG }
@@ -482,6 +454,7 @@ function App() {
   const [canRedo, setCanRedo] = useState(false);
   const [isProjectDirty, setIsProjectDirty] = useState(false);
   const [projectChangeTick, setProjectChangeTick] = useState(0);
+  const [speakerReplaceDialog, setSpeakerReplaceDialog] = useState<SpeakerReplaceDialogState | null>(null);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const webAudioInputRef = useRef<HTMLInputElement>(null);
@@ -709,14 +682,6 @@ const [previewScale, setPreviewScale] = useState(1);
     };
   }, [projectPath, config.projectId, config.dimensions?.width, config.dimensions?.height, subtitles.length, isMobileBottomPanelExpanded, mobileBottomPanelHeight, isMobileBottomPanelCollapsed]);
 
-  const formatAssTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    const cs = Math.floor((seconds % 1) * 100);
-    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
-  };
-
   const normalizeSubtitleSpeakerFields = (subtitle: any) => {
     const speaker = config.speakers?.[subtitle.speakerId];
     if (!speaker) {
@@ -730,56 +695,6 @@ const [previewScale, setPreviewScale] = useState(1);
     };
   };
 
-  const buildDialogueLine = (subtitle: any) => {
-    const normalized = normalizeSubtitleSpeakerFields(subtitle);
-    const text = (normalized.text || '').replace(/\r?\n/g, '\\N');
-    return `Dialogue: 0,${formatAssTime(normalized.start)},${formatAssTime(normalized.end)},${normalized.style || 'Default'},${normalized.actor || ''},0,0,0,,${text}`;
-  };
-
-  const getDialogueInsertionIndex = (lines: string[]) => {
-    const firstDialogueIndex = lines.findIndex((line) => line.startsWith('Dialogue:'));
-    if (firstDialogueIndex !== -1) {
-      return firstDialogueIndex;
-    }
-
-    let inEvents = false;
-    let lastFormatIndex = -1;
-
-    for (let i = 0; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-      if (trimmed === '[Events]') {
-        inEvents = true;
-        continue;
-      }
-
-      if (inEvents && trimmed.startsWith('Format:')) {
-        lastFormatIndex = i;
-        continue;
-      }
-
-      if (inEvents && trimmed.startsWith('[') && trimmed !== '[Events]') {
-        break;
-      }
-    }
-
-    return lastFormatIndex !== -1 ? lastFormatIndex + 1 : lines.length;
-  };
-
-  const createEmptyAssContent = () => {
-    return [
-      '[Script Info]',
-      'ScriptType: v4.00+',
-      'PlayResX: 1920',
-      'PlayResY: 1080',
-      '',
-      '[V4+ Styles]',
-      'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-      'Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,0,2,10,10,10,1',
-      '',
-      '[Events]',
-      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'
-    ].join('\n');
-  };
 
   const parseTimeToSeconds = (timeText: string) => {
     const normalized = timeText.replace(',', '.').trim();
@@ -865,27 +780,6 @@ const [previewScale, setPreviewScale] = useState(1);
     }));
   };
 
-  const ensureAssPathForEditing = async () => {
-    if (!window.electron) return null;
-    if (config.assPath) return config.assPath;
-    if (!projectPath || projectPath === 'web-demo') return null;
-
-    const projectDir = projectPath.includes('/') ? projectPath.slice(0, projectPath.lastIndexOf('/')) : '';
-    const projectFileName = projectPath.split('/').pop() || 'project.json';
-    const assFileName = projectFileName.replace(/\.[^.]+$/, '') + '.ass';
-    const nextAssPath = projectDir ? `${projectDir}/${assFileName}` : assFileName;
-
-    try {
-      await window.electron.writeFile(nextAssPath, createEmptyAssContent());
-      pushHistorySnapshot();
-      setConfig((prev: any) => ({ ...prev, assPath: nextAssPath }));
-      return nextAssPath;
-    } catch (error) {
-      console.error('Failed to create ASS file:', error);
-      return null;
-    }
-  };
-
   const backupAssIfSpeakerNamesChanged = async () => {
     if (!window.electron || !config.assPath) return;
 
@@ -895,96 +789,9 @@ const [previewScale, setPreviewScale] = useState(1);
     if (!changed) return;
 
     try {
-      const content = await window.electron.readFile(config.assPath);
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupPath = config.assPath.replace(/\.ass$/i, `.${timestamp}.backup.ass`);
-      await window.electron.writeFile(backupPath, content);
+      await window.electron.backupAssFile(config.assPath);
     } catch (error) {
       console.error('Failed to backup ASS before speaker rename sync:', error);
-    }
-  };
-
-  const persistSubtitlesToAss = async (nextSubtitles: any[], shouldUpdateState = true) => {
-    if (subtitleFormat !== 'ass') {
-      const defaultSpeakerId = Object.keys(config.speakers || {}).find((key) => config.speakers[key]?.type !== 'annotation') || 'A';
-      const normalized = nextSubtitles.map((subtitle: any, index: number) => ({
-        ...subtitle,
-        id: subtitle.id || `sub-${index}`,
-        speakerId: subtitle.speakerId || defaultSpeakerId,
-        sourceLineIndex: index
-      }));
-      if (shouldUpdateState) {
-        setSubtitles(normalized);
-      }
-      return normalized;
-    }
-
-    if (!window.electron) {
-      if (shouldUpdateState) {
-        setSubtitles(nextSubtitles);
-      }
-      return nextSubtitles;
-    }
-
-    const activeAssPath = config.assPath || await ensureAssPathForEditing();
-    if (!activeAssPath) {
-      if (shouldUpdateState) {
-        setSubtitles(nextSubtitles);
-      }
-      return nextSubtitles;
-    }
-
-    try {
-      const content = await window.electron.readFile(activeAssPath);
-      const lines = content.split('\n');
-      const insertionIndex = getDialogueInsertionIndex(lines);
-      const nonDialogueLines = lines.filter((line) => !line.startsWith('Dialogue:'));
-      const normalizedSubtitles = nextSubtitles.map((subtitle) => normalizeSubtitleSpeakerFields(subtitle));
-      const indexedSubtitles = normalizedSubtitles.map((subtitle, index) => ({
-        ...subtitle,
-        sourceLineIndex: insertionIndex + index,
-        id: `sub-${insertionIndex + index}`
-      }));
-
-      nonDialogueLines.splice(insertionIndex, 0, ...indexedSubtitles.map((subtitle) => buildDialogueLine(subtitle)));
-      await window.electron.writeFile(activeAssPath, nonDialogueLines.join('\n'));
-
-      if (shouldUpdateState) {
-        setSubtitles(indexedSubtitles);
-      }
-
-      return indexedSubtitles;
-    } catch (e) {
-      console.error('Failed to persist subtitles to ASS:', e);
-      return nextSubtitles;
-    }
-  };
-
-  const syncSubtitleToFile = async (id: string, updates: { start?: number, end?: number, text?: string; actor?: string; style?: string }) => {
-    if (subtitleFormat !== 'ass') return;
-    if (!window.electron || !config.assPath) return;
-    try {
-      const content = await window.electron.readFile(config.assPath);
-      const lines = content.split('\n');
-      const sourceLineIndex = parseInt(id.replace('sub-', ''), 10);
-
-      if (Number.isNaN(sourceLineIndex) || !lines[sourceLineIndex]?.startsWith('Dialogue:')) {
-        return;
-      }
-
-      const parts = lines[sourceLineIndex].split(',');
-      if (parts.length >= 10) {
-        if (updates.start !== undefined) parts[1] = formatAssTime(updates.start);
-        if (updates.end !== undefined) parts[2] = formatAssTime(updates.end);
-        if (updates.style !== undefined) parts[3] = updates.style;
-        if (updates.actor !== undefined) parts[4] = updates.actor;
-        if (updates.text !== undefined) parts[9] = updates.text.replace(/\n/g, '\\N');
-        lines[sourceLineIndex] = parts.join(',');
-      }
-      
-      await window.electron.writeFile(config.assPath, lines.join('\n'));
-    } catch (e) {
-      console.error('Failed to sync subtitle to file:', e);
     }
   };
 
@@ -1001,29 +808,13 @@ const [previewScale, setPreviewScale] = useState(1);
 
     setSubtitles(nextSubtitles);
     markProjectDirty();
-
-    if (updates.speakerId) {
-      await persistSubtitlesToAss(nextSubtitles);
-      return;
-    }
-
-    const updatedSubtitle = nextSubtitles.find((subtitle: any) => subtitle.id === id);
-    if (updatedSubtitle) {
-      await syncSubtitleToFile(id, {
-        start: updates.start,
-        end: updates.end,
-        text: updates.text,
-        actor: updatedSubtitle.actor,
-        style: updatedSubtitle.style
-      });
-    }
   };
 
   const handleDeleteSubtitle = async (id: string) => {
     try {
       pushHistorySnapshot();
       const nextSubtitles = subtitles.filter((sub: any) => sub.id !== id);
-      await persistSubtitlesToAss(nextSubtitles);
+      setSubtitles(nextSubtitles);
       if (editingSub?.id === id) {
         setEditingSub(null);
       }
@@ -1052,8 +843,8 @@ const [previewScale, setPreviewScale] = useState(1);
     });
 
     const nextSubtitles = [...subtitles, newSubtitle].sort((a, b) => a.start - b.start || a.end - b.end);
-    const persistedSubtitles = await persistSubtitlesToAss(nextSubtitles);
-    const createdSubtitle = persistedSubtitles.find((subtitle: any) => subtitle.start === newSubtitle.start && subtitle.end === newSubtitle.end && subtitle.text === newSubtitle.text && subtitle.speakerId === newSubtitle.speakerId);
+    setSubtitles(nextSubtitles);
+    const createdSubtitle = nextSubtitles.find((subtitle: any) => subtitle.start === newSubtitle.start && subtitle.end === newSubtitle.end && subtitle.text === newSubtitle.text && subtitle.speakerId === newSubtitle.speakerId);
 
     if (createdSubtitle) {
       setEditingSub({ id: createdSubtitle.id, start: createdSubtitle.start, end: createdSubtitle.end, text: createdSubtitle.text });
@@ -1066,7 +857,7 @@ const [previewScale, setPreviewScale] = useState(1);
   const handleSortSubtitles = async () => {
     pushHistorySnapshot();
     const nextSubtitles = [...subtitles].sort((a, b) => a.start - b.start || a.end - b.end);
-    await persistSubtitlesToAss(nextSubtitles);
+    setSubtitles(nextSubtitles);
     markProjectDirty();
     showToast(t('app.subtitleSorted'));
   };
@@ -1199,6 +990,55 @@ const [previewScale, setPreviewScale] = useState(1);
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
+
+  const handleRequestRemoveSpeaker = useCallback((speakerKey: string) => {
+    const speaker = config.speakers?.[speakerKey];
+    if (!speaker || speaker.type === 'annotation') {
+      return;
+    }
+
+    const nonAnnotationKeys = Object.keys(config.speakers || {}).filter((key) => config.speakers[key]?.type !== 'annotation');
+    if (nonAnnotationKeys.length <= 1) {
+      showToast(t('speakers.keepAtLeastOne'));
+      return;
+    }
+
+    const replacementCandidates = nonAnnotationKeys.filter((key) => key !== speakerKey);
+    const affectedCount = subtitles.filter((sub) => sub.speakerId === speakerKey).length;
+    setSpeakerReplaceDialog({
+      speakerKey,
+      replacementKey: replacementCandidates[0] || '',
+      affectedCount
+    });
+  }, [config.speakers, showToast, subtitles, t]);
+
+  const confirmRemoveSpeakerWithReplacement = useCallback(() => {
+    if (!speakerReplaceDialog) {
+      return;
+    }
+
+    const { speakerKey, replacementKey } = speakerReplaceDialog;
+    if (!replacementKey || config.speakers?.[replacementKey]?.type === 'annotation') {
+      return;
+    }
+
+    pushHistorySnapshot();
+    setSubtitles((prev) => prev.map((sub) => (sub.speakerId === speakerKey ? {
+      ...sub,
+      speakerId: replacementKey
+    } : sub)));
+    setConfig((prev: any) => {
+      const nextSpeakers = { ...(prev?.speakers || {}) };
+      delete nextSpeakers[speakerKey];
+      return {
+        ...prev,
+        speakers: nextSpeakers
+      };
+    });
+    markProjectDirty();
+    setSpeakerReplaceDialog(null);
+    showToast(t('speakers.bulkReassignDone'));
+  }, [config.speakers, markProjectDirty, pushHistorySnapshot, showToast, speakerReplaceDialog, t]);
 
   const loadWebSavedProject = useCallback(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -2647,7 +2487,6 @@ const [previewScale, setPreviewScale] = useState(1);
 
     try {
       await backupAssIfSpeakerNamesChanged();
-      await persistSubtitlesToAss(subtitles, false);
       const finalConfig = getProjectConfig();
       await window.electron.writeFile(projectPath, JSON.stringify(finalConfig, null, 2));
       savedSpeakerNamesRef.current = getSpeakerNameSnapshot(config.speakers);
@@ -2658,7 +2497,7 @@ const [previewScale, setPreviewScale] = useState(1);
     } catch (e: any) {
       alert('保存失败: ' + e.message);
     }
-  }, [backupAssIfSpeakerNamesChanged, clearProjectDirty, config.speakers, getProjectConfig, persistSubtitlesToAss, projectPath, showToast, subtitles, t]);
+  }, [backupAssIfSpeakerNamesChanged, clearProjectDirty, config.speakers, getProjectConfig, projectPath, showToast, subtitles, t]);
 
   const handleWebProjectSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -2937,6 +2776,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                 onPresetsChange={handlePresetsChangeTracked}
+                onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
                 globalOnly
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
@@ -3103,6 +2943,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                 onPresetsChange={handlePresetsChangeTracked}
+                onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
@@ -3263,8 +3104,9 @@ const [previewScale, setPreviewScale] = useState(1);
                   onSave={handleSaveProject}
                   showToast={showToast}
                   presets={presets}
-                  onPresetsChange={handlePresetsChangeTracked}
-                  activeTab={activeTab}
+                   onPresetsChange={handlePresetsChangeTracked}
+                   onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
+                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
                   onSelectImage={handleSelectImage}
                 />
@@ -3398,6 +3240,7 @@ const [previewScale, setPreviewScale] = useState(1);
                           <ChatAnnotationBubble
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
+                            currentTime={currentTime}
                             layoutScale={previewScale}
                             chatLayout={{ ...previewChatLayout, bubbleScale: previewChatLayout?.bubbleScale }}
                           />
@@ -3413,6 +3256,7 @@ const [previewScale, setPreviewScale] = useState(1);
                           <ChatAnnotationBubble
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
+                            currentTime={currentTime}
                             layoutScale={previewScale}
                             chatLayout={{ ...previewChatLayout, bubbleScale: previewChatLayout?.bubbleScale }}
                           />
@@ -3462,6 +3306,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                 onPresetsChange={handlePresetsChangeTracked}
+                onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
@@ -3558,6 +3403,7 @@ const [previewScale, setPreviewScale] = useState(1);
             showToast={showToast}
             presets={presets}
             onPresetsChange={handlePresetsChangeTracked}
+            onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             onSelectImage={handleSelectImage}
@@ -3625,6 +3471,50 @@ const [previewScale, setPreviewScale] = useState(1);
          onRevealOutput={handleRevealExport}
        />
 
+      {speakerReplaceDialog && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border shadow-2xl p-4 space-y-4" style={{ backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.text }}>
+            <div className="text-sm font-semibold">{t('speakers.bulkReassignTitle')}</div>
+            <p className="text-xs" style={{ color: uiTheme.textMuted }}>
+              {t('speakers.bulkReassignConfirm', {
+                speaker: config.speakers?.[speakerReplaceDialog.speakerKey]?.name || speakerReplaceDialog.speakerKey,
+                count: speakerReplaceDialog.affectedCount
+              })}
+            </p>
+            <select
+              value={speakerReplaceDialog.replacementKey}
+              onChange={(e) => setSpeakerReplaceDialog((prev) => (prev ? { ...prev, replacementKey: e.target.value } : prev))}
+              className="w-full border rounded px-2 py-2 text-sm focus:outline-none"
+              style={{ backgroundColor: uiTheme.inputBg, borderColor: uiTheme.border, color: uiTheme.text }}
+            >
+              {Object.keys(config.speakers || {})
+                .filter((key) => key !== speakerReplaceDialog.speakerKey && config.speakers[key]?.type !== 'annotation')
+                .map((key) => (
+                  <option key={key} value={key}>{config.speakers[key]?.name || key}</option>
+                ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSpeakerReplaceDialog(null)}
+                className="px-3 py-1.5 rounded text-sm"
+                style={{ backgroundColor: uiTheme.panelBgSubtle, color: uiTheme.textMuted }}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={confirmRemoveSpeakerWithReplacement}
+                className="px-3 py-1.5 rounded text-sm text-white"
+                style={{ backgroundColor: secondaryThemeColor }}
+              >
+                {t('common.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {importAssData && (
         <AssImportModal 
           assPath={importAssData.path}
@@ -3636,14 +3526,6 @@ const [previewScale, setPreviewScale] = useState(1);
           onCancel={() => setImportAssData(null)}
           onConfirm={async (path, newSpeakers, importedPresets) => {
             const sanitizedContent = sanitizeImportedAssContent(importAssData.content);
-
-            if (window.electron && sanitizedContent !== importAssData.content) {
-              try {
-                await window.electron.writeFile(path, sanitizedContent);
-              } catch (error) {
-                console.error('Failed to sanitize imported ASS file:', error);
-              }
-            }
 
             pushHistorySnapshot();
             setConfig((prev: any) => ({

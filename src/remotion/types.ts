@@ -31,6 +31,7 @@ export interface SpeakerStyle {
   scale?: number;
   maxWidth?: number;
   annotationPosition?: 'top' | 'bottom';
+  animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
 }
 
 export interface SpeakerConfig {
@@ -64,7 +65,7 @@ export interface PodchatExportInput {
     bubbleScale?: number;
     avatarSize?: number;
     speakerNameSize?: number;
-    animationStyle?: 'none' | 'rise';
+    animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
     animationDuration?: number;
   };
   speakers: Record<string, SpeakerConfig>;

@@ -44,6 +44,7 @@ interface SettingsPanelProps {
   activeTab: 'subtitle' | 'global' | 'project' | 'speakers' | 'annotation';
   setActiveTab: (tab: 'subtitle' | 'global' | 'project' | 'speakers' | 'annotation') => void;
   onSelectImage?: () => Promise<string | null>;
+  onRequestRemoveSpeaker?: (speakerKey: string) => void;
   globalOnly?: boolean;
   showSubtitleTab?: boolean;
   subtitleContent?: ReactNode;
@@ -60,7 +61,7 @@ export function SettingsPanel({
   isDarkMode, language, themeColor, secondaryThemeColor, autoSaveProject, proxy, onThemeColorChange, onSecondaryThemeColorChange, onAutoSaveProjectChange, onProxyChange, onLanguageChange, onThemeChange, 
   settingsPosition, onPositionChange,
   onClose, onSave, showToast, presets, onPresetsChange, activeTab, setActiveTab,
-  onSelectImage, globalOnly = false, showSubtitleTab = false, subtitleContent = null,
+  onSelectImage, onRequestRemoveSpeaker, globalOnly = false, showSubtitleTab = false, subtitleContent = null,
   compactHeader = false, hideHeaderTitle = false, hideHeaderSave = false,
   hideHeader = false,
   panelCollapsed = false, onTogglePanelCollapsed
@@ -189,7 +190,11 @@ export function SettingsPanel({
   };
 
   const handleRemoveSpeaker = (key: string) => {
-    if (Object.keys(config.speakers).length <= 1) return;
+    if (speakerKeys.length <= 1) return;
+    if (onRequestRemoveSpeaker) {
+      onRequestRemoveSpeaker(key);
+      return;
+    }
     const newSpeakers = { ...config.speakers };
     delete newSpeakers[key];
     updateConfig('speakers', newSpeakers);
@@ -952,8 +957,8 @@ export function SettingsPanel({
                           />
                           <button 
                             onClick={() => handleRemoveSpeaker(key)}
-                            disabled={Object.keys(config.speakers).length <= 1}
-                            className={`p-1 rounded ${Object.keys(config.speakers).length <= 1 ? 'opacity-30 cursor-not-allowed' : 'text-red-500 hover:bg-red-500/10'}`}
+                            disabled={speakerKeys.length <= 1}
+                            className={`p-1 rounded ${speakerKeys.length <= 1 ? 'opacity-30 cursor-not-allowed' : 'text-red-500 hover:bg-red-500/10'}`}
                             title={t('speakers.delete')}
                           >
                             <Trash2 size={14} />
@@ -1374,6 +1379,22 @@ export function SettingsPanel({
                         {renderFontFamilyFields(annotation.style?.fontFamily, (value) => updateSpeakerStyle('ANNOTATION', 'fontFamily', value))}
                       </div>
                       <div className="space-y-1">
+                        <span className="text-[10px] uppercase tracking-wider opacity-70">{t('project.animationStyle')}</span>
+                        <select
+                          value={annotation.style?.animationStyle || 'rise'}
+                          onChange={(e) => updateSpeakerStyle('ANNOTATION', 'animationStyle', e.target.value)}
+                          className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
+                          style={inputSurfaceStyle}
+                        >
+                          <option value="none">{t('anim.none')}</option>
+                          <option value="fade">{t('anim.fade')}</option>
+                          <option value="rise">{t('anim.rise')}</option>
+                          <option value="pop">{t('anim.pop')}</option>
+                          <option value="slide">{t('anim.slide')}</option>
+                          <option value="blur">{t('anim.blur')}</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.shadow')}</span>
                         <input
                           type="number"
@@ -1382,6 +1403,25 @@ export function SettingsPanel({
                           className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
                           style={inputSurfaceStyle}
                         />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.fontWeight')}</span>
+                        <select
+                          value={annotation.style?.fontWeight || 'normal'}
+                          onChange={(e) => updateSpeakerStyle('ANNOTATION', 'fontWeight', e.target.value)}
+                          className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
+                          style={inputSurfaceStyle}
+                        >
+                          <option value="normal">常规 (Normal)</option>
+                          <option value="bold">加粗 (Bold)</option>
+                          <option value="bolder">更粗 (Bolder)</option>
+                          <option value="lighter">较细 (Lighter)</option>
+                          <option value="100">100</option>
+                          <option value="300">300</option>
+                          <option value="500">500</option>
+                          <option value="700">700</option>
+                          <option value="900">900</option>
+                        </select>
                       </div>
                     </div>
                     <div className="space-y-1">

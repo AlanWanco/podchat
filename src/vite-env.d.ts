@@ -13,6 +13,7 @@ interface Window {
     getDroppedFilePath: (file: File) => string;
     readFile: (filePath: string) => Promise<string>;
     writeFile: (filePath: string, content: string) => Promise<boolean>;
+    backupAssFile: (filePath: string) => Promise<string | null>;
     captureRectToClipboard: (rect: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
     loadConfig: () => Promise<any>;
     saveConfig: (config: any) => Promise<boolean>;

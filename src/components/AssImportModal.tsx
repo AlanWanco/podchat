@@ -228,6 +228,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
     const usedStyleNames = new Set((latestParsedAss?.events?.dialogue || []).map((dialogue) => dialogue?.Style).filter(Boolean));
     const newSpeakers: ImportedSpeakerMap = {};
     const newPresets: ImportedPresetMap = {};
+    const createdSpeakerKeys = new Set<string>();
     let charCode = 65; // 'A'
     
     selectedItems.forEach(id => {
@@ -257,6 +258,13 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
       if (!isName && !shouldCreateSpeakerFromStyle) {
         return;
       }
+
+      const normalizedSpeakerName = (val || '').trim().toLowerCase();
+      const speakerUniqueKey = isAnnotation ? 'annotation' : `${isName ? 'name' : 'style'}:${normalizedSpeakerName}`;
+      if (createdSpeakerKeys.has(speakerUniqueKey)) {
+        return;
+      }
+      createdSpeakerKeys.add(speakerUniqueKey);
 
       const speakerId = isAnnotation ? 'ANNOTATION' : String.fromCharCode(charCode++);
       newSpeakers[speakerId] = {
@@ -364,6 +372,29 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
           )}
 
           <div className="rounded-lg border p-3 space-y-3" style={{ borderColor: uiTheme.border }}>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = new Set<string>();
+                  names.forEach((name) => next.add(`name:${name}`));
+                  styles.forEach((style) => next.add(`style:${style}`));
+                  setSelectedItems(next);
+                }}
+                className="px-2.5 py-1 rounded-md text-xs border transition-colors"
+                style={{ borderColor: uiTheme.border, color: uiTheme.textMuted }}
+              >
+                {t('common.selectAll')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedItems(new Set())}
+                className="px-2.5 py-1 rounded-md text-xs border transition-colors"
+                style={{ borderColor: uiTheme.border, color: uiTheme.textMuted }}
+              >
+                {t('common.selectNone')}
+              </button>
+            </div>
             {names.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase opacity-50">{t('import.name')}</h4>

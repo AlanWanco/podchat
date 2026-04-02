@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electron', {
   getDroppedFilePath: (file: File) => webUtils.getPathForFile(file),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) => ipcRenderer.invoke('write-file', filePath, content),
+  backupAssFile: (filePath: string) => ipcRenderer.invoke('backup-ass-file', filePath),
   captureRectToClipboard: (rect: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke('capture-rect-to-clipboard', rect),
   loadConfig: () => ipcRenderer.invoke('load-config'),
   saveConfig: (config: any) => ipcRenderer.invoke('save-config', config),

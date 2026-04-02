@@ -368,6 +368,29 @@ ipcMain.handle('write-file', async (_event, filePath, content) => {
   }
 });
 
+ipcMain.handle('backup-ass-file', async (_event, filePath) => {
+  try {
+    const resolvedPath = resolveAppFilePath(filePath);
+    if (!resolvedPath || !/\.ass$/i.test(resolvedPath)) {
+      return null;
+    }
+
+    const runtimeDir = getRuntimeDirectory();
+    const backupDir = path.join(runtimeDir, 'backup');
+    fs.mkdirSync(backupDir, { recursive: true });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const baseName = path.basename(resolvedPath).replace(/\.ass$/i, '');
+    const backupPath = path.join(backupDir, `${baseName}.${timestamp}.backup.ass`);
+
+    const content = fs.readFileSync(resolvedPath, 'utf-8');
+    fs.writeFileSync(backupPath, content, 'utf-8');
+    return backupPath;
+  } catch (error: any) {
+    throw new Error(`Failed to backup ASS file: ${error.message}`);
+  }
+});
+
 ipcMain.handle('capture-rect-to-clipboard', async (_event, rect) => {
   if (!win) return false;
 

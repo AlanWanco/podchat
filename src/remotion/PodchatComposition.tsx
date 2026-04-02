@@ -133,6 +133,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                 key={`top-${item.speaker}-${item.start}-${item.text}`}
                 item={{ key: `top-${item.speaker}-${item.start}-${item.text}`, start: item.start, end: item.end, text: item.text, speakerId: item.speaker }}
                 speaker={props.speakers[item.speaker]}
+                currentTime={currentTime}
                 layoutScale={layoutScale}
                 chatLayout={props.chatLayout}
               />
@@ -145,6 +146,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                 key={`bottom-${item.speaker}-${item.start}-${item.text}`}
                 item={{ key: `bottom-${item.speaker}-${item.start}-${item.text}`, start: item.start, end: item.end, text: item.text, speakerId: item.speaker }}
                 speaker={props.speakers[item.speaker]}
+                currentTime={currentTime}
                 layoutScale={layoutScale}
                 chatLayout={props.chatLayout}
               />

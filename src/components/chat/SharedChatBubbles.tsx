@@ -27,6 +27,7 @@ export interface SharedChatSpeakerStyle {
   fontWeight?: string;
   maxWidth?: number;
   annotationPosition?: 'top' | 'bottom';
+  animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
 }
 
 export interface SharedChatSpeaker {
@@ -298,14 +299,23 @@ export function ChatMessageBubble({
 interface ChatAnnotationBubbleProps {
   item: SharedChatItem;
   speaker: SharedChatSpeaker;
+  currentTime: number;
   layoutScale: number;
   chatLayout?: SharedChatLayout;
   renderBubble?: (args: BubbleRenderArgs) => React.ReactNode;
 }
 
-export function ChatAnnotationBubble({ item, speaker, layoutScale, chatLayout, renderBubble }: ChatAnnotationBubbleProps) {
+export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, chatLayout, renderBubble }: ChatAnnotationBubbleProps) {
   const bubbleScale = chatLayout?.bubbleScale ?? 1.5;
   const combinedScale = Math.max(MIN_LAYOUT_SCALE, layoutScale) * bubbleScale;
+  const annotationAnimationStyle = speaker.style?.animationStyle || chatLayout?.animationStyle || 'rise';
+  const annotationAnimationDuration = chatLayout?.animationDuration ?? 0.2;
+  const annotationProgress = annotationAnimationStyle === 'none' || annotationAnimationDuration <= 0
+    ? 1
+    : clamp((currentTime - item.start + annotationAnimationDuration) / annotationAnimationDuration, 0, 1);
+  const annotationMotion = annotationAnimationStyle === 'none'
+    ? { opacity: 1, transform: undefined, filter: undefined }
+    : getBubbleMotionState(annotationProgress, annotationAnimationStyle, speaker.side);
   const shadowSize = (speaker.style?.shadowSize ?? 7) * combinedScale;
   const maxWidth = (speaker.style?.maxWidth ?? 720) * combinedScale;
   const opacity = speaker.style?.opacity ?? 0.9;
@@ -321,6 +331,9 @@ export function ChatAnnotationBubble({ item, speaker, layoutScale, chatLayout, r
       backgroundColor: finalBgColor,
       color: textColor,
       boxShadow: formatBubbleShadow(shadowSize),
+      opacity: annotationMotion.opacity,
+      transform: annotationMotion.transform,
+      filter: annotationMotion.filter,
       marginTop: speaker.style?.annotationPosition === 'top' ? `${(speaker.style?.margin ?? 12) * combinedScale}px` : undefined,
       marginBottom: (speaker.style?.annotationPosition ?? 'bottom') === 'bottom' ? `${(speaker.style?.margin ?? 12) * combinedScale}px` : undefined
     } as React.CSSProperties,
