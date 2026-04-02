@@ -1,4 +1,4 @@
-import { FileText, Clock, MousePointer2, Check, Trash2, Search, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { FileText, Clock, MousePointer2, Check, Trash2, Search, ChevronUp, ChevronDown, X, List } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import type { SubtitleItem } from '../hooks/useAssSubtitle';
 import { translate, type Language } from '../i18n';
@@ -28,11 +28,26 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
   const [searchQuery, setSearchQuery] = useState('');
   const [searchIndex, setSearchIndex] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [compactMode, setCompactMode] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const compactListRef = useRef<HTMLDivElement>(null);
+  const [compactScrollTop, setCompactScrollTop] = useState(0);
+  const [compactViewportHeight, setCompactViewportHeight] = useState(0);
+  const COMPACT_ROW_HEIGHT = 34;
   const searchMatches = subtitles.filter((sub) => sub.text.toLowerCase().includes(searchQuery.trim().toLowerCase()));
   const currentSearchMatchId = searchQuery.trim() && searchMatches.length > 0 ? searchMatches[searchIndex % searchMatches.length]?.id : undefined;
 
   const scrollToSubtitle = (subtitleId: string) => {
+    const subtitleIndex = subtitles.findIndex((sub) => sub.id === subtitleId);
+    if (compactMode) {
+      const container = compactListRef.current;
+      if (container && subtitleIndex >= 0) {
+        const targetScrollTop = subtitleIndex * COMPACT_ROW_HEIGHT - (container.clientHeight / 2) + (COMPACT_ROW_HEIGHT / 2);
+        container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+      }
+      return;
+    }
+
     const el = document.getElementById(`sub-${subtitleId}`);
     const container = scrollContainerRef.current;
     if (el && container) {
@@ -58,6 +73,32 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
       scrollToSubtitle(activeSubId);
     }
   }, [activeSubId, inlineEditingId]);
+
+  useEffect(() => {
+    if (!compactMode || !compactListRef.current) {
+      return;
+    }
+
+    const el = compactListRef.current;
+    const updateHeight = () => {
+      setCompactViewportHeight(el.clientHeight);
+    };
+
+    updateHeight();
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [compactMode]);
+
+  const compactVisibleStart = Math.max(0, Math.floor(compactScrollTop / COMPACT_ROW_HEIGHT) - 8);
+  const compactVisibleCount = Math.ceil((compactViewportHeight || 360) / COMPACT_ROW_HEIGHT) + 16;
+  const compactVisibleEnd = Math.min(subtitles.length, compactVisibleStart + compactVisibleCount);
+  const compactVisibleRows = subtitles.slice(compactVisibleStart, compactVisibleEnd);
+  const compactTotalHeight = subtitles.length * COMPACT_ROW_HEIGHT;
 
   const jumpToSearchMatch = (direction: 1 | -1) => {
     if (searchMatches.length === 0) return;
@@ -166,6 +207,13 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
           <button type="button" onClick={() => setSearchOpen((v) => !v)} title={t('subtitle.search')}>
             <Search size={14} style={{ color: secondaryThemeColor }} />
           </button>
+          <button
+            type="button"
+            onClick={() => setCompactMode((v) => !v)}
+            title={compactMode ? t('subtitle.detailedMode') : t('subtitle.compactMode')}
+          >
+            <List size={14} style={{ color: compactMode ? themeColor : secondaryThemeColor }} />
+          </button>
         </h2>
         <div className="text-xs opacity-60">{t('subtitle.count', { count: subtitles.length })}</div>
       </div>
@@ -212,7 +260,51 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
       </div>}
       
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2 custom-scrollbar space-y-2">
-        {subtitles.length === 0 ? (
+        {compactMode ? (
+          <div
+            ref={compactListRef}
+            className="h-full overflow-y-auto custom-scrollbar rounded-md border"
+            style={{ borderColor: `${secondaryThemeColor}33`, backgroundColor: uiTheme.cardBg }}
+            onScroll={(e) => setCompactScrollTop(e.currentTarget.scrollTop)}
+          >
+            {subtitles.length === 0 ? (
+              <div className="p-8 text-center text-xs opacity-50">{t('subtitle.empty')}</div>
+            ) : (
+              <div style={{ height: `${compactTotalHeight}px`, position: 'relative' }}>
+                <div style={{ transform: `translateY(${compactVisibleStart * COMPACT_ROW_HEIGHT}px)` }}>
+                  {compactVisibleRows.map((sub) => {
+                    const isActive = currentTime >= sub.start && currentTime <= sub.end;
+                    const isSearchMatched = currentSearchMatchId === sub.id;
+                    return (
+                      <button
+                        key={`compact-${sub.id}`}
+                        type="button"
+                        onClick={() => onSeek(sub.start)}
+                        className="w-full text-left px-2 py-1 text-xs border-b transition-colors flex items-center gap-2"
+                        style={{
+                          height: `${COMPACT_ROW_HEIGHT}px`,
+                          borderColor: `${secondaryThemeColor}22`,
+                          backgroundColor: isActive
+                            ? `${secondaryThemeColor}${isDarkMode ? '20' : '12'}`
+                            : isSearchMatched
+                              ? `${secondaryThemeColor}${isDarkMode ? '16' : '0E'}`
+                              : 'transparent',
+                          color: uiTheme.text
+                        }}
+                      >
+                        <span className="font-mono opacity-70 shrink-0">{formatTime(sub.start)}</span>
+                        <span className="px-1 rounded shrink-0" style={{ color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}14` }}>
+                          {speakers[sub.speakerId]?.name || sub.actor || sub.style}
+                        </span>
+                        <span className="truncate opacity-90">{sub.text}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : subtitles.length === 0 ? (
           <div className="p-8 text-center text-xs opacity-50">{t('subtitle.empty')}</div>
         ) : (
           subtitles.map((sub) => {
