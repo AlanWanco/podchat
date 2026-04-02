@@ -36,13 +36,14 @@ If you already have audio and subtitles, PomChat Studio is designed to handle th
 
 - Import local audio and ASS subtitle files
 - Support importing `ASS / SRT / LRC` subtitle files
-- Detect ASS Name/Style on import, with optional style-to-bubble mapping (outline color -> bubble color, shadow/back color -> border color, primary color -> text color, Outline -> border width)
-- Edit subtitle text, start and end time, and speaker assignment
+- Detect ASS Name/Style on import, with optional style-to-bubble mapping (outline color -> bubble color, shadow/back color -> border color, primary color -> text color, Outline -> border width), including font name import/preview and select-all/select-none controls
+- Edit subtitle text, start and end time, and speaker assignment; subtitle panel includes a lightweight compact mode (read-only with auto-follow for large subtitle sets)
 - Configure avatars, names, bubble colors, fonts, borders, shadows, and animation
 - Import/export style presets on both desktop and web, and auto-generate presets from detected ASS styles
 - Mobile web layout is optimized with adaptive preview scaling, a collapsible/resizable bottom panel, and compact playback controls
 - Switch freely between light and dark mode, with up to 13 theme and secondary color combinations
 - Support both normal speaker bubbles and annotation-style bubbles
+- Batch reassign subtitles before speaker deletion to prevent accidental fallback to annotation speaker
 - Preview the conversation layout in real time while the audio plays
 - Set export ranges and filename templates
 - Read and write project files locally through Electron
@@ -105,6 +106,12 @@ The local config directory is currently:
 - Windows: `%USERPROFILE%\\.config\\pomchat`
 - Linux: `~/.config/pomchat`
 - macOS: `~/.config/pomchat`
+
+ASS auto-backup directory (desktop) is currently:
+
+- Windows: `%USERPROFILE%\\.config\\pomchat\\backup`
+- Linux: `~/.config/pomchat/backup`
+- macOS: `~/.config/pomchat/backup`
 
 This means local preferences can differ per machine, while project files can still be saved and shared separately.
 
@@ -210,6 +217,15 @@ On Windows, the workflow produces both:
 - Some exported videos may show slight 1-2 pixel jitter on certain elements, likely caused by sub-pixel layout values and per-frame rounding during rendering
 
 ## Release Notes
+
+### v0.1.5
+
+- Added ASS font-name import and font preview column in style import, plus select-all/select-none controls
+- Added subtitle list compact mode toggle (lightweight read-only view with playback auto-follow) for large subtitle projects
+- Added batch speaker reassignment flow before deleting speakers, restricting targets to non-annotation speakers
+- Added independent annotation animation style and font-weight controls, aligned between preview and export
+- Updated ASS workflow behavior: stop writing back to source ASS on edit/import, and move automatic backups to runtime `backup` directory
+- Fixed annotation speaker assignment being unintentionally reverted after style-only changes, and restored default annotation speaker in new projects
 
 ### v0.1.5-beta.1
 
