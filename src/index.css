@@ -7,6 +7,21 @@ body {
   color: white;
 }
 
+/* Disable text selection in UI; keep it enabled for form inputs */
+html,
+body,
+#root {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* Custom Scrollbar for a sleek look */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
