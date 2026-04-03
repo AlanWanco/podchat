@@ -378,21 +378,33 @@ export function ExportModal({
                       unix: 'pomchat_1743192423.mp4',
                       custom: ''
                     };
+                    const templateButton = (
+                      <button
+                        type="button"
+                        onClick={() => onFilenameTemplateChange?.(template)}
+                        disabled={isExporting}
+                        className="relative w-full rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{
+                          backgroundColor: filenameTemplate === template ? rgba(themeColor, 0.18) : rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04),
+                          color: filenameTemplate === template ? themeColor : uiTheme.text,
+                          border: `1px solid ${filenameTemplate === template ? rgba(themeColor, 0.24) : uiTheme.border}`
+                        }}
+                      >
+                        {t(`export.filenameTemplate${template.charAt(0).toUpperCase()}${template.slice(1)}`)}
+                      </button>
+                    );
+
+                    if (template === 'custom') {
+                      return (
+                        <div key={template}>
+                          {templateButton}
+                        </div>
+                      );
+                    }
+
                     return (
                       <Tooltip key={template} content={filenameExamples[template]} placement="top" width={220} backgroundColor={isDarkMode ? 'rgba(17, 24, 39, 0.78)' : 'rgba(255, 255, 255, 0.78)'} borderColor={rgba(secondaryThemeColor, 0.24)} textColor={uiTheme.text} className="block">
-                        <button
-                          type="button"
-                          onClick={() => onFilenameTemplateChange?.(template)}
-                          disabled={isExporting}
-                          className="relative w-full rounded-xl px-3 py-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                          style={{
-                            backgroundColor: filenameTemplate === template ? rgba(themeColor, 0.18) : rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04),
-                            color: filenameTemplate === template ? themeColor : uiTheme.text,
-                            border: `1px solid ${filenameTemplate === template ? rgba(themeColor, 0.24) : uiTheme.border}`
-                          }}
-                        >
-                          {t(`export.filenameTemplate${template.charAt(0).toUpperCase()}${template.slice(1)}`)}
-                        </button>
+                        {templateButton}
                       </Tooltip>
                     );
                   })}
