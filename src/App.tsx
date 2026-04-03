@@ -3574,11 +3574,8 @@ const [previewScale, setPreviewScale] = useState(1);
             const sanitizedContent = sanitizeImportedAssContent(importAssData.content);
 
             pushHistorySnapshot();
-            setConfig((prev: any) => ({
-              ...prev,
-              subtitleFormat: 'ass',
-              assPath: path,
-              speakers: Object.fromEntries(
+            setConfig((prev: any) => {
+              const nextSpeakers = Object.fromEntries(
                 Object.entries(newSpeakers || {}).map(([speakerId, speaker]: [string, any]) => [
                   speakerId,
                   {
@@ -3586,8 +3583,19 @@ const [previewScale, setPreviewScale] = useState(1);
                     preset: speaker?.preset ?? prev?.speakers?.[speakerId]?.preset
                   }
                 ])
-              )
-            }));
+              );
+
+              if (!nextSpeakers.ANNOTATION) {
+                nextSpeakers.ANNOTATION = prev?.speakers?.ANNOTATION || DEFAULT_PROJECT_CONFIG.speakers.ANNOTATION;
+              }
+
+              return {
+                ...prev,
+                subtitleFormat: 'ass',
+                assPath: path,
+                speakers: nextSpeakers
+              };
+            });
             if (importedPresets && Object.keys(importedPresets).length > 0) {
               setPresets((prev: Record<string, any>) => ({
                 ...prev,

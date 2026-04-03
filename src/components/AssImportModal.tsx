@@ -196,7 +196,17 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
           }
         });
       } else {
-        styleSet.forEach((styleName) => initialStyles.add(styleName));
+        const usedStyleSet = new Set<string>();
+        parsed.events.dialogue.forEach((dialogue) => {
+          if (dialogue?.Style && styleSet.has(dialogue.Style)) {
+            usedStyleSet.add(dialogue.Style);
+          }
+        });
+        if (usedStyleSet.size > 0) {
+          usedStyleSet.forEach((styleName) => initialStyles.add(styleName));
+        } else {
+          styleSet.forEach((styleName) => initialStyles.add(styleName));
+        }
       }
       setSelectedNames(initialNames);
       setSelectedStyles(initialStyles);
