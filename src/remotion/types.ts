@@ -28,6 +28,8 @@ export interface SpeakerStyle {
   fontFamily?: string;
   fontSize?: number;
   fontWeight?: string;
+  nameFontFamily?: string;
+  nameFontWeight?: string;
   scale?: number;
   maxWidth?: number;
   annotationPosition?: 'top' | 'bottom';

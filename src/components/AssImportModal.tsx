@@ -160,9 +160,9 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
   const [names, setNames] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
+  const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
   const [parsedAss, setParsedAss] = useState<ParsedASS | null>(null);
-  const [applyDetectedStyle, setApplyDetectedStyle] = useState(true);
   const [previewTabIndex, setPreviewTabIndex] = useState(0);
 
   useEffect(() => {
@@ -185,14 +185,21 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
       setNames(Array.from(nameSet));
       setStyles(Array.from(styleSet));
       
-      // Auto-select names if available, otherwise styles
-      const initialSelection = new Set<string>();
+      const preferredStylesByName = getPreferredStylesByName(parsed.events.dialogue || []);
+      const initialNames = new Set<string>(Array.from(nameSet));
+      const initialStyles = new Set<string>();
       if (nameSet.size > 0) {
-        nameSet.forEach(a => initialSelection.add(`name:${a}`));
+        nameSet.forEach((name) => {
+          const styleName = preferredStylesByName.get(name);
+          if (styleName) {
+            initialStyles.add(styleName);
+          }
+        });
       } else {
-        styleSet.forEach(s => initialSelection.add(`style:${s}`));
+        styleSet.forEach((styleName) => initialStyles.add(styleName));
       }
-      setSelectedItems(initialSelection);
+      setSelectedNames(initialNames);
+      setSelectedStyles(initialStyles);
     } catch (e) {
       console.error("ASS Parse error:", e);
       setParsedAss(null);
@@ -201,13 +208,31 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
 
   useEffect(() => {
     setPreviewTabIndex(0);
-  }, [selectedItems]);
+  }, [selectedNames, selectedStyles]);
 
-  const toggleItem = (id: string) => {
-    const next = new Set(selectedItems);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedItems(next);
+  const preferredStylesByName = getPreferredStylesByName(parsedAss?.events?.dialogue || []);
+
+  const toggleName = (name: string) => {
+    const nextNames = new Set(selectedNames);
+    if (nextNames.has(name)) {
+      nextNames.delete(name);
+    } else {
+      nextNames.add(name);
+      const mappedStyle = preferredStylesByName.get(name);
+      if (mappedStyle) {
+        const nextStyles = new Set(selectedStyles);
+        nextStyles.add(mappedStyle);
+        setSelectedStyles(nextStyles);
+      }
+    }
+    setSelectedNames(nextNames);
+  };
+
+  const toggleStyle = (styleName: string) => {
+    const next = new Set(selectedStyles);
+    if (next.has(styleName)) next.delete(styleName);
+    else next.add(styleName);
+    setSelectedStyles(next);
   };
 
   const handleConfirm = async () => {
@@ -225,42 +250,41 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
       (latestParsedAss?.styles?.style || []).map((style) => [style.Name, style])
     );
     const preferredStylesByName = getPreferredStylesByName(latestParsedAss?.events?.dialogue || []);
-    const usedStyleNames = new Set((latestParsedAss?.events?.dialogue || []).map((dialogue) => dialogue?.Style).filter(Boolean));
     const newSpeakers: ImportedSpeakerMap = {};
     const newPresets: ImportedPresetMap = {};
     const createdSpeakerKeys = new Set<string>();
+    const stylesBoundByNames = new Set<string>();
     let charCode = 65; // 'A'
-    
-    selectedItems.forEach(id => {
-      const isName = id.startsWith('name:');
-      const val = isName ? id.substring(5) : id.substring(6);
-      const matchedStyleName = isName ? (preferredStylesByName.get(val) || val) : val;
-      const assPresetKey = buildAssPresetKey(matchedStyleName || val || 'Default');
-      const isAnnotation = /注释/.test(val);
-      const previewCharCode = isName && !isAnnotation ? charCode + 1 : charCode;
-      const baseStyle = getBaseImportedStyle(isAnnotation, previewCharCode);
-      const importedStyle = getImportedSpeakerStyle(assStylesByName.get(matchedStyleName), isAnnotation);
-      const mergedStyle = {
-        ...baseStyle,
-        ...(applyDetectedStyle ? importedStyle : {})
-      };
 
-      if (!isAnnotation && !newPresets[assPresetKey]) {
+    selectedStyles.forEach((styleName) => {
+      const isAnnotationStyle = /注释/.test(styleName);
+      if (isAnnotationStyle) {
+        return;
+      }
+      const assPresetKey = buildAssPresetKey(styleName || 'Default');
+      const baseStyle = getBaseImportedStyle(false, charCode);
+      const importedStyle = getImportedSpeakerStyle(assStylesByName.get(styleName), false);
+      const mergedStyle = { ...baseStyle, ...importedStyle };
+      if (!newPresets[assPresetKey]) {
         newPresets[assPresetKey] = {
           style: mergedStyle,
           avatar: '',
           side: 'left'
         };
       }
+    });
 
-      const shouldCreateSpeakerFromStyle = !isName && names.length === 0 && usedStyleNames.has(val);
+    Array.from(selectedNames).forEach((name) => {
+      const matchedStyleName = preferredStylesByName.get(name) || name;
+      const isAnnotation = /注释/.test(name);
+      const hasSelectedStyle = selectedStyles.has(matchedStyleName);
+      const assPresetKey = buildAssPresetKey(matchedStyleName || name || 'Default');
+      const baseStyle = getBaseImportedStyle(isAnnotation, charCode);
+      const importedStyle = getImportedSpeakerStyle(assStylesByName.get(matchedStyleName), isAnnotation);
+      const mergedStyle = hasSelectedStyle ? { ...baseStyle, ...importedStyle } : baseStyle;
 
-      if (!isName && !shouldCreateSpeakerFromStyle) {
-        return;
-      }
-
-      const normalizedSpeakerName = (val || '').trim().toLowerCase();
-      const speakerUniqueKey = isAnnotation ? 'annotation' : `${isName ? 'name' : 'style'}:${normalizedSpeakerName}`;
+      const normalizedSpeakerName = (name || '').trim().toLowerCase();
+      const speakerUniqueKey = isAnnotation ? 'annotation' : normalizedSpeakerName;
       if (createdSpeakerKeys.has(speakerUniqueKey)) {
         return;
       }
@@ -268,15 +292,49 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
 
       const speakerId = isAnnotation ? 'ANNOTATION' : String.fromCharCode(charCode++);
       newSpeakers[speakerId] = {
-          name: isAnnotation ? '注释' : (val || `角色${speakerId}`),
-          avatar: isAnnotation ? '' : `https://api.dicebear.com/7.x/adventurer/svg?seed=${val || speakerId}`,
-          side: isAnnotation ? 'center' : (charCode % 2 === 0 ? "left" : "right"),
-          type: isAnnotation ? 'annotation' : 'speaker',
-          preset: applyDetectedStyle && !isAnnotation ? assPresetKey : undefined,
-          style: {
-            ...mergedStyle
-          }
-        };
+        name: isAnnotation ? '注释' : (name || `角色${speakerId}`),
+        avatar: isAnnotation ? '' : `https://api.dicebear.com/7.x/adventurer/svg?seed=${name || speakerId}`,
+        side: isAnnotation ? 'center' : (charCode % 2 === 0 ? 'left' : 'right'),
+        type: isAnnotation ? 'annotation' : 'speaker',
+        preset: !isAnnotation && hasSelectedStyle ? assPresetKey : undefined,
+        style: {
+          ...mergedStyle
+        }
+      };
+
+      if (hasSelectedStyle) {
+        stylesBoundByNames.add(matchedStyleName);
+      }
+    });
+
+    Array.from(selectedStyles).forEach((styleName) => {
+      if (stylesBoundByNames.has(styleName)) {
+        return;
+      }
+      const isAnnotation = /注释/.test(styleName);
+      const normalizedSpeakerName = (styleName || '').trim().toLowerCase();
+      const speakerUniqueKey = isAnnotation ? 'annotation' : normalizedSpeakerName;
+      if (createdSpeakerKeys.has(speakerUniqueKey)) {
+        return;
+      }
+      createdSpeakerKeys.add(speakerUniqueKey);
+
+      const assPresetKey = buildAssPresetKey(styleName || 'Default');
+      const baseStyle = getBaseImportedStyle(isAnnotation, charCode);
+      const importedStyle = getImportedSpeakerStyle(assStylesByName.get(styleName), isAnnotation);
+      const mergedStyle = { ...baseStyle, ...importedStyle };
+      const speakerId = isAnnotation ? 'ANNOTATION' : String.fromCharCode(charCode++);
+
+      newSpeakers[speakerId] = {
+        name: isAnnotation ? '注释' : (styleName || `角色${speakerId}`),
+        avatar: isAnnotation ? '' : `https://api.dicebear.com/7.x/adventurer/svg?seed=${styleName || speakerId}`,
+        side: isAnnotation ? 'center' : (charCode % 2 === 0 ? 'left' : 'right'),
+        type: isAnnotation ? 'annotation' : 'speaker',
+        preset: !isAnnotation ? assPresetKey : undefined,
+        style: {
+          ...mergedStyle
+        }
+      };
     });
     
     // If nothing selected, just provide a default A
@@ -294,26 +352,40 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
     await onConfirm(assPath, newSpeakers, newPresets);
   };
 
-  const itemBg = isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100';
   const assStylesByName = new Map<string, ParsedAssStyle>((parsedAss?.styles?.style || []).map((style) => [style.Name, style]));
-  const preferredStylesByName = getPreferredStylesByName(parsedAss?.events?.dialogue || []);
-  const previewRows: StylePreviewRow[] = Array.from(selectedItems).map((id) => {
-    const isName = id.startsWith('name:');
-    const val = isName ? id.substring(5) : id.substring(6);
-    const matchedStyleName = isName ? (preferredStylesByName.get(val) || val) : val;
-    const matchedStyle = assStylesByName.get(matchedStyleName);
-    const outlineWidth = Number(matchedStyle?.Outline);
-    return {
-      id,
-      speakerLabel: val || t('import.empty'),
-      matchedStyleName,
-      bubbleColor: parseAssColor(matchedStyle?.OutlineColour),
-      borderColor: parseAssColor(matchedStyle?.BackColour),
-      textColor: parseAssColor(matchedStyle?.PrimaryColour),
-      borderWidth: Number.isFinite(outlineWidth) ? Math.max(0, Math.round(outlineWidth)) : null,
-      fontName: matchedStyle?.Fontname
-    };
-  });
+  const previewRows: StylePreviewRow[] = [
+    ...Array.from(selectedNames).map((name) => {
+      const matchedStyleName = preferredStylesByName.get(name) || name;
+      const matchedStyle = selectedStyles.has(matchedStyleName) ? assStylesByName.get(matchedStyleName) : undefined;
+      const outlineWidth = Number(matchedStyle?.Outline);
+      return {
+        id: `name:${name}`,
+        speakerLabel: name || t('import.empty'),
+        matchedStyleName: selectedStyles.has(matchedStyleName) ? matchedStyleName : '--',
+        bubbleColor: parseAssColor(matchedStyle?.OutlineColour),
+        borderColor: parseAssColor(matchedStyle?.BackColour),
+        textColor: parseAssColor(matchedStyle?.PrimaryColour),
+        borderWidth: Number.isFinite(outlineWidth) ? Math.max(0, Math.round(outlineWidth)) : null,
+        fontName: matchedStyle?.Fontname
+      };
+    }),
+    ...Array.from(selectedStyles)
+      .filter((styleName) => !Array.from(selectedNames).some((name) => (preferredStylesByName.get(name) || name) === styleName))
+      .map((styleName) => {
+        const matchedStyle = assStylesByName.get(styleName);
+        const outlineWidth = Number(matchedStyle?.Outline);
+        return {
+          id: `style:${styleName}`,
+          speakerLabel: styleName || t('import.empty'),
+          matchedStyleName: styleName,
+          bubbleColor: parseAssColor(matchedStyle?.OutlineColour),
+          borderColor: parseAssColor(matchedStyle?.BackColour),
+          textColor: parseAssColor(matchedStyle?.PrimaryColour),
+          borderWidth: Number.isFinite(outlineWidth) ? Math.max(0, Math.round(outlineWidth)) : null,
+          fontName: matchedStyle?.Fontname
+        };
+      })
+  ];
   const totalPreviewTabs = Math.max(1, Math.ceil(previewRows.length / PREVIEW_ROWS_PER_TAB));
   const safePreviewTabIndex = Math.min(previewTabIndex, totalPreviewTabs - 1);
   const previewRowsInTab = previewRows.slice(
@@ -347,39 +419,13 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
         <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
           <p className="text-sm opacity-80">{t('import.desc')}</p>
 
-          {styles.length > 0 && (
-            <div className="rounded-lg border p-3 space-y-3" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}>
-              <div className="text-sm font-medium">{t('import.applyAssStyleQuestion')}</div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setApplyDetectedStyle(true)}
-                  className="px-3 py-1.5 rounded-md text-sm border transition-colors"
-                  style={applyDetectedStyle ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` } : { borderColor: uiTheme.border }}
-                >
-                  {t('import.applyAssStyleYes')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setApplyDetectedStyle(false)}
-                  className="px-3 py-1.5 rounded-md text-sm border transition-colors"
-                  style={!applyDetectedStyle ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` } : { borderColor: uiTheme.border }}
-                >
-                  {t('import.applyAssStyleNo')}
-                </button>
-              </div>
-            </div>
-          )}
-
           <div className="rounded-lg border p-3 space-y-3" style={{ borderColor: uiTheme.border }}>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
-                  const next = new Set<string>();
-                  names.forEach((name) => next.add(`name:${name}`));
-                  styles.forEach((style) => next.add(`style:${style}`));
-                  setSelectedItems(next);
+                  setSelectedNames(new Set(names));
+                  setSelectedStyles(new Set(styles));
                 }}
                 className="px-2.5 py-1 rounded-md text-xs border transition-colors"
                 style={{ borderColor: uiTheme.border, color: uiTheme.textMuted }}
@@ -388,7 +434,10 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedItems(new Set())}
+                onClick={() => {
+                  setSelectedNames(new Set());
+                  setSelectedStyles(new Set());
+                }}
                 className="px-2.5 py-1 rounded-md text-xs border transition-colors"
                 style={{ borderColor: uiTheme.border, color: uiTheme.textMuted }}
               >
@@ -400,16 +449,26 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
                 <h4 className="text-xs font-semibold uppercase opacity-50">{t('import.name')}</h4>
                 <div className="grid grid-cols-2 gap-2">
                   {names.map(a => {
-                    const id = `name:${a}`;
-                    const isSel = selectedItems.has(id);
+                    const isSel = selectedNames.has(a);
+                    const linkedStyle = preferredStylesByName.get(a);
+                    const linkedStyleSelected = linkedStyle ? selectedStyles.has(linkedStyle) : false;
                     return (
                       <button
-                        key={id}
-                        onClick={() => toggleItem(id)}
-                        className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${isSel ? '' : `border-transparent ${itemBg}`}`}
-                        style={isSel ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` } : undefined}
+                        key={`name:${a}`}
+                        onClick={() => toggleName(a)}
+                        className="text-left px-3 py-2 rounded-lg border text-sm transition-colors"
+                        style={isSel
+                          ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` }
+                          : { borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}
                       >
-                        <div className="font-medium truncate">{a || t('import.empty')}</div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{a || t('import.empty')}</span>
+                          {linkedStyleSelected ? (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}18` }}>
+                              {linkedStyle}
+                            </span>
+                          ) : null}
+                        </div>
                       </button>
                     );
                   })}
@@ -422,14 +481,15 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
                 <h4 className="text-xs font-semibold uppercase opacity-50">{t('import.style')}</h4>
                 <div className="grid grid-cols-2 gap-2">
                   {styles.map(s => {
-                    const id = `style:${s}`;
-                    const isSel = selectedItems.has(id);
+                    const isSel = selectedStyles.has(s);
                     return (
                       <button
-                        key={id}
-                        onClick={() => toggleItem(id)}
-                        className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${isSel ? '' : `border-transparent ${itemBg}`}`}
-                        style={isSel ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` } : undefined}
+                        key={`style:${s}`}
+                        onClick={() => toggleStyle(s)}
+                        className="text-left px-3 py-2 rounded-lg border text-sm transition-colors"
+                        style={isSel
+                          ? { borderColor: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}${isDarkMode ? '22' : '12'}` }
+                          : { borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated }}
                       >
                         <div className="font-medium truncate">{s || t('import.empty')}</div>
                       </button>

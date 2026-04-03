@@ -3566,7 +3566,15 @@ const [previewScale, setPreviewScale] = useState(1);
               ...prev,
               subtitleFormat: 'ass',
               assPath: path,
-              speakers: newSpeakers
+              speakers: Object.fromEntries(
+                Object.entries(newSpeakers || {}).map(([speakerId, speaker]: [string, any]) => [
+                  speakerId,
+                  {
+                    ...speaker,
+                    preset: speaker?.preset ?? prev?.speakers?.[speakerId]?.preset
+                  }
+                ])
+              )
             }));
             if (importedPresets && Object.keys(importedPresets).length > 0) {
               setPresets((prev: Record<string, any>) => ({

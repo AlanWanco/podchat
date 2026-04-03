@@ -25,6 +25,8 @@ export interface SharedChatSpeakerStyle {
   fontFamily?: string;
   fontSize?: number;
   fontWeight?: string;
+  nameFontFamily?: string;
+  nameFontWeight?: string;
   maxWidth?: number;
   annotationPosition?: 'top' | 'bottom';
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
@@ -254,7 +256,7 @@ export function ChatMessageBubble({
                 marginBottom: `${4 * combinedScale}px`
               }}
             >
-              <span style={{ fontSize: `${speakerNameSize}px`, fontWeight: 700, color: speaker.style?.nameColor || '#ffffff' }}>
+              <span style={{ fontSize: `${speakerNameSize}px`, fontFamily: speaker.style?.nameFontFamily || speaker.style?.fontFamily || 'system-ui', fontWeight: speaker.style?.nameFontWeight || 700, color: speaker.style?.nameColor || '#ffffff' }}>
                 {speaker.name}
               </span>
               <span style={{ fontSize: `${timestampSize}px`, fontFamily: timestampFontFamily, color: timestampColor }}>

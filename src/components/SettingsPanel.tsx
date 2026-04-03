@@ -1127,6 +1127,10 @@ export function SettingsPanel({
                           <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.font')}</span>
                           {renderFontFamilyFields(speaker.style?.fontFamily, (value) => updateSpeakerStyle(key, 'fontFamily', value))}
                         </div>
+                        <div className="space-y-1 col-span-2">
+                          <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.nameFont')}</span>
+                          {renderFontFamilyFields(speaker.style?.nameFontFamily, (value) => updateSpeakerStyle(key, 'nameFontFamily', value))}
+                        </div>
                         <div className="space-y-1">
                           <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.fontSize')}</span>
                           <input 
@@ -1142,6 +1146,25 @@ export function SettingsPanel({
                           <select 
                             value={speaker.style?.fontWeight || 'normal'}
                             onChange={(e) => updateSpeakerStyle(key, 'fontWeight', e.target.value)}
+                            className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
+                            style={inputSurfaceStyle}
+                          >
+                            <option value="normal">常规 (Normal)</option>
+                            <option value="bold">加粗 (Bold)</option>
+                            <option value="bolder">更粗 (Bolder)</option>
+                            <option value="lighter">较细 (Lighter)</option>
+                            <option value="100">100</option>
+                            <option value="300">300</option>
+                            <option value="500">500</option>
+                            <option value="700">700</option>
+                            <option value="900">900</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.nameFontWeight')}</span>
+                          <select
+                            value={speaker.style?.nameFontWeight || '700'}
+                            onChange={(e) => updateSpeakerStyle(key, 'nameFontWeight', e.target.value)}
                             className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
                             style={inputSurfaceStyle}
                           >
@@ -1351,7 +1374,7 @@ export function SettingsPanel({
                     <label className="flex items-center gap-2 text-sm font-medium border-b pb-1" style={{ borderColor: uiTheme.border, color: uiTheme.text }}>
                       <Box size={14} /> {t('annotation.title')}
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('annotation.position')}</span>
                         <select
@@ -1373,6 +1396,25 @@ export function SettingsPanel({
                           className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
                           style={inputSurfaceStyle}
                         />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.fontWeight')}</span>
+                        <select
+                          value={annotation.style?.fontWeight || 'normal'}
+                          onChange={(e) => updateSpeakerStyle('ANNOTATION', 'fontWeight', e.target.value)}
+                          className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
+                          style={inputSurfaceStyle}
+                        >
+                          <option value="normal">常规 (Normal)</option>
+                          <option value="bold">加粗 (Bold)</option>
+                          <option value="bolder">更粗 (Bolder)</option>
+                          <option value="lighter">较细 (Lighter)</option>
+                          <option value="100">100</option>
+                          <option value="300">300</option>
+                          <option value="500">500</option>
+                          <option value="700">700</option>
+                          <option value="900">900</option>
+                        </select>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -1405,25 +1447,6 @@ export function SettingsPanel({
                           className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
                           style={inputSurfaceStyle}
                         />
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.fontWeight')}</span>
-                        <select
-                          value={annotation.style?.fontWeight || 'normal'}
-                          onChange={(e) => updateSpeakerStyle('ANNOTATION', 'fontWeight', e.target.value)}
-                          className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
-                          style={inputSurfaceStyle}
-                        >
-                          <option value="normal">常规 (Normal)</option>
-                          <option value="bold">加粗 (Bold)</option>
-                          <option value="bolder">更粗 (Bolder)</option>
-                          <option value="lighter">较细 (Lighter)</option>
-                          <option value="100">100</option>
-                          <option value="300">300</option>
-                          <option value="500">500</option>
-                          <option value="700">700</option>
-                          <option value="900">900</option>
-                        </select>
                       </div>
                     </div>
                     <div className="space-y-1">
