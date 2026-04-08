@@ -338,7 +338,19 @@ const patchMacCompositorBinaries = () => {
 
 const getBundle = async (bundleFn) => {
   if (!cachedBundle) {
-    const entryPoint = path.join(process.env.APP_ROOT || process.cwd(), 'src/remotion/Root.tsx');
+    const root = process.env.APP_ROOT || process.cwd();
+    const candidates = [
+      path.join(root, 'src/remotion/Root.tsx'),
+      path.join(root, 'app.asar.unpacked', 'src/remotion/Root.tsx'),
+      process.resourcesPath ? path.join(process.resourcesPath, 'app.asar.unpacked', 'src/remotion/Root.tsx') : null,
+      process.resourcesPath ? path.join(process.resourcesPath, 'app', 'src/remotion/Root.tsx') : null,
+    ].filter(Boolean);
+
+    const entryPoint = candidates.find((candidate) => fs.existsSync(candidate));
+    if (!entryPoint) {
+      throw new Error(`Remotion entry not found. Tried: ${candidates.join(', ')}`);
+    }
+
     cachedBundle = bundleFn({
       entryPoint,
       onProgress: () => undefined,

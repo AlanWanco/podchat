@@ -1863,7 +1863,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(finalConfig, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "pomchat_project.json");
+    downloadAnchorNode.setAttribute("download", "pomchat_project.pomchat");
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -2140,8 +2140,8 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const result = await window.electron.showSaveDialog({
         title: t('dialog.newProjectTitle'),
-        defaultPath: 'pomchat_project.json',
-        filters: [{ name: 'JSON Config', extensions: ['json'] }]
+        defaultPath: 'pomchat_project.pomchat',
+        filters: [{ name: 'PomChat Project', extensions: ['pomchat', 'json'] }]
       });
       
       if (!result.canceled && result.filePath) {
@@ -2244,7 +2244,7 @@ const [previewScale, setPreviewScale] = useState(1);
     if (!window.electron || !filePath) return;
 
     const normalizedPath = filePath.toLowerCase();
-    const isJson = normalizedPath.endsWith('.json');
+    const isJson = normalizedPath.endsWith('.json') || normalizedPath.endsWith('.pomchat');
     const isAss = normalizedPath.endsWith('.ass');
     const isSrt = normalizedPath.endsWith('.srt');
     const isLrc = normalizedPath.endsWith('.lrc');
@@ -2271,8 +2271,8 @@ const [previewScale, setPreviewScale] = useState(1);
       
       const result = await window.electron.showSaveDialog({
         title: t('dialog.newProjectTitle'),
-        defaultPath: 'pomchat_project.json',
-        filters: [{ name: 'JSON Config', extensions: ['json'] }]
+        defaultPath: 'pomchat_project.pomchat',
+        filters: [{ name: 'PomChat Project', extensions: ['pomchat', 'json'] }]
       });
       
       if (result.canceled || !result.filePath) return;
@@ -2485,7 +2485,7 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const result = await window.electron.showOpenDialog({
         title: t('dialog.openProjectTitle'),
-        filters: [{ name: 'JSON Config', extensions: ['json'] }],
+        filters: [{ name: 'PomChat Project', extensions: ['pomchat', 'json'] }],
         properties: ['openFile']
       });
 
@@ -2607,7 +2607,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const importWebFile = useCallback(async (file: File, currentProjectPath: string | null) => {
     const normalizedName = file.name.toLowerCase();
-    const isJson = normalizedName.endsWith('.json');
+    const isJson = normalizedName.endsWith('.json') || normalizedName.endsWith('.pomchat');
     const isAss = normalizedName.endsWith('.ass');
     const isSrt = normalizedName.endsWith('.srt');
     const isLrc = normalizedName.endsWith('.lrc');
@@ -2999,7 +2999,7 @@ const [previewScale, setPreviewScale] = useState(1);
             <input
               ref={webProjectInputRef}
               type="file"
-              accept=".json,application/json"
+              accept=".pomchat,.json,application/json"
               className="hidden"
               onChange={handleWebProjectSelected}
             />
@@ -3148,7 +3148,7 @@ const [previewScale, setPreviewScale] = useState(1);
           <input
             ref={webProjectInputRef}
             type="file"
-            accept=".json,application/json"
+            accept=".pomchat,.json,application/json"
             className="hidden"
             onChange={handleWebProjectSelected}
           />
