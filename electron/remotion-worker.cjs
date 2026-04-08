@@ -363,7 +363,7 @@ const getBundle = async (bundleFn) => {
 const runRender = async (config) => {
   const startedAt = Date.now();
   const { bundle } = await import('@remotion/bundler');
-  const { renderMedia, selectComposition } = await import('@remotion/renderer');
+  const { renderMedia, renderFrames, stitchFramesToVideo, selectComposition } = await import('@remotion/renderer');
   const mediaServer = await createLocalMediaServer();
   const binariesDirectory = patchMacCompositorBinaries();
   const browserExecutable = getBundledBrowserExecutable();
@@ -431,9 +431,9 @@ const runRender = async (config) => {
     sendProgress(0.02, 'Bundling Remotion composition');
     const serveUrl = await getBundle(bundle);
 
-    const renderOnce = async (strategy) => {
+    const selectCompositionForStrategy = async (strategy) => {
       sendProgress(0.12, 'Resolving composition');
-      const composition = await selectComposition({
+      return selectComposition({
         serveUrl,
         id: 'PodchatRender',
         inputProps,
@@ -446,6 +446,10 @@ const runRender = async (config) => {
           hardwareAcceleration: strategy.hardwareAcceleration,
         },
       });
+    };
+
+    const renderStandard = async (strategy) => {
+      const composition = await selectCompositionForStrategy(strategy);
 
       sendProgress(0.2, 'Rendering frames');
       const qualityOptions = strategy.hardwareAcceleration === 'disable'
@@ -485,18 +489,112 @@ const runRender = async (config) => {
       return composition;
     };
 
+    const renderWindowsNvenc = async (strategy) => {
+      const composition = await selectCompositionForStrategy(strategy);
+      const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pomchat-remotion-frames-'));
+
+      try {
+        let totalFrames = composition.durationInFrames || 1;
+        sendProgress(0.2, 'Rendering frames for NVENC');
+        const { assetsInfo } = await renderFrames({
+          serveUrl,
+          composition,
+          inputProps,
+          outputDir: framesDir,
+          imageFormat: 'jpeg',
+          jpegQuality: 92,
+          logLevel: 'error',
+          binariesDirectory,
+          browserExecutable,
+          concurrency: getRenderConcurrency(),
+          chromiumOptions: {
+            disableWebSecurity: true,
+            gl: strategy.gl,
+            hardwareAcceleration: strategy.hardwareAcceleration,
+          },
+          onStart: ({ frameCount }) => {
+            totalFrames = Math.max(1, frameCount || 1);
+          },
+          onFrameUpdate: (framesRendered) => {
+            const frameProgress = Math.max(0, Math.min(1, framesRendered / totalFrames));
+            sendProgress(0.2 + frameProgress * 0.58, frameProgress >= 1 ? 'Preparing NVENC stitch' : 'Rendering frames for NVENC');
+          },
+        });
+
+        sendProgress(0.8, 'Encoding with NVIDIA NVENC');
+        await stitchFramesToVideo({
+          assetsInfo,
+          fps: composition.fps,
+          width: composition.width,
+          height: composition.height,
+          outputLocation: config.outputPath,
+          codec: 'h264',
+          audioCodec: 'aac',
+          pixelFormat: 'yuv420p',
+          force: true,
+          logLevel: 'error',
+          binariesDirectory,
+          hardwareAcceleration: 'disable',
+          ffmpegOverride: ({ type, args }) => {
+            if (type !== 'stitcher') {
+              return args;
+            }
+            const nextArgs = [...args];
+            const videoCodecIndex = nextArgs.findIndex((arg) => arg === '-c:v');
+            if (videoCodecIndex >= 0 && videoCodecIndex + 1 < nextArgs.length) {
+              nextArgs[videoCodecIndex + 1] = 'h264_nvenc';
+            }
+            if (!nextArgs.includes('-preset')) {
+              nextArgs.push('-preset', 'p4');
+            }
+            return nextArgs;
+          },
+          onProgress: (progress) => {
+            sendProgress(0.8 + progress * 0.18, progress >= 1 ? 'Finalizing video' : 'Encoding with NVIDIA NVENC');
+          },
+        });
+
+        return composition;
+      } finally {
+        fs.rmSync(framesDir, { recursive: true, force: true });
+      }
+    };
+
     let composition;
     let usedStrategy = hardwareStrategy;
-    try {
-      composition = await renderOnce(usedStrategy);
-    } catch (error) {
-      if (usedStrategy.hardwareAcceleration !== 'disable' && isHardwareAccelerationError(error)) {
-        console.warn('GPU strategy failed, retrying CPU fallback:', error && error.message ? error.message : error);
-        sendProgress(0.15, 'GPU unavailable, retrying with CPU');
-        usedStrategy = cpuFallbackStrategy;
-        composition = await renderOnce(usedStrategy);
-      } else {
-        throw error;
+    const shouldUseWindowsNvenc = process.platform === 'win32' && config.exportHardware === 'gpu';
+
+    if (shouldUseWindowsNvenc) {
+      try {
+        composition = await renderWindowsNvenc(usedStrategy);
+      } catch (error) {
+        const canRetryNvencWithCpu = usedStrategy.hardwareAcceleration !== 'disable' && isHardwareAccelerationError(error);
+        if (canRetryNvencWithCpu) {
+          console.warn('Windows NVENC path failed with GPU strategy, retrying CPU renderer:', error && error.message ? error.message : error);
+          sendProgress(0.16, 'GPU unavailable, retrying NVENC pipeline with CPU renderer');
+          usedStrategy = cpuFallbackStrategy;
+        }
+
+        try {
+          composition = await renderWindowsNvenc(usedStrategy);
+        } catch (nvencError) {
+          console.warn('NVENC unavailable, falling back to CPU encoder:', nvencError && nvencError.message ? nvencError.message : nvencError);
+          sendProgress(0.18, 'NVENC unavailable, falling back to CPU encoder');
+          composition = await renderStandard(cpuFallbackStrategy);
+        }
+      }
+    } else {
+      try {
+        composition = await renderStandard(usedStrategy);
+      } catch (error) {
+        if (usedStrategy.hardwareAcceleration !== 'disable' && isHardwareAccelerationError(error)) {
+          console.warn('GPU strategy failed, retrying CPU fallback:', error && error.message ? error.message : error);
+          sendProgress(0.15, 'GPU unavailable, retrying with CPU');
+          usedStrategy = cpuFallbackStrategy;
+          composition = await renderStandard(usedStrategy);
+        } else {
+          throw error;
+        }
       }
     }
 
