@@ -1603,10 +1603,17 @@ const [previewScale, setPreviewScale] = useState(1);
     if (!audioRef.current || duration <= 0) return;
     if (exportRangeTouchedRef.current || config.exportRangeCustomized) return;
     
-    // Only auto-expand if range hasn't been touched
+    // Only auto-expand if range hasn't been touched.
+    // Do not reset user-visible start when reloading audio.
     const defaults = getDefaultExportRange();
-    setExportRange((prev) => isSameRange(prev, defaults) ? prev : defaults);
-  }, [duration, subtitles.length]); // deliberately lightweight dependency
+    setExportRange((prev) => {
+      if (prev.start === 0 && prev.end === 0) {
+        return isSameRange(prev, defaults) ? prev : defaults;
+      }
+      const nextEnd = Number(Math.max(prev.end, defaults.end).toFixed(2));
+      return nextEnd === prev.end ? prev : { ...prev, end: nextEnd };
+    });
+  }, [duration, subtitles.length, config.exportRangeCustomized, getDefaultExportRange]);
 
   const handleExportQualityChange = useCallback((nextQuality: 'fast' | 'balance' | 'high') => {
     if (exportQuality === nextQuality) {
@@ -2850,13 +2857,17 @@ const [previewScale, setPreviewScale] = useState(1);
   const canvasBg = isDarkMode ? "bg-[#111]" : "bg-gray-200/50";
   const dividerClass = isDarkMode ? "hover:opacity-100" : "hover:opacity-100";
   const defaultExportRange = getDefaultExportRange();
+  const previewRenderTime = useMemo(() => {
+    const fps = Math.max(1, config.fps || 60);
+    return Math.round(currentTime * fps) / fps;
+  }, [currentTime, config.fps]);
   const visibleAnnotations = subtitles.filter((item) => {
     const speaker = config.speakers[item.speakerId];
     if (!speaker || speaker.type !== 'annotation') return false;
     const animationStyle = config.chatLayout?.animationStyle || 'rise';
     const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
     const appearanceTime = Math.max(0, item.start - (animationStyle === 'none' ? 0 : animationDuration));
-    return currentTime >= appearanceTime && currentTime <= item.end;
+    return previewRenderTime >= appearanceTime && previewRenderTime <= item.end;
   });
   const visibleMessages = useMemo(() => {
     const appeared = subtitles.filter((item) => {
@@ -2866,11 +2877,11 @@ const [previewScale, setPreviewScale] = useState(1);
       const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
       const animationLeadTime = animationStyle === 'none' ? 0 : animationDuration;
       const appearanceTime = Math.max(0, item.start - animationLeadTime);
-      return currentTime >= appearanceTime;
+      return previewRenderTime >= appearanceTime;
     });
 
     return appeared.slice(-MESSAGE_FALLBACK_COUNT);
-  }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, currentTime]);
+  }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, previewRenderTime]);
   const latestVisibleMessageId = visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1].id : '';
 
   useEffect(() => {
@@ -2892,7 +2903,7 @@ const [previewScale, setPreviewScale] = useState(1);
       return;
     }
 
-    const targetTime = Math.max(0, currentTime);
+    const targetTime = Math.max(0, previewRenderTime);
     const drift = Math.abs((bgVideo.currentTime || 0) - targetTime);
     if (drift > 0.08) {
       try {
@@ -2901,7 +2912,7 @@ const [previewScale, setPreviewScale] = useState(1);
         // ignore not-ready seek errors
       }
     }
-  }, [currentTime, seekTick, isPlaying, config.background?.image]);
+  }, [previewRenderTime, seekTick, isPlaying, config.background?.image]);
 
   useEffect(() => {
     const bgVideo = previewBackgroundVideoRef.current;
@@ -3504,7 +3515,7 @@ const [previewScale, setPreviewScale] = useState(1);
                             key={item.id}
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
-                            currentTime={currentTime}
+                            currentTime={previewRenderTime}
                             canvasWidth={canvasWidth}
                             layoutScale={previewScale}
                             chatLayout={previewChatLayout}
@@ -3556,7 +3567,7 @@ const [previewScale, setPreviewScale] = useState(1);
                           <ChatAnnotationBubble
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
-                            currentTime={currentTime}
+                            currentTime={previewRenderTime}
                             layoutScale={previewScale}
                             chatLayout={{ ...previewChatLayout, bubbleScale: previewChatLayout?.bubbleScale }}
                           />
@@ -3572,7 +3583,7 @@ const [previewScale, setPreviewScale] = useState(1);
                           <ChatAnnotationBubble
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
-                            currentTime={currentTime}
+                            currentTime={previewRenderTime}
                             layoutScale={previewScale}
                             chatLayout={{ ...previewChatLayout, bubbleScale: previewChatLayout?.bubbleScale }}
                           />

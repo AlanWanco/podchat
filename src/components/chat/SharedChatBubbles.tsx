@@ -87,7 +87,7 @@ const easeOutBack = (t: number): number => {
 const getBubbleMotionState = (progress: number, style: SharedChatLayout['animationStyle'], side: SharedChatSpeaker['side']) => {
   const clamped = clamp(progress, 0, 1);
   const base = easeOutCubic(clamped);
-  const quantize = (value: number) => Math.round(value * 2) / 2;
+  const quantize = (value: number) => Math.round(value);
 
   switch (style) {
     case 'fade':
@@ -214,7 +214,7 @@ export function ChatMessageBubble({
         justifyContent: isLeft ? 'flex-start' : 'flex-end',
         marginBottom: `${margin}px`,
         transform: motionState.transform,
-        transformOrigin: isLeft ? 'left bottom' : 'right bottom',
+        transformOrigin: isLeft ? 'left center' : 'right center',
         opacity: motionState.opacity,
         filter: motionState.filter
       }}
