@@ -1,7 +1,7 @@
 {
   "name": "pomchat",
   "private": true,
-  "version": "0.1.6-beta1",
+  "version": "0.1.6-beta2",
   "type": "module",
   "scripts": {
     "dev": "vite",
