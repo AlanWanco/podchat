@@ -718,6 +718,23 @@ export function SettingsPanel({
                     title={t('project.bubbleScale.title')}
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs opacity-70">{t('project.bubbleMaxWidth')}</span>
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{Math.round(config.chatLayout?.bubbleMaxWidthPercent ?? 70)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="25"
+                    max="95"
+                    step="1"
+                    value={config.chatLayout?.bubbleMaxWidthPercent ?? 70}
+                    onChange={(e) => updateChatLayout('bubbleMaxWidthPercent', parseInt(e.target.value, 10))}
+                    className="w-full"
+                    style={themedRangeStyle}
+                    title={t('project.bubbleMaxWidth.title')}
+                  />
+                </div>
               </div>
 
               <hr style={{ borderColor: uiTheme.border }} />

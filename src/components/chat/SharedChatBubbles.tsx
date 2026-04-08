@@ -44,6 +44,7 @@ export interface SharedChatSpeaker {
 
 export interface SharedChatLayout {
   bubbleScale?: number;
+  bubbleMaxWidthPercent?: number;
   avatarSize?: number;
   speakerNameSize?: number;
   timestampFontFamily?: string;
@@ -161,7 +162,8 @@ export function ChatMessageBubble({
   const snapPx = (value: number) => Math.round(value);
   const isLeft = (speaker.side ?? 'left') === 'left';
   const bubbleScale = chatLayout?.bubbleScale ?? 1.5;
-  const combinedScale = Math.max(MIN_LAYOUT_SCALE, layoutScale) * bubbleScale;
+  const layoutScaleSafe = Math.max(MIN_LAYOUT_SCALE, layoutScale);
+  const combinedScale = layoutScaleSafe * bubbleScale;
   const animationStyle = chatLayout?.animationStyle || 'rise';
   const animationDuration = chatLayout?.animationDuration ?? 0.2;
   const currentProgress = animationStyle === 'none' || animationDuration <= 0
@@ -194,7 +196,8 @@ export function ChatMessageBubble({
   const timestampFontFamily = chatLayout?.timestampFontFamily || 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
   const timestampColor = chatLayout?.timestampColor || 'rgba(255,255,255,0.65)';
   const fontSize = snapPx((speaker.style?.fontSize ?? 30) * combinedScale);
-  const bubbleMaxWidth = canvasWidth * 0.75;
+  const bubbleMaxWidthPercent = Math.max(25, Math.min(95, chatLayout?.bubbleMaxWidthPercent ?? 70));
+  const bubbleMaxWidthPx = canvasWidth * layoutScaleSafe * (bubbleMaxWidthPercent / 100);
   const opacity = speaker.style?.opacity ?? 0.9;
   const hexBg = bgColor.startsWith('#') ? bgColor : '#ffffff';
   const finalBgColor = `${hexBg}${Math.floor(opacity * 255).toString(16).padStart(2, '0')}`;
@@ -221,7 +224,7 @@ export function ChatMessageBubble({
           display: 'flex',
           flexDirection: isLeft ? 'row' : 'row-reverse',
           gap: `${bubbleGap}px`,
-          maxWidth: '75%',
+          maxWidth: '100%',
           alignItems: 'flex-start'
         }}
       >
@@ -246,7 +249,7 @@ export function ChatMessageBubble({
             display: 'flex',
             flexDirection: 'column',
             alignItems: isLeft ? 'flex-start' : 'flex-end',
-            maxWidth: `${bubbleMaxWidth}px`,
+            maxWidth: `${bubbleMaxWidthPx}px`,
             filter: speakerBlockShadow
           }}
         >
@@ -284,7 +287,7 @@ export function ChatMessageBubble({
               borderBottomRightRadius: `${radius}px`,
               border: (speaker.style?.borderWidth ?? 0) > 0 ? `${speaker.style?.borderWidth ?? 0}px solid ${rgba(borderColor, borderOpacity)}` : 'none',
               boxShadow: bubbleShadow,
-              maxWidth: `${bubbleMaxWidth}px`
+               maxWidth: `${bubbleMaxWidthPx}px`
             },
             contentStyle: {
               position: 'relative',

@@ -81,6 +81,7 @@ const DEFAULT_CHAT_LAYOUT = {
   paddingLeft: 48,
   paddingRight: 48,
   bubbleScale: 1.5,
+  bubbleMaxWidthPercent: 70,
   avatarSize: 80,
   speakerNameSize: 22,
   timestampFontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
@@ -507,6 +508,7 @@ function App() {
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const previewFrameRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const previewBackgroundVideoRef = useRef<HTMLVideoElement>(null);
   const subtitleFormat = (config.subtitleFormat || 'ass') as SubtitleFormat;
   const { subtitles, setSubtitles, loading: subtitlesLoading } = useAssSubtitle(config.assPath, config.speakers, webAssContent, config.content, subtitleFormat);
   const cloneHistorySnapshot = useCallback((snapshot: HistorySnapshot): HistorySnapshot => JSON.parse(JSON.stringify(snapshot)), []);
@@ -1945,7 +1947,7 @@ const [previewScale, setPreviewScale] = useState(1);
     return `file://${segments.map((segment, index) => (index === 0 ? segment : encodeURIComponent(segment))).join('/')}`;
   };
 
-  const detectVideoMediaInfo = async (src: string) => {
+  const detectVideoMediaInfo = useCallback(async (src: string) => {
     return await new Promise<{ hasAudio: boolean; duration: number | null }>((resolve) => {
       const video = document.createElement('video');
       let done = false;
@@ -1984,7 +1986,7 @@ const [previewScale, setPreviewScale] = useState(1);
       };
       video.src = src;
     });
-  };
+  }, []);
 
   const resolvePath = (path: string | undefined): string | undefined => {
     if (!path) return undefined;
@@ -2883,6 +2885,43 @@ const [previewScale, setPreviewScale] = useState(1);
     });
   }, [latestVisibleMessageId, seekTick]);
 
+  useEffect(() => {
+    const bgVideo = previewBackgroundVideoRef.current;
+    const backgroundImage = config.background?.image || '';
+    if (!bgVideo || !/\.(mp4|webm|mov)(\?|$)/i.test(backgroundImage)) {
+      return;
+    }
+
+    const targetTime = Math.max(0, currentTime);
+    const drift = Math.abs((bgVideo.currentTime || 0) - targetTime);
+    if (drift > 0.08) {
+      try {
+        bgVideo.currentTime = targetTime;
+      } catch (_error) {
+        // ignore not-ready seek errors
+      }
+    }
+  }, [currentTime, seekTick, isPlaying, config.background?.image]);
+
+  useEffect(() => {
+    const bgVideo = previewBackgroundVideoRef.current;
+    const backgroundImage = config.background?.image || '';
+    if (!bgVideo || !/\.(mp4|webm|mov)(\?|$)/i.test(backgroundImage)) {
+      return;
+    }
+
+    if (isPlaying) {
+      const playPromise = bgVideo.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          // ignore autoplay policy errors in preview
+        });
+      }
+    } else {
+      bgVideo.pause();
+    }
+  }, [isPlaying, config.background?.image]);
+
   const previewChatLayout = useMemo(() => {
     if (!isMobileWebLayout) {
       return config.chatLayout;
@@ -3413,9 +3452,9 @@ const [previewScale, setPreviewScale] = useState(1);
 
                     return isVideoBackground ? (
                       <video
+                        ref={previewBackgroundVideoRef}
                         src={resolvedBackground}
                         muted
-                        autoPlay
                         loop
                         playsInline
                         className="w-full h-full"

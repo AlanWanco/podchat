@@ -69,6 +69,7 @@ export interface PodchatExportInput {
     paddingLeft?: number;
     paddingRight?: number;
     bubbleScale?: number;
+    bubbleMaxWidthPercent?: number;
     avatarSize?: number;
     speakerNameSize?: number;
     animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';

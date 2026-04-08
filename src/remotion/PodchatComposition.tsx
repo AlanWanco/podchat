@@ -27,6 +27,12 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const topPadding = (props.chatLayout?.paddingTop ?? 48) * effectiveScale;
   const bottomPadding = (props.chatLayout?.paddingBottom ?? 80) * effectiveScale;
   const backgroundObjectFit = props.background?.fit === 'contain' || props.background?.fit === 'fill' ? props.background.fit : 'cover';
+  const backgroundVideoDurationFrames = props.background?.duration
+    ? Math.max(1, Math.round(props.background.duration * fps))
+    : null;
+  const backgroundVideoStartFrame = backgroundVideoDurationFrames
+    ? Math.floor((props.exportRange.start * fps) % backgroundVideoDurationFrames)
+    : 0;
   const backgroundObjectPosition = (() => {
     switch (props.background?.position) {
       case 'top': return 'center top';
@@ -80,10 +86,11 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
               }}
             />
           ) : /\.(mp4|webm|mov)(\?|$)/i.test(props.background.image) ? (
-            <Loop durationInFrames={Math.max(1, Math.min(durationInFrames, Math.round((props.background?.duration || (props.exportRange.end - props.exportRange.start) || 1) * fps)))}>
+            <Loop durationInFrames={backgroundVideoDurationFrames || durationInFrames}>
               <OffthreadVideo
                 src={props.background.image}
                 muted
+                trimBefore={backgroundVideoStartFrame}
                 style={{
                   width: '100%',
                   height: '100%',
