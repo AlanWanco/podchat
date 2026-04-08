@@ -367,6 +367,37 @@ const runRender = async (config) => {
   const mediaServer = await createLocalMediaServer();
   const binariesDirectory = patchMacCompositorBinaries();
   const browserExecutable = getBundledBrowserExecutable();
+  const resolveHardwareStrategy = () => {
+    const mode = config.exportHardware || 'auto';
+
+    if (mode === 'cpu') {
+      return {
+        hardwareAcceleration: 'disable',
+        gl: 'swiftshader',
+      };
+    }
+
+    if (mode === 'gpu') {
+      if (process.platform === 'win32') {
+        return { hardwareAcceleration: 'required', gl: 'angle' };
+      }
+      if (process.platform === 'darwin') {
+        return { hardwareAcceleration: 'if-possible', gl: 'angle' };
+      }
+      return { hardwareAcceleration: 'if-possible', gl: 'angle' };
+    }
+
+    // Auto mode: platform-aware defaults
+    if (process.platform === 'darwin') {
+      return { hardwareAcceleration: 'disable', gl: 'swiftshader' };
+    }
+    if (process.platform === 'win32') {
+      return { hardwareAcceleration: 'if-possible', gl: 'angle' };
+    }
+    return { hardwareAcceleration: 'if-possible', gl: 'angle' };
+  };
+
+  const hardwareStrategy = resolveHardwareStrategy();
 
   try {
     const inputProps = prepareInputProps(config, mediaServer, binariesDirectory);
@@ -398,12 +429,20 @@ const runRender = async (config) => {
       browserExecutable,
       chromiumOptions: {
         disableWebSecurity: true,
-        gl: 'angle',
+        gl: hardwareStrategy.gl,
+        hardwareAcceleration: hardwareStrategy.hardwareAcceleration,
       },
     });
 
     sendProgress(0.2, 'Rendering frames');
-     await renderMedia({
+    const qualityOptions = hardwareStrategy.hardwareAcceleration === 'disable'
+      ? {
+          x264Preset: config.x264Preset || 'veryfast',
+          crf: config.crf || 20,
+        }
+      : {};
+
+    await renderMedia({
       serveUrl,
       composition,
       codec: 'h264',
@@ -415,16 +454,16 @@ const runRender = async (config) => {
       concurrency: getRenderConcurrency(),
       imageFormat: 'jpeg',
       jpegQuality: 92,
-      x264Preset: config.x264Preset || 'veryfast',
-      crf: config.crf || 20,
+      ...qualityOptions,
       pixelFormat: 'yuv420p',
       binariesDirectory,
       browserExecutable,
       chromiumOptions: {
         disableWebSecurity: true,
-        gl: 'angle',
+        gl: hardwareStrategy.gl,
+        hardwareAcceleration: hardwareStrategy.hardwareAcceleration,
       },
-      hardwareAcceleration: 'if-possible',
+      hardwareAcceleration: hardwareStrategy.hardwareAcceleration,
       onProgress: ({ progress }) => {
         sendProgress(0.2 + progress * 0.78, progress >= 1 ? 'Finalizing video' : 'Rendering frames');
       },

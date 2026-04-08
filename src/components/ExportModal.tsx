@@ -52,7 +52,8 @@ interface ExportModalProps {
     remoteAssets: { path: string; files: number; bytes: number };
     remotionTemp: { path: string; entries: string[]; files: number; bytes: number };
   } | null;
-   exportQuality?: 'fast' | 'balance' | 'high';
+  exportQuality?: 'fast' | 'balance' | 'high';
+  exportHardware?: 'auto' | 'gpu' | 'cpu';
    filenameTemplate?: 'default' | 'timestamp' | 'unix' | 'custom';
    customFilename?: string;
    onClose: () => void;
@@ -64,6 +65,7 @@ interface ExportModalProps {
   onRevealOutput: () => void | Promise<void>;
   onClearRenderCache?: (type: 'remote-assets' | 'remotion-temp') => void | Promise<void>;
   onQualityChange?: (quality: 'fast' | 'balance' | 'high') => void;
+  onHardwareChange?: (mode: 'auto' | 'gpu' | 'cpu') => void;
   onFilenameTemplateChange?: (template: 'default' | 'timestamp' | 'unix' | 'custom') => void;
   onCustomFilenameChange?: (filename: string) => void;
 }
@@ -150,9 +152,10 @@ export function ExportModal({
   statusMessage,
   renderCacheInfo,
   exportQuality = 'balance',
-   filenameTemplate = 'default',
-   customFilename = '',
-   onClose,
+  exportHardware = 'auto',
+  filenameTemplate = 'default',
+  customFilename = '',
+  onClose,
   onOutputPathChange,
   onChoosePath,
   onQuickSave,
@@ -161,6 +164,7 @@ export function ExportModal({
   onRevealOutput,
   onClearRenderCache,
   onQualityChange,
+  onHardwareChange,
   onFilenameTemplateChange,
   onCustomFilenameChange
 }: ExportModalProps) {
@@ -379,7 +383,7 @@ export function ExportModal({
                </div>
 
                 <div className="flex gap-2">
-                 {(['fast', 'balance', 'high'] as const).map((quality) => (
+                  {(['fast', 'balance', 'high'] as const).map((quality) => (
                    <button
                      key={quality}
                      type="button"
@@ -394,9 +398,32 @@ export function ExportModal({
                    >
                      {t(`export.quality${quality.charAt(0).toUpperCase()}${quality.slice(1)}`)}
                    </button>
-                 ))}
-                </div>
-              </section>
+                  ))}
+                 </div>
+
+                 <div className="mt-3">
+                   <div className="text-xs font-medium mb-1" style={{ color: uiTheme.text }}>{t('export.hardware')}</div>
+                   <div className="grid grid-cols-3 gap-2">
+                     {(['auto', 'gpu', 'cpu'] as const).map((mode) => (
+                       <button
+                         key={mode}
+                         type="button"
+                         onClick={() => onHardwareChange?.(mode)}
+                         disabled={isExporting}
+                         className="rounded-xl px-2.5 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                         style={{
+                           backgroundColor: exportHardware === mode ? rgba(secondaryThemeColor, 0.18) : rgba(themeColor, isDarkMode ? 0.08 : 0.04),
+                           color: exportHardware === mode ? secondaryThemeColor : uiTheme.text,
+                           border: `1px solid ${exportHardware === mode ? rgba(secondaryThemeColor, 0.24) : uiTheme.border}`
+                         }}
+                       >
+                         {t(`export.hardware.${mode}`)}
+                       </button>
+                     ))}
+                   </div>
+                   <div className="text-[11px] mt-1" style={{ color: uiTheme.textMuted }}>{t('export.hardwareHint')}</div>
+                 </div>
+               </section>
 
               {window.electron && renderCacheInfo ? (
                 <section className="rounded-2xl border p-4" style={{ borderColor: rgba(secondaryThemeColor, 0.2), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04) }}>

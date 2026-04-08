@@ -89,6 +89,12 @@ const getBubbleMotionState = (progress: number, style: SharedChatLayout['animati
   const base = easeOutCubic(clamped);
   const quantize = (value: number) => Math.round(value);
 
+  // Snap to a fully stable frame near animation end to avoid 1px jitter
+  // from timeline quantization and floating point drift.
+  if (clamped >= 0.98) {
+    return { opacity: 1, transform: undefined, filter: undefined };
+  }
+
   switch (style) {
     case 'fade':
       return { opacity: clamped, transform: undefined, filter: undefined };
@@ -205,6 +211,7 @@ export function ChatMessageBubble({
   const speakerBlockShadow = shadowSize > 0
     ? `drop-shadow(0 ${Math.round(shadowSize * 0.2)}px ${Math.max(6, shadowSize * 0.55)}px rgba(15, 23, 42, 0.22))`
     : 'none';
+  const shouldEnableBlockShadow = currentProgress >= 0.98 || (chatLayout?.animationStyle || 'rise') === 'none';
 
   return (
     <div
@@ -250,7 +257,7 @@ export function ChatMessageBubble({
             flexDirection: 'column',
             alignItems: isLeft ? 'flex-start' : 'flex-end',
             maxWidth: `${bubbleMaxWidthPx}px`,
-            filter: speakerBlockShadow
+            filter: shouldEnableBlockShadow ? speakerBlockShadow : 'none'
           }}
         >
           {speaker.name ? (

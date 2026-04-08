@@ -123,6 +123,7 @@ const DEFAULT_PROJECT_CONFIG = {
   subtitleFormat: 'ass' as SubtitleFormat,
   exportRange: { start: 0, end: 0 },
   exportRangeCustomized: false,
+  exportHardware: 'auto' as 'auto' | 'gpu' | 'cpu',
   content: [] as any[],
   speakers: {
     A: {
@@ -477,6 +478,7 @@ function App() {
   const [lastExportSucceeded, setLastExportSucceeded] = useState(false);
   const [renderCacheInfo, setRenderCacheInfo] = useState<RenderCacheInfo | null>(null);
   const [exportQuality, setExportQuality] = useState<'fast' | 'balance' | 'high'>('balance');
+  const [exportHardware, setExportHardware] = useState<'auto' | 'gpu' | 'cpu'>('auto');
   const [filenameTemplate, setFilenameTemplate] = useState<'default' | 'timestamp' | 'unix' | 'custom'>('default');
   const [customFilename, setCustomFilename] = useState('');
   const [persistedCustomFilename, setPersistedCustomFilename] = useState('');
@@ -1691,7 +1693,9 @@ const [previewScale, setPreviewScale] = useState(1);
     const nextCustomFilename = typeof config.customFilename === 'string' ? config.customFilename : '';
     setCustomFilename((prev) => (prev === nextCustomFilename ? prev : nextCustomFilename));
     setPersistedCustomFilename((prev) => (prev === nextCustomFilename ? prev : nextCustomFilename));
-  }, [config.exportQuality, config.filenameTemplate, config.customFilename]);
+    const nextHardware = config.exportHardware === 'gpu' || config.exportHardware === 'cpu' ? config.exportHardware : 'auto';
+    setExportHardware((prev) => (prev === nextHardware ? prev : nextHardware));
+  }, [config.exportQuality, config.filenameTemplate, config.customFilename, config.exportHardware]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1708,10 +1712,11 @@ const [previewScale, setPreviewScale] = useState(1);
         prev.exportRange?.end === exportRange.end;
       const sameExportRangeCustomized = Boolean(prev.exportRangeCustomized) === exportRangeTouchedRef.current;
       const sameQuality = prev.exportQuality === exportQuality;
+      const sameHardware = prev.exportHardware === exportHardware;
       const sameTemplate = prev.filenameTemplate === filenameTemplate;
       const sameCustomFilename = prev.customFilename === persistedCustomFilename;
 
-      if (sameExportRange && sameExportRangeCustomized && sameQuality && sameTemplate && sameCustomFilename) {
+      if (sameExportRange && sameExportRangeCustomized && sameQuality && sameHardware && sameTemplate && sameCustomFilename) {
         return prev;
       }
 
@@ -1720,11 +1725,12 @@ const [previewScale, setPreviewScale] = useState(1);
         exportRange,
         exportRangeCustomized: exportRangeTouchedRef.current,
         exportQuality,
+        exportHardware,
         filenameTemplate,
         customFilename: persistedCustomFilename
       };
     });
-  }, [exportRange, exportQuality, filenameTemplate, persistedCustomFilename]);
+  }, [exportRange, exportQuality, exportHardware, filenameTemplate, persistedCustomFilename]);
 
   useEffect(() => {
     if (!window.electron) {
@@ -1828,6 +1834,7 @@ const [previewScale, setPreviewScale] = useState(1);
         outputPath: trimmedPath,
         exportRange,
         exportQuality,
+        exportHardware,
         crf,
         x264Preset: preset
       });
@@ -3780,9 +3787,10 @@ const [previewScale, setPreviewScale] = useState(1);
          progress={exportProgress}
          statusMessage={exportStatusMessage}
          renderCacheInfo={renderCacheInfo}
-           exportQuality={exportQuality}
-           filenameTemplate={filenameTemplate}
-           customFilename={customFilename}
+            exportQuality={exportQuality}
+            exportHardware={exportHardware}
+            filenameTemplate={filenameTemplate}
+            customFilename={customFilename}
           onClose={() => {
            if (!isExporting) {
              setShowExportModal(false);
@@ -3791,9 +3799,10 @@ const [previewScale, setPreviewScale] = useState(1);
          onOutputPathChange={setExportOutputPath}
          onChoosePath={handleChooseExportPath}
          onQuickSave={() => setExportOutputPath(quickSavePath)}
-         onRangeChange={updateExportRange}
-         onQualityChange={handleExportQualityChange}
-         onFilenameTemplateChange={handleFilenameTemplateChange}
+          onRangeChange={updateExportRange}
+          onQualityChange={handleExportQualityChange}
+          onHardwareChange={setExportHardware}
+          onFilenameTemplateChange={handleFilenameTemplateChange}
          onCustomFilenameChange={handleCustomFilenameChange}
          onStartExport={handleStartExport}
          onRevealOutput={handleRevealExport}
