@@ -1408,17 +1408,17 @@ export function SettingsPanel({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.paddingX')}</span>
-                        {renderNumberInput(annotation.style?.paddingX ?? 18, (value) => updateSpeakerStyle('ANNOTATION', 'paddingX', value), { className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                        {renderNumberInput(annotation.style?.paddingX ?? 24, (value) => updateSpeakerStyle('ANNOTATION', 'paddingX', value), { className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
                       </div>
                       <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.paddingY')}</span>
-                        {renderNumberInput(annotation.style?.paddingY ?? 10, (value) => updateSpeakerStyle('ANNOTATION', 'paddingY', value), { className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                        {renderNumberInput(annotation.style?.paddingY ?? 12, (value) => updateSpeakerStyle('ANNOTATION', 'paddingY', value), { className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('annotation.roundness')}</span>
-                        {renderNumberInput(annotation.style?.annotationBorderRadius ?? 999, (value) => updateSpeakerStyle('ANNOTATION', 'annotationBorderRadius', value), { className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                        {renderNumberInput(annotation.style?.annotationBorderRadius ?? 28, (value) => updateSpeakerStyle('ANNOTATION', 'annotationBorderRadius', value), { className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
                       </div>
                       <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.margin')}</span>

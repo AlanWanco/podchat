@@ -330,7 +330,7 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
     outerStyle: {
       alignSelf: 'center',
       maxWidth: `${maxWidth}px`,
-      borderRadius: `${(speaker.style?.annotationBorderRadius ?? speaker.style?.borderRadius ?? 999) * combinedScale}px`,
+      borderRadius: `${(speaker.style?.annotationBorderRadius ?? speaker.style?.borderRadius ?? 28) * combinedScale}px`,
       backgroundColor: finalBgColor,
       color: textColor,
       boxShadow: formatBubbleShadow(shadowSize),
@@ -341,7 +341,7 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
       marginBottom: (speaker.style?.annotationPosition ?? 'bottom') === 'bottom' ? `${(speaker.style?.margin ?? 12) * combinedScale}px` : undefined
     } as React.CSSProperties,
     contentStyle: {
-      padding: `${(speaker.style?.paddingY ?? 10) * combinedScale}px ${(speaker.style?.paddingX ?? 18) * combinedScale}px`,
+      padding: `${(speaker.style?.paddingY ?? 12) * combinedScale}px ${(speaker.style?.paddingX ?? 24) * combinedScale}px`,
       fontFamily: speaker.style?.fontFamily || 'system-ui',
       fontSize: `${(speaker.style?.fontSize ?? 24) * combinedScale}px`,
       fontWeight: speaker.style?.fontWeight || 'normal',
