@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.441",
+    "@remotion/gif": "4.0.441",
     "@remotion/renderer": "^4.0.441",
     "ass-compiler": "^0.1.16",
     "lucide-react": "^1.7.0",

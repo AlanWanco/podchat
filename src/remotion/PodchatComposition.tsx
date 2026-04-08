@@ -1,9 +1,19 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Gif } from '@remotion/gif';
 import type { PodchatExportInput } from './types';
 import { ChatAnnotationBubble, ChatMessageBubble } from '../components/chat/SharedChatBubbles';
 
 const MESSAGE_FALLBACK_COUNT = 32;
+
+const parseSizePx = (value: string | number | undefined, fallback: number) => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) return Math.max(1, parsed);
+  }
+  return Math.max(1, fallback);
+};
 
 export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const frame = useCurrentFrame();
@@ -87,20 +97,42 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                   layoutScale={layoutScale}
                   chatLayout={props.chatLayout}
                   renderAvatar={({ src, alt, style }) => (
-                    <div
-                      style={{
-                        width: style.width,
-                        height: style.height,
-                        minWidth: style.minWidth,
-                        borderRadius: style.borderRadius,
-                        overflow: 'hidden',
-                        backgroundColor: (style.borderColor as string) || 'rgba(255,255,255,0.12)',
-                        boxShadow: style.boxShadow,
-                        border: `${style.borderWidth || '0px'} solid ${style.borderColor || '#ffffff'}`
-                      }}
-                    >
-                      <Img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
+                    (() => {
+                      const outerWidth = parseSizePx(style.width, 80);
+                      const outerHeight = parseSizePx(style.height, 80);
+                      const borderWidth = parseSizePx(style.borderWidth as string | number | undefined, 0);
+                      const innerWidth = Math.max(1, outerWidth - borderWidth * 2);
+                      const innerHeight = Math.max(1, outerHeight - borderWidth * 2);
+
+                      return (
+                        <div
+                          style={{
+                            width: style.width,
+                            height: style.height,
+                            minWidth: style.minWidth,
+                            position: 'relative',
+                            borderRadius: style.borderRadius,
+                            overflow: 'hidden',
+                            backgroundColor: (style.borderColor as string) || 'rgba(255,255,255,0.12)',
+                            boxShadow: style.boxShadow,
+                            border: `${style.borderWidth || '0px'} solid ${style.borderColor || '#ffffff'}`
+                          }}
+                        >
+                          {/\.gif(\?|$)/i.test(src)
+                            ? <Gif
+                                src={src}
+                                width={innerWidth}
+                                height={innerHeight}
+                                fit="cover"
+                                delayRenderTimeoutInMilliseconds={120000}
+                                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
+                              />
+                            : /\.mp4(\?|$)|\.webm(\?|$)|\.mov(\?|$)/i.test(src)
+                              ? <OffthreadVideo src={src} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <Img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                        </div>
+                      );
+                    })()
                   )}
                   renderBubble={({ outerStyle, contentStyle, children }) => (
                     <div style={outerStyle}>

@@ -74,6 +74,8 @@ const getContentType = (filePath) => {
       return 'image/jpeg';
     case '.webp':
       return 'image/webp';
+    case '.gif':
+      return 'image/gif';
     case '.svg':
       return 'image/svg+xml';
     default:
@@ -81,9 +83,80 @@ const getContentType = (filePath) => {
   }
 };
 
+const getAvatarGifTranscodeDir = () => {
+  const dir = path.join(os.homedir(), '.config', 'pomchat', 'cache', 'avatar-gif-transcodes');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+};
+
+const resolveLocalMediaPath = (value) => {
+  if (!value) return null;
+  if (/^file:/i.test(value)) {
+    try {
+      return fileURLToPath(value);
+    } catch (_error) {
+      return null;
+    }
+  }
+  if (/^(https?:|data:)/i.test(value)) {
+    return null;
+  }
+  const resolved = resolveAppFilePath(value);
+  return path.isAbsolute(resolved) ? resolved : null;
+};
+
+const resolveFfmpegBinary = (binariesDirectory) => {
+  const ffmpegName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  if (binariesDirectory) {
+    const bundled = path.join(binariesDirectory, ffmpegName);
+    if (fs.existsSync(bundled)) {
+      return bundled;
+    }
+  }
+  return ffmpegName;
+};
+
+const transcodeGifAvatarToMp4 = (gifPath, binariesDirectory) => {
+  if (!gifPath || path.extname(gifPath).toLowerCase() !== '.gif' || !fs.existsSync(gifPath)) {
+    return gifPath;
+  }
+
+  const stat = fs.statSync(gifPath);
+  const hash = crypto.createHash('sha1').update(`${gifPath}:${stat.size}:${stat.mtimeMs}`).digest('hex');
+  const outputPath = path.join(getAvatarGifTranscodeDir(), `${hash}.mp4`);
+  if (fs.existsSync(outputPath)) {
+    return outputPath;
+  }
+
+  try {
+    execFileSync(resolveFfmpegBinary(binariesDirectory), [
+      '-y',
+      '-i', gifPath,
+      '-movflags', '+faststart',
+      '-pix_fmt', 'yuv420p',
+      '-vf', 'fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2',
+      outputPath,
+    ], { stdio: 'ignore' });
+    return outputPath;
+  } catch (_error) {
+    return gifPath;
+  }
+};
+
 const createLocalMediaServer = async () => {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+      });
+      res.end();
+      return;
+    }
+
     if (url.pathname !== '/media') {
       res.writeHead(404);
       res.end('Not found');
@@ -103,6 +176,10 @@ const createLocalMediaServer = async () => {
       res.writeHead(200, {
         'Content-Type': getContentType(resolvedPath),
         'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
       });
     });
     stream.on('error', () => {
@@ -166,13 +243,20 @@ const sendMessage = (message) => {
   }
 };
 
-const prepareInputProps = (config, mediaServer) => {
+const prepareInputProps = (config, mediaServer, binariesDirectory) => {
   const speakers = Object.fromEntries(
     Object.entries(config.speakers || {}).map(([key, speaker]) => [
       key,
       {
         ...speaker,
-        avatar: toMediaUrl(speaker.avatar, mediaServer),
+        avatar: (() => {
+          const localPath = resolveLocalMediaPath(speaker.avatar);
+          const mediaPath = transcodeGifAvatarToMp4(localPath, binariesDirectory);
+          if (mediaPath && path.isAbsolute(mediaPath)) {
+            return mediaServer.urlForPath(mediaPath);
+          }
+          return toMediaUrl(speaker.avatar, mediaServer);
+        })(),
       },
     ]),
   );
@@ -273,7 +357,7 @@ const runRender = async (config) => {
   const browserExecutable = getBundledBrowserExecutable();
 
   try {
-    const inputProps = prepareInputProps(config, mediaServer);
+    const inputProps = prepareInputProps(config, mediaServer, binariesDirectory);
     const durationSeconds = Math.max(0.1, inputProps.exportRange.end - inputProps.exportRange.start);
 
   const sendProgress = (progress, stage) => {

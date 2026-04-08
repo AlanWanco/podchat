@@ -11,6 +11,27 @@ interface ExportProgressState {
   stage: string;
 }
 
+const copyToClipboard = async (text: string) => {
+  if (!text) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand('copy');
+    textarea.remove();
+    return ok;
+  } catch (_error) {
+    return false;
+  }
+};
+
 interface ExportModalProps {
   isOpen: boolean;
   isDarkMode: boolean;
@@ -148,6 +169,7 @@ export function ExportModal({
   const [startInput, setStartInput] = useState(formatTime(rangeStart));
   const [endInput, setEndInput] = useState(formatTime(rangeEnd));
   const [localCustomFilename, setLocalCustomFilename] = useState(customFilename);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -181,6 +203,7 @@ export function ExportModal({
 
   const progressPercent = Math.max(0, Math.min(100, Math.round((progress?.progress || 0) * 100)));
   const exportSpan = useMemo(() => Math.max(0, rangeEnd - rangeStart), [rangeEnd, rangeStart]);
+  const isErrorStatus = Boolean(statusMessage && /error|failed|超时|失败|异常/i.test(statusMessage));
 
   const commitRangeInput = (field: 'start' | 'end', value: string) => {
     const next = parseFlexibleTime(value);
@@ -515,11 +538,29 @@ export function ExportModal({
                  </div>
                </div>
 
-                 <div className="mt-4 min-w-0 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.09 : 0.05), color: statusMessage ? uiTheme.text : uiTheme.textMuted }}>
-                   <div className="max-h-36 overflow-auto whitespace-pre-wrap break-all pr-1">
-                     {statusMessage || t('export.statusIdle')}
-                   </div>
-                 </div>
+                <div className="mt-4 min-w-0 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: rgba(secondaryThemeColor, 0.18), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.09 : 0.05), color: statusMessage ? uiTheme.text : uiTheme.textMuted }}>
+                  <div className="max-h-36 overflow-auto whitespace-pre-wrap break-all pr-1">
+                    {statusMessage || t('export.statusIdle')}
+                  </div>
+                  {isErrorStatus && (
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await copyToClipboard(statusMessage || '');
+                          setCopySuccess(ok);
+                          if (ok) {
+                            window.setTimeout(() => setCopySuccess(false), 1200);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border"
+                        style={{ borderColor: `${secondaryThemeColor}55`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
+                      >
+                        {copySuccess ? `${t('common.copy')} ✓` : t('common.copy')}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                  <div className="mt-3 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: rgba(themeColor, 0.16), backgroundColor: rgba(themeColor, isDarkMode ? 0.08 : 0.04), color: uiTheme.textMuted }}>
                    {t('export.previewDiffNotice')}

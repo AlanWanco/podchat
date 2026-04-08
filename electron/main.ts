@@ -39,6 +39,12 @@ function getRemoteAssetCacheDir() {
   return dir;
 }
 
+function getAvatarGifTranscodeDir() {
+  const dir = path.join(os.homedir(), '.config', 'pomchat', 'cache', 'avatar-gif-transcodes');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
 function getPomchatRemotionTempEntries() {
   const tempDir = os.tmpdir();
   if (!fs.existsSync(tempDir)) {
@@ -348,7 +354,9 @@ ipcMain.handle('get-export-paths', async (_event, options) => {
 
 ipcMain.handle('get-render-cache-info', async () => {
   const remoteAssetsDir = getRemoteAssetCacheDir();
+  const avatarGifDir = getAvatarGifTranscodeDir();
   const remoteStats = getPathSizeStats(remoteAssetsDir);
+  const avatarGifStats = getPathSizeStats(avatarGifDir);
 
   const remotionEntries = getPomchatRemotionTempEntries();
   const remotionStats = remotionEntries.reduce((acc, entryPath) => {
@@ -362,8 +370,8 @@ ipcMain.handle('get-render-cache-info', async () => {
   return {
     remoteAssets: {
       path: remoteAssetsDir,
-      files: remoteStats.files,
-      bytes: remoteStats.bytes,
+      files: remoteStats.files + avatarGifStats.files,
+      bytes: remoteStats.bytes + avatarGifStats.bytes,
     },
     remotionTemp: {
       path: os.tmpdir(),
@@ -376,12 +384,14 @@ ipcMain.handle('get-render-cache-info', async () => {
 
 ipcMain.handle('clear-render-cache', async (_event, type: 'remote-assets' | 'remotion-temp') => {
   if (type === 'remote-assets') {
-    const dir = getRemoteAssetCacheDir();
-    if (fs.existsSync(dir)) {
-      for (const name of fs.readdirSync(dir)) {
-        fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    const dirs = [getRemoteAssetCacheDir(), getAvatarGifTranscodeDir()];
+    dirs.forEach((dir) => {
+      if (fs.existsSync(dir)) {
+        for (const name of fs.readdirSync(dir)) {
+          fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+        }
       }
-    }
+    });
     return { cleared: true, type };
   }
 

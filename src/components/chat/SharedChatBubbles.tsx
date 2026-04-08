@@ -86,6 +86,7 @@ const easeOutBack = (t: number): number => {
 const getBubbleMotionState = (progress: number, style: SharedChatLayout['animationStyle'], side: SharedChatSpeaker['side']) => {
   const clamped = clamp(progress, 0, 1);
   const base = easeOutCubic(clamped);
+  const quantize = (value: number) => Math.round(value * 2) / 2;
 
   switch (style) {
     case 'fade':
@@ -93,26 +94,26 @@ const getBubbleMotionState = (progress: number, style: SharedChatLayout['animati
     case 'rise':
       return {
         opacity: clamped,
-        transform: `translate3d(0, ${30 * (1 - base)}px, 0)`,
+        transform: `translate3d(0, ${quantize(30 * (1 - base))}px, 0)`,
         filter: undefined
       };
     case 'pop': {
       const eased = easeOutBack(clamped);
-      const scale = 0.72 + 0.28 * eased;
+      const scale = Math.round((0.72 + 0.28 * eased) * 1000) / 1000;
       return { opacity: clamped, transform: `scale(${scale})`, filter: undefined };
     }
     case 'slide': {
       const direction = side === 'left' ? -1 : side === 'right' ? 1 : 0;
       return {
         opacity: clamped,
-        transform: `translate3d(${direction * 42 * (1 - base)}px, 0, 0)`,
+        transform: `translate3d(${quantize(direction * 42 * (1 - base))}px, 0, 0)`,
         filter: undefined
       };
     }
     case 'blur':
       return {
         opacity: clamped,
-        transform: `translate3d(0, ${16 * (1 - base)}px, 0) scale(${0.96 + 0.04 * base})`,
+        transform: `translate3d(0, ${quantize(16 * (1 - base))}px, 0) scale(${Math.round((0.96 + 0.04 * base) * 1000) / 1000})`,
         filter: `blur(${14 * (1 - base)}px)`
       };
     default:
@@ -209,6 +210,7 @@ export function ChatMessageBubble({
         justifyContent: isLeft ? 'flex-start' : 'flex-end',
         marginBottom: `${margin}px`,
         transform: motionState.transform,
+        transformOrigin: isLeft ? 'left bottom' : 'right bottom',
         opacity: motionState.opacity,
         filter: motionState.filter
       }}
