@@ -413,16 +413,18 @@ const runRender = async (config) => {
 
   try {
     const inputProps = prepareInputProps(config, mediaServer, binariesDirectory);
-    const exportFormat = config.exportFormat === 'mov-alpha' ? 'mov-alpha' : 'mp4';
+    const exportFormat = config.exportFormat === 'mov-alpha' || config.exportFormat === 'webm-alpha' ? config.exportFormat : 'mp4';
     const isMovAlpha = exportFormat === 'mov-alpha';
-    const renderCodec = isMovAlpha ? 'prores' : 'h264';
-    const renderAudioCodec = isMovAlpha ? null : 'aac';
-    const renderPixelFormat = isMovAlpha ? 'yuva444p10le' : 'yuv420p';
-    const renderImageFormat = isMovAlpha ? 'png' : 'jpeg';
-    const renderJpegQuality = isMovAlpha ? undefined : 92;
+    const isWebmAlpha = exportFormat === 'webm-alpha';
+    const isAlphaExport = isMovAlpha || isWebmAlpha;
+    const renderCodec = isMovAlpha ? 'prores' : isWebmAlpha ? 'vp8' : 'h264';
+    const renderAudioCodec = isMovAlpha ? null : isWebmAlpha ? 'opus' : 'aac';
+    const renderPixelFormat = isMovAlpha ? 'yuva444p10le' : isWebmAlpha ? 'yuva420p' : 'yuv420p';
+    const renderImageFormat = isAlphaExport ? 'png' : 'jpeg';
+    const renderJpegQuality = isAlphaExport ? undefined : 92;
 
-    inputProps.transparentBackground = isMovAlpha;
-    if (isMovAlpha) {
+    inputProps.transparentBackground = isAlphaExport;
+    if (isAlphaExport) {
       inputProps.background = {
         ...(inputProps.background || {}),
         image: '',
@@ -480,7 +482,7 @@ const runRender = async (config) => {
       });
 
       sendProgress(0.2, 'Frame-by-frame rendering');
-      const qualityOptions = strategy.hardwareAcceleration === 'disable' && !isMovAlpha
+      const qualityOptions = strategy.hardwareAcceleration === 'disable' && !isAlphaExport
         ? {
             x264Preset: config.x264Preset || 'veryfast',
             crf: config.crf || 20,
@@ -509,7 +511,7 @@ const runRender = async (config) => {
           gl: strategy.gl,
           hardwareAcceleration: strategy.hardwareAcceleration,
         },
-        hardwareAcceleration: isMovAlpha ? 'disable' : strategy.hardwareAcceleration,
+        hardwareAcceleration: isAlphaExport ? 'disable' : strategy.hardwareAcceleration,
         onProgress: ({ progress, stitchStage, renderedFrames, encodedFrames }) => {
           const normalized = Math.max(0, Math.min(1, progress || 0));
           const totalFrames = Math.max(1, composition.durationInFrames || 1);
@@ -522,7 +524,7 @@ const runRender = async (config) => {
           let weightedProgress = 0.2 + Math.max(renderedRatio, normalized * 0.55) * 0.35;
 
           if (stitchStage === 'encoding') {
-            stage = isMovAlpha ? 'Encoding MOV alpha (FFmpeg)' : 'Encoding video (FFmpeg)';
+            stage = isMovAlpha ? 'Encoding MOV alpha (FFmpeg)' : isWebmAlpha ? 'Encoding WebM alpha (FFmpeg)' : 'Encoding video (FFmpeg)';
             weightedProgress = 0.55 + Math.max(encodedRatio, normalized) * 0.4;
           } else if (stitchStage === 'muxing') {
             stage = 'Muxing audio/video';

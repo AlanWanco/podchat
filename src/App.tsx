@@ -30,7 +30,7 @@ type HistorySnapshot = {
   exportRange: { start: number; end: number };
   exportRangeTouched: boolean;
   exportQuality: 'fast' | 'balance' | 'high';
-  exportFormat: 'mp4' | 'mov-alpha';
+  exportFormat: 'mp4' | 'mov-alpha' | 'webm-alpha';
   exportLogEnabled: boolean;
   filenameTemplate: 'default' | 'timestamp' | 'unix' | 'custom';
   customFilename: string;
@@ -129,7 +129,7 @@ const DEFAULT_PROJECT_CONFIG = {
   exportRange: { start: 0, end: 0 },
   exportRangeCustomized: false,
   exportHardware: 'auto' as 'auto' | 'gpu' | 'cpu',
-  exportFormat: 'mp4' as 'mp4' | 'mov-alpha',
+  exportFormat: 'mp4' as 'mp4' | 'mov-alpha' | 'webm-alpha',
   exportLogEnabled: false,
   content: [] as any[],
   speakers: {
@@ -486,7 +486,7 @@ function App() {
   const [renderCacheInfo, setRenderCacheInfo] = useState<RenderCacheInfo | null>(null);
   const [exportQuality, setExportQuality] = useState<'fast' | 'balance' | 'high'>('balance');
   const [exportHardware, setExportHardware] = useState<'auto' | 'gpu' | 'cpu'>('auto');
-  const [exportFormat, setExportFormat] = useState<'mp4' | 'mov-alpha'>('mp4');
+  const [exportFormat, setExportFormat] = useState<'mp4' | 'mov-alpha' | 'webm-alpha'>('mp4');
   const [exportLogEnabled, setExportLogEnabled] = useState(false);
   const [filenameTemplate, setFilenameTemplate] = useState<'default' | 'timestamp' | 'unix' | 'custom'>('default');
   const [customFilename, setCustomFilename] = useState('');
@@ -1543,8 +1543,8 @@ const [previewScale, setPreviewScale] = useState(1);
 
   // Keep preview chat anchored by virtualized render window.
 
-  const generateFilename = (template: 'default' | 'timestamp' | 'unix' | 'custom', customName: string, format: 'mp4' | 'mov-alpha'): string => {
-    const extension = format === 'mov-alpha' ? 'mov' : 'mp4';
+  const generateFilename = (template: 'default' | 'timestamp' | 'unix' | 'custom', customName: string, format: 'mp4' | 'mov-alpha' | 'webm-alpha'): string => {
+    const extension = format === 'mov-alpha' ? 'mov' : format === 'webm-alpha' ? 'webm' : 'mp4';
     if (template === 'custom' && customName.trim()) {
       const name = customName.trim();
       return /\.[A-Za-z0-9]+$/.test(name) ? name : `${name}.${extension}`;
@@ -1698,7 +1698,7 @@ const [previewScale, setPreviewScale] = useState(1);
     markProjectDirty();
   }, [filenameTemplate, markProjectDirty, pushHistorySnapshot]);
 
-  const handleExportFormatChange = useCallback((nextFormat: 'mp4' | 'mov-alpha') => {
+  const handleExportFormatChange = useCallback((nextFormat: 'mp4' | 'mov-alpha' | 'webm-alpha') => {
     if (exportFormat === nextFormat) {
       return;
     }
@@ -1776,7 +1776,7 @@ const [previewScale, setPreviewScale] = useState(1);
     setPersistedCustomFilename((prev) => (prev === nextCustomFilename ? prev : nextCustomFilename));
     const nextHardware = config.exportHardware === 'gpu' || config.exportHardware === 'cpu' ? config.exportHardware : 'auto';
     setExportHardware((prev) => (prev === nextHardware ? prev : nextHardware));
-    const nextFormat = config.exportFormat === 'mov-alpha' ? 'mov-alpha' : 'mp4';
+    const nextFormat = config.exportFormat === 'mov-alpha' || config.exportFormat === 'webm-alpha' ? config.exportFormat : 'mp4';
     setExportFormat((prev) => (prev === nextFormat ? prev : nextFormat));
     setExportLogEnabled((prev) => (prev === Boolean(config.exportLogEnabled) ? prev : Boolean(config.exportLogEnabled)));
   }, [config.exportQuality, config.filenameTemplate, config.customFilename, config.exportHardware, config.exportFormat, config.exportLogEnabled]);
@@ -1840,6 +1840,8 @@ const [previewScale, setPreviewScale] = useState(1);
             ? t('export.stageEncodingFfmpeg')
             : stage === 'Encoding MOV alpha (FFmpeg)'
               ? t('export.stageEncodingMovAlpha')
+            : stage === 'Encoding WebM alpha (FFmpeg)'
+              ? t('export.stageEncodingWebmAlpha')
             : stage === 'Muxing audio/video'
               ? t('export.stageMuxing')
               : stage;

@@ -271,7 +271,7 @@ ipcMain.handle('export-video', async (_event, config) => {
     const exportMetaBase = {
       outputPath,
       outputFilename: path.basename(outputPath),
-      exportType: config?.exportFormat === 'mov-alpha' ? 'mov-alpha' : 'mp4',
+      exportType: config?.exportFormat === 'mov-alpha' || config?.exportFormat === 'webm-alpha' ? config.exportFormat : 'mp4',
       exportQuality: config?.exportQuality || 'balance',
       exportHardware: config?.exportHardware || 'auto',
       exportRange: config?.exportRange || null,
@@ -402,7 +402,7 @@ ipcMain.handle('export-video', async (_event, config) => {
       writeExportLog({
         outputPath,
         outputFilename: path.basename(outputPath),
-        exportType: config?.exportFormat === 'mov-alpha' ? 'mov-alpha' : 'mp4',
+        exportType: config?.exportFormat === 'mov-alpha' || config?.exportFormat === 'webm-alpha' ? config.exportFormat : 'mp4',
         exportQuality: config?.exportQuality || 'balance',
         exportHardware: config?.exportHardware || 'auto',
         exportRange: config?.exportRange || null,

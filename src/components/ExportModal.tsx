@@ -54,7 +54,7 @@ interface ExportModalProps {
   } | null;
   exportQuality?: 'fast' | 'balance' | 'high';
   exportHardware?: 'auto' | 'gpu' | 'cpu';
-  exportFormat?: 'mp4' | 'mov-alpha';
+  exportFormat?: 'mp4' | 'mov-alpha' | 'webm-alpha';
   exportLogEnabled?: boolean;
    filenameTemplate?: 'default' | 'timestamp' | 'unix' | 'custom';
    customFilename?: string;
@@ -68,7 +68,7 @@ interface ExportModalProps {
   onClearRenderCache?: (type: 'remote-assets' | 'remotion-temp') => void | Promise<void>;
   onQualityChange?: (quality: 'fast' | 'balance' | 'high') => void;
   onHardwareChange?: (mode: 'auto' | 'gpu' | 'cpu') => void;
-  onExportFormatChange?: (format: 'mp4' | 'mov-alpha') => void;
+  onExportFormatChange?: (format: 'mp4' | 'mov-alpha' | 'webm-alpha') => void;
   onExportLogEnabledChange?: (enabled: boolean) => void;
   onFilenameTemplateChange?: (template: 'default' | 'timestamp' | 'unix' | 'custom') => void;
   onCustomFilenameChange?: (filename: string) => void;
@@ -434,9 +434,13 @@ export function ExportModal({
 
                   <div className="mt-3">
                     <div className="text-xs font-medium mb-1" style={{ color: uiTheme.text }}>{t('export.format')}</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(['mp4', 'mov-alpha'] as const).map((format) => {
-                        const tooltipKey = format === 'mov-alpha' ? 'export.format.mov-alpha.tip' : 'export.format.mp4.tip';
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['mp4', 'webm-alpha', 'mov-alpha'] as const).map((format) => {
+                        const tooltipKey = format === 'mov-alpha'
+                          ? 'export.format.mov-alpha.tip'
+                          : format === 'webm-alpha'
+                            ? 'export.format.webm-alpha.tip'
+                            : 'export.format.mp4.tip';
                         return (
                           <Tooltip
                             key={format}
@@ -545,9 +549,9 @@ export function ExportModal({
                 <div className="grid gap-2 md:grid-cols-2">
                   {(['default', 'timestamp', 'unix', 'custom'] as const).map((template) => {
                     const filenameExamples: Record<string, string> = {
-                      default: exportFormat === 'mov-alpha' ? 'pomchat.mov' : 'pomchat.mp4',
-                      timestamp: exportFormat === 'mov-alpha' ? 'pomchat_2026-03-28_12-07-03.mov' : 'pomchat_2026-03-28_12-07-03.mp4',
-                      unix: exportFormat === 'mov-alpha' ? 'pomchat_1743192423.mov' : 'pomchat_1743192423.mp4',
+                      default: exportFormat === 'mov-alpha' ? 'pomchat.mov' : exportFormat === 'webm-alpha' ? 'pomchat.webm' : 'pomchat.mp4',
+                      timestamp: exportFormat === 'mov-alpha' ? 'pomchat_2026-03-28_12-07-03.mov' : exportFormat === 'webm-alpha' ? 'pomchat_2026-03-28_12-07-03.webm' : 'pomchat_2026-03-28_12-07-03.mp4',
+                      unix: exportFormat === 'mov-alpha' ? 'pomchat_1743192423.mov' : exportFormat === 'webm-alpha' ? 'pomchat_1743192423.webm' : 'pomchat_1743192423.mp4',
                       custom: ''
                     };
                     const templateButton = (
