@@ -820,9 +820,55 @@ export function SettingsPanel({
                       style={themedRangeStyle}
                     />
                   </div>
-                </div>
-              </div>
-            </div>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs opacity-70">{t('project.maxVisibleBubbles')}</span>
+                      <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{config.chatLayout?.maxVisibleBubbles ?? 3}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="32"
+                      step="1"
+                       value={config.chatLayout?.maxVisibleBubbles ?? 15}
+                       onChange={(e) => updateChatLayout('maxVisibleBubbles', parseInt(e.target.value, 10))}
+                       className="w-full"
+                       style={themedRangeStyle}
+                     />
+                   </div>
+                   <div className="space-y-1.5">
+                     <label className="block text-xs opacity-70">{t('project.showAvatar')}</label>
+                     <button
+                       type="button"
+                       onClick={() => updateChatLayout('showAvatar', !(config.chatLayout?.showAvatar ?? true))}
+                       className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
+                       style={{
+                         backgroundColor: (config.chatLayout?.showAvatar ?? true) ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
+                         borderColor: (config.chatLayout?.showAvatar ?? true) ? `${secondaryThemeColor}55` : uiTheme.border,
+                         color: uiTheme.text,
+                       }}
+                     >
+                       <span>{(config.chatLayout?.showAvatar ?? true) ? t('common.enabled') : t('common.disabled')}</span>
+                     </button>
+                   </div>
+                   <div className="space-y-1.5">
+                     <label className="block text-xs opacity-70">{t('project.showMeta')}</label>
+                     <button
+                       type="button"
+                       onClick={() => updateChatLayout('showMeta', !(config.chatLayout?.showMeta ?? true))}
+                       className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
+                       style={{
+                         backgroundColor: (config.chatLayout?.showMeta ?? true) ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
+                         borderColor: (config.chatLayout?.showMeta ?? true) ? `${secondaryThemeColor}55` : uiTheme.border,
+                         color: uiTheme.text,
+                       }}
+                     >
+                       <span>{(config.chatLayout?.showMeta ?? true) ? t('common.enabled') : t('common.disabled')}</span>
+                     </button>
+                   </div>
+                 </div>
+               </div>
+             </div>
 
             <div className="p-4 rounded-xl border space-y-4 shadow-sm" style={{ backgroundColor: uiTheme.cardBg, borderColor: uiTheme.border, boxShadow: `0 6px 18px ${uiTheme.shadow}` }}>
               <label className="flex items-center gap-2 text-sm font-medium border-b pb-1" style={{ borderColor: uiTheme.border, color: uiTheme.text }}>

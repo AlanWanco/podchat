@@ -93,7 +93,10 @@ const DEFAULT_CHAT_LAYOUT = {
   timestampSize: 16,
   timestampColor: '#FFFFFFA6',
   animationStyle: 'rise',
-  animationDuration: 0.2
+  animationDuration: 0.2,
+  maxVisibleBubbles: 15,
+  showAvatar: true,
+  showMeta: true
 };
 
 const DEFAULT_UI_CONFIG = {
@@ -120,7 +123,7 @@ const DEFAULT_PROJECT_CONFIG = {
     image: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1920&q=80',
     blur: 8,
     brightness: 1,
-    fit: 'cover',
+    fit: 'contain',
     position: 'center'
   },
   audioPath: '',
@@ -1189,28 +1192,40 @@ const [previewScale, setPreviewScale] = useState(1);
     if (window.electron) {
       setRecentProject((prev: string | null) => (prev === ui.recentProject ? prev : ui.recentProject));
     }
-    setPresets((prev: Record<string, any>) => JSON.stringify(prev) === JSON.stringify(ui.presets || {}) ? prev : (ui.presets || {}));
+    setPresets((prev: Record<string, any>) => JSON.stringify(prev) === JSON.stringify(ui.presets || {}) ? prev : (ui.presets || DEFAULT_UI_CONFIG.presets));
   }, [config.ui]);
 
-  useEffect(() => {
+   useEffect(() => {
     setConfig((prev: any) => {
-      const nextUi = {
-        ...(prev.ui || DEFAULT_UI_CONFIG),
-        isDarkMode,
-        themeColor: themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT),
-        secondaryThemeColor: secondaryThemeColorState || DEFAULT_UI_CONFIG.secondaryThemeColor,
-        autoSaveProject,
-        proxy: proxyState.trim(),
-        settingsPosition,
-        recentProject,
-        presets
-      };
-
-      if (JSON.stringify(prev.ui || {}) === JSON.stringify(nextUi)) {
+      const prevUi = prev.ui || DEFAULT_UI_CONFIG;
+      const nextPresets = presets;
+      if (
+        prevUi.isDarkMode === isDarkMode &&
+        prevUi.themeColor === (themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT)) &&
+        prevUi.secondaryThemeColor === (secondaryThemeColorState || DEFAULT_UI_CONFIG.secondaryThemeColor) &&
+        prevUi.autoSaveProject === autoSaveProject &&
+        prevUi.proxy === proxyState.trim() &&
+        prevUi.settingsPosition === settingsPosition &&
+        prevUi.recentProject === recentProject &&
+        prevUi.presets === nextPresets
+      ) {
         return prev;
       }
 
-      return { ...prev, ui: nextUi };
+      return {
+        ...prev,
+        ui: {
+          ...prevUi,
+          isDarkMode,
+          themeColor: themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT),
+          secondaryThemeColor: secondaryThemeColorState || DEFAULT_UI_CONFIG.secondaryThemeColor,
+          autoSaveProject,
+          proxy: proxyState.trim(),
+          settingsPosition,
+          recentProject,
+          presets: nextPresets,
+        },
+      };
     });
   }, [autoSaveProject, isDarkMode, themeColorState, secondaryThemeColorState, proxyState, settingsPosition, recentProject, presets]);
 
@@ -2997,8 +3012,8 @@ const [previewScale, setPreviewScale] = useState(1);
       return previewRenderTime >= appearanceTime;
     });
 
-    return appeared.slice(-MESSAGE_FALLBACK_COUNT);
-  }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, previewRenderTime]);
+    return appeared.slice(-(config.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT));
+  }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, config.chatLayout?.maxVisibleBubbles, previewRenderTime]);
   const latestVisibleMessageId = visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1].id : '';
 
   useEffect(() => {

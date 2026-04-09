@@ -56,7 +56,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
     const appearanceTime = Math.max(0, item.start - ((props.chatLayout?.animationStyle || 'rise') === 'none' ? 0 : animationDuration));
     return currentTime >= appearanceTime;
   });
-  const visibleMessages = appearedMessages.slice(-MESSAGE_FALLBACK_COUNT);
+  const visibleMessages = appearedMessages.slice(-(props.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT));
 
   const visibleAnnotations = sortedContent.filter((item) => {
     const speaker = props.speakers[item.speaker];

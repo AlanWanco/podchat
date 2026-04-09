@@ -77,6 +77,9 @@ export interface PodchatExportInput {
     speakerNameSize?: number;
     animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
     animationDuration?: number;
+    maxVisibleBubbles?: number;
+    showAvatar?: boolean;
+    showMeta?: boolean;
   };
   speakers: Record<string, SpeakerConfig>;
   content: SubtitleContentItem[];

@@ -54,6 +54,8 @@ export interface SharedChatLayout {
   timestampColor?: string;
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
   animationDuration?: number;
+  showAvatar?: boolean;
+  showMeta?: boolean;
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -239,7 +241,7 @@ export function ChatMessageBubble({
           alignItems: 'flex-start'
         }}
       >
-        {speaker.avatar && renderAvatar ? renderAvatar({
+        {speaker.avatar && renderAvatar && (chatLayout?.showAvatar ?? true) ? renderAvatar({
           src: speaker.avatar,
           alt: speaker.name || '',
           style: {
@@ -264,7 +266,7 @@ export function ChatMessageBubble({
             filter: shouldEnableBlockShadow ? speakerBlockShadow : 'none'
           }}
         >
-          {speaker.name ? (
+          {speaker.name && (chatLayout?.showMeta ?? true) ? (
             <div
               style={{
                 display: 'flex',
