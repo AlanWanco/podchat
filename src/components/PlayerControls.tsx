@@ -660,7 +660,7 @@ export const PlayerControls = memo(function PlayerControls({
   }, []);
 
   const textClass = isDarkMode ? "text-gray-400" : "text-gray-600";
-  const showWaveformContainer = Boolean(audioPath && isWaveformReady);
+  const showWaveformContainer = audioPath ? isWaveformReady : true;
   const liveCurrentTime = audioRef.current?.currentTime ?? displayCurrentTime;
   const displayedExportRangeStart = dragPreviewRange?.start ?? exportRangeStart;
   const displayedExportRangeEnd = dragPreviewRange?.end ?? exportRangeEnd;
@@ -691,7 +691,7 @@ export const PlayerControls = memo(function PlayerControls({
           marginBottom: showWaveformContainer ? '0.5rem' : 0
         }}
       >
-          {showWaveformContainer && editingSub && regionTooltip && (
+          {audioPath && showWaveformContainer && editingSub && regionTooltip && (
             <div
               className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 rounded-md text-[10px] font-mono z-[70] pointer-events-none whitespace-nowrap"
               style={{
@@ -704,7 +704,7 @@ export const PlayerControls = memo(function PlayerControls({
               {formatTime(regionTooltip.start)} - {formatTime(regionTooltip.end)}
             </div>
           )}
-          {showWaveformContainer && waveformOverlayMetrics.wrapperWidth > 0 && waveformDuration > 0 && (
+          {audioPath && showWaveformContainer && waveformOverlayMetrics.wrapperWidth > 0 && waveformDuration > 0 && (
             <div className="relative w-full overflow-hidden mb-2" style={{ height: `${Math.max(exportHandleSize + 2, 14)}px` }}>
               <div
                 className="absolute top-1/2 left-0"
@@ -790,13 +790,43 @@ export const PlayerControls = memo(function PlayerControls({
             </div>
           )}
           <div className="w-full overflow-hidden">
-            <div
-              className="w-full cursor-pointer"
-              ref={waveformRef}
-              title={t('player.waveformTitle')}
-              style={{ visibility: isWaveformReady ? 'visible' : 'hidden' }}
-            />
+            {audioPath ? (
+              <div
+                className="w-full cursor-pointer"
+                ref={waveformRef}
+                title={t('player.waveformTitle')}
+                style={{ visibility: isWaveformReady ? 'visible' : 'hidden' }}
+              />
+            ) : (
+              <div
+                className="w-full rounded-md border"
+                style={{
+                  height: `${waveformHeight}px`,
+                  borderColor: rgba(secondaryThemeColor, 0.2),
+                  background: `linear-gradient(180deg, ${rgba(themeColor, isDarkMode ? 0.08 : 0.04)} 0%, ${rgba(themeColor, isDarkMode ? 0.05 : 0.02)} 100%)`,
+                  position: 'relative',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    height: '2px',
+                    backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.65 : 0.5),
+                    borderRadius: 9999,
+                  }}
+                />
+              </div>
+            )}
           </div>
+          {!audioPath && showWaveformContainer && (
+            <div className="mt-1 text-[11px]" style={{ color: uiTheme.textMuted }}>
+              {t('player.noAudioWaveform')}
+            </div>
+          )}
       </div>
 
       {/* Controls Row */}

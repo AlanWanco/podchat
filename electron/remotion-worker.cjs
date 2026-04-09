@@ -415,7 +415,22 @@ const runRender = async (config) => {
     const inputProps = prepareInputProps(config, mediaServer, binariesDirectory);
     const durationSeconds = Math.max(0.1, inputProps.exportRange.end - inputProps.exportRange.start);
 
-  const sendProgress = (progress, stage) => {
+    let lastProgressSentAt = 0;
+    let lastProgressValue = -1;
+    let lastStage = '';
+
+  const sendProgress = (progress, stage, force = false) => {
+    const now = Date.now();
+    const progressChanged = Math.abs(progress - lastProgressValue) >= 0.02;
+    const stageChanged = stage !== lastStage;
+    const intervalPassed = now - lastProgressSentAt >= 160;
+    if (!force && !progressChanged && !stageChanged && !intervalPassed) {
+      return;
+    }
+
+    lastProgressSentAt = now;
+    lastProgressValue = progress;
+    lastStage = stage;
     const elapsedMs = Date.now() - startedAt;
     sendMessage({
       type: 'progress',
@@ -428,7 +443,7 @@ const runRender = async (config) => {
     });
   };
 
-    sendProgress(0.02, 'Bundling Remotion composition');
+    sendProgress(0.02, 'Bundling Remotion composition', true);
     const serveUrl = await getBundle(bundle);
 
     const renderOnce = async (strategy) => {
@@ -447,7 +462,7 @@ const runRender = async (config) => {
         },
       });
 
-      sendProgress(0.2, 'Rendering frames');
+      sendProgress(0.2, 'Frame-by-frame rendering');
       const qualityOptions = strategy.hardwareAcceleration === 'disable'
         ? {
             x264Preset: config.x264Preset || 'veryfast',
@@ -477,8 +492,29 @@ const runRender = async (config) => {
           hardwareAcceleration: strategy.hardwareAcceleration,
         },
         hardwareAcceleration: strategy.hardwareAcceleration,
-        onProgress: ({ progress }) => {
-          sendProgress(0.2 + progress * 0.78, progress >= 1 ? 'Finalizing video' : 'Rendering frames');
+        onProgress: ({ progress, stitchStage, renderedFrames, encodedFrames }) => {
+          const normalized = Math.max(0, Math.min(1, progress || 0));
+          const totalFrames = Math.max(1, composition.durationInFrames || 1);
+          const renderedRatio = Math.max(0, Math.min(1, (renderedFrames || 0) / totalFrames));
+          const encodedRatio = Math.max(0, Math.min(1, (encodedFrames || 0) / totalFrames));
+
+          let stage = 'Frame-by-frame rendering';
+          // Use normalized progress as baseline to avoid long stalls
+          // when encodedFrames updates are sparse on some platforms.
+          let weightedProgress = 0.2 + Math.max(renderedRatio, normalized * 0.55) * 0.35;
+
+          if (stitchStage === 'encoding') {
+            stage = 'Encoding video (FFmpeg)';
+            weightedProgress = 0.55 + Math.max(encodedRatio, normalized) * 0.4;
+          } else if (stitchStage === 'muxing') {
+            stage = 'Muxing audio/video';
+            weightedProgress = 0.95 + normalized * 0.03;
+          } else if (normalized >= 0.99) {
+            stage = 'Finalizing video';
+            weightedProgress = 0.98;
+          }
+
+          sendProgress(Math.max(0.2, Math.min(0.99, weightedProgress)), stage);
         },
       });
 
@@ -502,7 +538,7 @@ const runRender = async (config) => {
 
     const elapsedMs = Date.now() - startedAt;
     const realTimeFactor = elapsedMs / (durationSeconds * 1000);
-    sendProgress(1, 'Done');
+    sendProgress(1, 'Done', true);
     sendMessage({
       type: 'result',
       payload: {

@@ -505,6 +505,7 @@ function App() {
   const [isProjectDirty, setIsProjectDirty] = useState(false);
   const [projectChangeTick, setProjectChangeTick] = useState(0);
   const [speakerReplaceDialog, setSpeakerReplaceDialog] = useState<SpeakerReplaceDialogState | null>(null);
+  const exportProgressActiveRef = useRef(false);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const webAudioInputRef = useRef<HTMLInputElement>(null);
@@ -516,6 +517,12 @@ function App() {
   const previewBackgroundVideoRef = useRef<HTMLVideoElement>(null);
   const subtitleFormat = (config.subtitleFormat || 'ass') as SubtitleFormat;
   const { subtitles, setSubtitles, loading: subtitlesLoading } = useAssSubtitle(config.assPath, config.speakers, webAssContent, config.content, subtitleFormat);
+  const latestSubtitleEnd = useMemo(() => subtitles.reduce((max, item) => Math.max(max, item.end || 0), 0), [subtitles]);
+  const previewTimelineDuration = useMemo(
+    () => Math.max(0, duration || 0, latestSubtitleEnd || 0, exportRange.end || 0),
+    [duration, latestSubtitleEnd, exportRange.end]
+  );
+  const hasAudioSource = Boolean(webAudioObjectUrl || config.audioPath);
   const cloneHistorySnapshot = useCallback((snapshot: HistorySnapshot): HistorySnapshot => JSON.parse(JSON.stringify(snapshot)), []);
   const createHistorySnapshot = useCallback((): HistorySnapshot => ({
     config: JSON.parse(JSON.stringify(config)),
@@ -1358,6 +1365,10 @@ const [previewScale, setPreviewScale] = useState(1);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (!hasAudioSource) {
+      audio.pause();
+      return;
+    }
     if (isPlaying) {
       audio.play().catch((err) => {
         console.error("Audio playback failed:", err);
@@ -1366,7 +1377,7 @@ const [previewScale, setPreviewScale] = useState(1);
     } else {
       audio.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, hasAudioSource]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = playbackRate;
@@ -1413,7 +1424,7 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [projectPath, config.assPath, config.audioPath]);
 
   const handleTimeUpdate = () => {
-    if (!audioRef.current) {
+    if (!audioRef.current || !hasAudioSource) {
       return;
     }
 
@@ -1424,7 +1435,7 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   useEffect(() => {
-    if (!isPlaying || !audioRef.current) {
+    if (!isPlaying || !audioRef.current || !hasAudioSource) {
       return;
     }
 
@@ -1444,7 +1455,43 @@ const [previewScale, setPreviewScale] = useState(1);
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [isPlaying]);
+  }, [isPlaying, hasAudioSource]);
+
+  useEffect(() => {
+    if (!isPlaying || hasAudioSource) {
+      return;
+    }
+
+    let rafId = 0;
+    let lastTickAt = performance.now();
+    const tick = () => {
+      const now = performance.now();
+      const deltaSeconds = Math.max(0, (now - lastTickAt) / 1000);
+      lastTickAt = now;
+
+      setCurrentTime((prev) => {
+        const next = prev + deltaSeconds * playbackRate;
+        if (previewTimelineDuration <= 0) {
+          return prev;
+        }
+        if (next >= previewTimelineDuration) {
+          if (loop) {
+            return 0;
+          }
+          setIsPlaying(false);
+          return previewTimelineDuration;
+        }
+        return next;
+      });
+
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [isPlaying, hasAudioSource, playbackRate, previewTimelineDuration, loop]);
 
   useEffect(() => {
     const now = performance.now();
@@ -1531,14 +1578,16 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const calculateCRF = (quality: 'fast' | 'balance' | 'high'): number => {
-    if (quality === 'fast') return 23;
-    if (quality === 'high') return 18;
+    // fast = high compression ratio (smaller file, slower encode)
+    if (quality === 'fast') return 28;
+    // high = minimal compression (larger file, faster encode)
+    if (quality === 'high') return 14;
     return 20;
   };
 
   const calculateX264Preset = (quality: 'fast' | 'balance' | 'high'): 'ultrafast' | 'veryfast' | 'fast' => {
-    if (quality === 'fast') return 'ultrafast';
-    if (quality === 'high') return 'fast';
+    if (quality === 'fast') return 'fast';
+    if (quality === 'high') return 'ultrafast';
     return 'veryfast';
   };
 
@@ -1741,12 +1790,26 @@ const [previewScale, setPreviewScale] = useState(1);
     }
 
     const unsubscribe = window.electron.onExportProgress((payload) => {
-      setExportProgress(payload);
+      if (!exportProgressActiveRef.current) {
+        return;
+      }
+      const stage = payload.stage;
+      const normalizedStage = stage === 'Rendering frames'
+        ? t('export.stageRendering')
+        : stage === 'Frame-by-frame rendering'
+          ? t('export.stageFrameByFrame')
+        : stage === 'Encoding video'
+          ? t('export.stageEncoding')
+          : stage === 'Encoding video (FFmpeg)'
+            ? t('export.stageEncodingFfmpeg')
+            : stage === 'Muxing audio/video'
+              ? t('export.stageMuxing')
+              : stage;
+      setExportProgress({ ...payload, stage: normalizedStage });
     });
 
-    void loadExportPaths();
     return unsubscribe;
-  }, [loadExportPaths]);
+  }, [t]);
 
   const handleOpenExportModal = useCallback(async () => {
     if (!window.electron) {
@@ -1823,6 +1886,7 @@ const [previewScale, setPreviewScale] = useState(1);
     }
 
     setIsExporting(true);
+    exportProgressActiveRef.current = true;
     setLastExportOutputPath(trimmedPath);
     setLastExportSucceeded(false);
     setExportProgress({ progress: 0, elapsedMs: 0, estimatedRemainingMs: null, stage: t('export.preparing') });
@@ -1859,6 +1923,7 @@ const [previewScale, setPreviewScale] = useState(1);
       showToast(errorMsg);
     } finally {
       setIsExporting(false);
+      exportProgressActiveRef.current = false;
     }
   }, [exportOutputPath, exportRange, exportQuality, filenameTemplate, customFilename, getExportConfig, showToast, t, generateFilename, calculateCRF, calculateX264Preset]);
 
