@@ -45,6 +45,32 @@ function getAvatarGifTranscodeDir() {
   return dir;
 }
 
+function getExportLogDir() {
+  const dir = path.join(os.homedir(), '.config', 'pomchat', 'export-logs');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function collectMediaFiles(config: any) {
+  const speakerAvatars = Object.entries(config?.speakers || {})
+    .map(([speakerId, speaker]: [string, any]) => ({ speakerId, path: speaker?.avatar || '' }))
+    .filter((entry) => entry.path);
+
+  return {
+    subtitle: config?.assPath || '',
+    audio: config?.audioPath || '',
+    background: config?.background?.image || '',
+    speakerAvatars,
+  };
+}
+
+function writeExportLog(entry: Record<string, unknown>) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filePath = path.join(getExportLogDir(), `export-${timestamp}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf-8');
+  return filePath;
+}
+
 function getPomchatRemotionTempEntries() {
   const tempDir = os.tmpdir();
   if (!fs.existsSync(tempDir)) {
@@ -233,6 +259,7 @@ ipcMain.handle('ping', () => 'pong');
 
 ipcMain.handle('export-video', async (_event, config) => {
   const outputPath = typeof config?.outputPath === 'string' ? config.outputPath : '';
+  const exportStartedAt = Date.now();
   if (!outputPath) {
     return {
       success: false,
@@ -241,6 +268,24 @@ ipcMain.handle('export-video', async (_event, config) => {
   }
 
   try {
+    const exportMetaBase = {
+      outputPath,
+      outputFilename: path.basename(outputPath),
+      exportType: config?.exportFormat === 'mov-alpha' ? 'mov-alpha' : 'mp4',
+      exportQuality: config?.exportQuality || 'balance',
+      exportHardware: config?.exportHardware || 'auto',
+      exportRange: config?.exportRange || null,
+      exportDurationSeconds: typeof config?.exportRange?.start === 'number' && typeof config?.exportRange?.end === 'number'
+        ? Math.max(0, config.exportRange.end - config.exportRange.start)
+        : null,
+      dimensions: config?.dimensions || null,
+      fps: config?.fps || null,
+      mediaFiles: collectMediaFiles(config),
+      projectTitle: config?.projectTitle || '',
+      subtitleCount: Array.isArray(config?.content) ? config.content.length : 0,
+      startedAt: new Date(exportStartedAt).toISOString(),
+    };
+
     const workerPath = path.join(process.env.APP_ROOT || process.cwd(), 'electron', 'remotion-worker.cjs');
     if (!fs.existsSync(workerPath)) {
       return {
@@ -287,7 +332,13 @@ ipcMain.handle('export-video', async (_event, config) => {
 
         if (message.type === 'result') {
           clearTimeout(timeout);
-          resolve(message.payload);
+          resolve({
+            ...message.payload,
+            workerDetails: {
+              stdout: workerStdOut.trim() || null,
+              stderr: workerStdErr.trim() || null,
+            },
+          });
           worker.kill();
           return;
         }
@@ -323,7 +374,9 @@ ipcMain.handle('export-video', async (_event, config) => {
       });
     });
 
-    return {
+    const workerDetails = result?.workerDetails || null;
+
+    const successPayload = {
       success: true,
       placeholder: false,
       outputPath: result.outputPath,
@@ -331,7 +384,43 @@ ipcMain.handle('export-video', async (_event, config) => {
       realTimeFactor: result.realTimeFactor,
       message: result.message,
     };
+    if (config?.exportLogEnabled) {
+      writeExportLog({
+        ...exportMetaBase,
+        success: true,
+        finishedAt: new Date().toISOString(),
+        elapsedMs: result.elapsedMs ?? Date.now() - exportStartedAt,
+        realTimeFactor: result.realTimeFactor ?? null,
+        resultMessage: result.message || '',
+        workerStdOut: workerDetails?.stdout ?? null,
+        workerStdErr: workerDetails?.stderr ?? null,
+      });
+    }
+    return successPayload;
   } catch (error: any) {
+    if (config?.exportLogEnabled) {
+      writeExportLog({
+        outputPath,
+        outputFilename: path.basename(outputPath),
+        exportType: config?.exportFormat === 'mov-alpha' ? 'mov-alpha' : 'mp4',
+        exportQuality: config?.exportQuality || 'balance',
+        exportHardware: config?.exportHardware || 'auto',
+        exportRange: config?.exportRange || null,
+        exportDurationSeconds: typeof config?.exportRange?.start === 'number' && typeof config?.exportRange?.end === 'number'
+          ? Math.max(0, config.exportRange.end - config.exportRange.start)
+          : null,
+        dimensions: config?.dimensions || null,
+        fps: config?.fps || null,
+        mediaFiles: collectMediaFiles(config),
+        projectTitle: config?.projectTitle || '',
+        subtitleCount: Array.isArray(config?.content) ? config.content.length : 0,
+        startedAt: new Date(exportStartedAt).toISOString(),
+        finishedAt: new Date().toISOString(),
+        elapsedMs: Date.now() - exportStartedAt,
+        success: false,
+        error: error?.message || 'Export failed',
+      });
+    }
     return {
       success: false,
       error: error?.message || 'Export failed',

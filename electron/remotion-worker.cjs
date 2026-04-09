@@ -413,6 +413,23 @@ const runRender = async (config) => {
 
   try {
     const inputProps = prepareInputProps(config, mediaServer, binariesDirectory);
+    const exportFormat = config.exportFormat === 'mov-alpha' ? 'mov-alpha' : 'mp4';
+    const isMovAlpha = exportFormat === 'mov-alpha';
+    const renderCodec = isMovAlpha ? 'prores' : 'h264';
+    const renderAudioCodec = isMovAlpha ? null : 'aac';
+    const renderPixelFormat = isMovAlpha ? 'yuva444p10le' : 'yuv420p';
+    const renderImageFormat = isMovAlpha ? 'png' : 'jpeg';
+    const renderJpegQuality = isMovAlpha ? undefined : 92;
+
+    inputProps.transparentBackground = isMovAlpha;
+    if (isMovAlpha) {
+      inputProps.background = {
+        ...(inputProps.background || {}),
+        image: '',
+        blur: 0,
+        brightness: 1,
+      };
+    }
     const durationSeconds = Math.max(0.1, inputProps.exportRange.end - inputProps.exportRange.start);
 
     let lastProgressSentAt = 0;
@@ -463,7 +480,7 @@ const runRender = async (config) => {
       });
 
       sendProgress(0.2, 'Frame-by-frame rendering');
-      const qualityOptions = strategy.hardwareAcceleration === 'disable'
+      const qualityOptions = strategy.hardwareAcceleration === 'disable' && !isMovAlpha
         ? {
             x264Preset: config.x264Preset || 'veryfast',
             crf: config.crf || 20,
@@ -473,17 +490,18 @@ const runRender = async (config) => {
       await renderMedia({
         serveUrl,
         composition,
-        codec: 'h264',
-        audioCodec: 'aac',
+        codec: renderCodec,
+        proResProfile: isMovAlpha ? '4444' : undefined,
+        audioCodec: renderAudioCodec,
         outputLocation: config.outputPath,
         inputProps,
         overwrite: true,
         logLevel: 'error',
         concurrency: getRenderConcurrency(),
-        imageFormat: 'jpeg',
-        jpegQuality: 92,
+        imageFormat: renderImageFormat,
+        jpegQuality: renderJpegQuality,
         ...qualityOptions,
-        pixelFormat: 'yuv420p',
+        pixelFormat: renderPixelFormat,
         binariesDirectory,
         browserExecutable,
         chromiumOptions: {
@@ -491,7 +509,7 @@ const runRender = async (config) => {
           gl: strategy.gl,
           hardwareAcceleration: strategy.hardwareAcceleration,
         },
-        hardwareAcceleration: strategy.hardwareAcceleration,
+        hardwareAcceleration: isMovAlpha ? 'disable' : strategy.hardwareAcceleration,
         onProgress: ({ progress, stitchStage, renderedFrames, encodedFrames }) => {
           const normalized = Math.max(0, Math.min(1, progress || 0));
           const totalFrames = Math.max(1, composition.durationInFrames || 1);
@@ -504,7 +522,7 @@ const runRender = async (config) => {
           let weightedProgress = 0.2 + Math.max(renderedRatio, normalized * 0.55) * 0.35;
 
           if (stitchStage === 'encoding') {
-            stage = 'Encoding video (FFmpeg)';
+            stage = isMovAlpha ? 'Encoding MOV alpha (FFmpeg)' : 'Encoding video (FFmpeg)';
             weightedProgress = 0.55 + Math.max(encodedRatio, normalized) * 0.4;
           } else if (stitchStage === 'muxing') {
             stage = 'Muxing audio/video';

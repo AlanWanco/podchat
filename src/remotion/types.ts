@@ -50,6 +50,7 @@ export interface SpeakerConfig {
 
 export interface PodchatExportInput {
   projectTitle?: string;
+  transparentBackground?: boolean;
   fps: number;
   dimensions: {
     width: number;

@@ -54,6 +54,8 @@ interface ExportModalProps {
   } | null;
   exportQuality?: 'fast' | 'balance' | 'high';
   exportHardware?: 'auto' | 'gpu' | 'cpu';
+  exportFormat?: 'mp4' | 'mov-alpha';
+  exportLogEnabled?: boolean;
    filenameTemplate?: 'default' | 'timestamp' | 'unix' | 'custom';
    customFilename?: string;
    onClose: () => void;
@@ -66,6 +68,8 @@ interface ExportModalProps {
   onClearRenderCache?: (type: 'remote-assets' | 'remotion-temp') => void | Promise<void>;
   onQualityChange?: (quality: 'fast' | 'balance' | 'high') => void;
   onHardwareChange?: (mode: 'auto' | 'gpu' | 'cpu') => void;
+  onExportFormatChange?: (format: 'mp4' | 'mov-alpha') => void;
+  onExportLogEnabledChange?: (enabled: boolean) => void;
   onFilenameTemplateChange?: (template: 'default' | 'timestamp' | 'unix' | 'custom') => void;
   onCustomFilenameChange?: (filename: string) => void;
 }
@@ -153,6 +157,8 @@ export function ExportModal({
   renderCacheInfo,
   exportQuality = 'balance',
   exportHardware = 'auto',
+  exportFormat = 'mp4',
+  exportLogEnabled = false,
   filenameTemplate = 'default',
   customFilename = '',
   onClose,
@@ -165,6 +171,8 @@ export function ExportModal({
   onClearRenderCache,
   onQualityChange,
   onHardwareChange,
+  onExportFormatChange,
+  onExportLogEnabledChange,
   onFilenameTemplateChange,
   onCustomFilenameChange
 }: ExportModalProps) {
@@ -401,8 +409,8 @@ export function ExportModal({
                   ))}
                  </div>
 
-                 <div className="mt-3">
-                   <div className="text-xs font-medium mb-1" style={{ color: uiTheme.text }}>{t('export.hardware')}</div>
+                  <div className="mt-3">
+                    <div className="text-xs font-medium mb-1" style={{ color: uiTheme.text }}>{t('export.hardware')}</div>
                    <div className="grid grid-cols-3 gap-2">
                      {(['auto', 'gpu', 'cpu'] as const).map((mode) => (
                        <button
@@ -421,9 +429,65 @@ export function ExportModal({
                        </button>
                      ))}
                    </div>
-                   <div className="text-[11px] mt-1" style={{ color: uiTheme.textMuted }}>{t('export.hardwareHint')}</div>
-                 </div>
-               </section>
+                    <div className="text-[11px] mt-1" style={{ color: uiTheme.textMuted }}>{t('export.hardwareHint')}</div>
+                  </div>
+
+                  <div className="mt-3">
+                    <div className="text-xs font-medium mb-1" style={{ color: uiTheme.text }}>{t('export.format')}</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['mp4', 'mov-alpha'] as const).map((format) => {
+                        const tooltipKey = format === 'mov-alpha' ? 'export.format.mov-alpha.tip' : 'export.format.mp4.tip';
+                        return (
+                          <Tooltip
+                            key={format}
+                            content={t(tooltipKey)}
+                            placement="top"
+                            width={260}
+                            backgroundColor={isDarkMode ? 'rgba(17, 24, 39, 0.82)' : 'rgba(255, 255, 255, 0.9)'}
+                            borderColor={rgba(secondaryThemeColor, 0.24)}
+                            textColor={uiTheme.text}
+                            className="block"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => onExportFormatChange?.(format)}
+                              disabled={isExporting}
+                              className="w-full rounded-xl px-2.5 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                              style={{
+                                backgroundColor: exportFormat === format ? rgba(secondaryThemeColor, 0.18) : rgba(themeColor, isDarkMode ? 0.08 : 0.04),
+                                color: exportFormat === format ? secondaryThemeColor : uiTheme.text,
+                                border: `1px solid ${exportFormat === format ? rgba(secondaryThemeColor, 0.24) : uiTheme.border}`
+                              }}
+                            >
+                              {t(`export.format.${format}`)}
+                            </button>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                    <div className="text-[11px] mt-1" style={{ color: uiTheme.textMuted }}>{t('export.formatHint')}</div>
+                  </div>
+
+                  <div className="mt-3 rounded-2xl border px-3 py-3" style={{ borderColor: uiTheme.border, backgroundColor: rgba(themeColor, isDarkMode ? 0.06 : 0.03) }}>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={exportLogEnabled}
+                        onChange={(event) => onExportLogEnabledChange?.(event.target.checked)}
+                        disabled={isExporting}
+                        className="mt-0.5 h-4 w-4 rounded border"
+                        style={{ accentColor: secondaryThemeColor }}
+                      />
+                      <div>
+                        <div className="text-xs font-medium" style={{ color: uiTheme.text }}>{t('export.logEnabled')}</div>
+                        <div className="text-[11px] mt-1" style={{ color: uiTheme.textMuted }}>{t('export.logEnabledHint')}</div>
+                        <div className="text-[11px] mt-1 font-mono break-all" style={{ color: secondaryThemeColor }}>
+                          {t('export.logPath')}: `~/.config/pomchat/export-logs/`
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </section>
 
               {window.electron && renderCacheInfo ? (
                 <section className="rounded-2xl border p-4" style={{ borderColor: rgba(secondaryThemeColor, 0.2), backgroundColor: rgba(secondaryThemeColor, isDarkMode ? 0.08 : 0.04) }}>
@@ -481,9 +545,9 @@ export function ExportModal({
                 <div className="grid gap-2 md:grid-cols-2">
                   {(['default', 'timestamp', 'unix', 'custom'] as const).map((template) => {
                     const filenameExamples: Record<string, string> = {
-                      default: 'pomchat.mp4',
-                      timestamp: 'pomchat_2026-03-28_12-07-03.mp4',
-                      unix: 'pomchat_1743192423.mp4',
+                      default: exportFormat === 'mov-alpha' ? 'pomchat.mov' : 'pomchat.mp4',
+                      timestamp: exportFormat === 'mov-alpha' ? 'pomchat_2026-03-28_12-07-03.mov' : 'pomchat_2026-03-28_12-07-03.mp4',
+                      unix: exportFormat === 'mov-alpha' ? 'pomchat_1743192423.mov' : 'pomchat_1743192423.mp4',
                       custom: ''
                     };
                     const templateButton = (

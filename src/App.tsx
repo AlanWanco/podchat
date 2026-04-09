@@ -30,6 +30,8 @@ type HistorySnapshot = {
   exportRange: { start: number; end: number };
   exportRangeTouched: boolean;
   exportQuality: 'fast' | 'balance' | 'high';
+  exportFormat: 'mp4' | 'mov-alpha';
+  exportLogEnabled: boolean;
   filenameTemplate: 'default' | 'timestamp' | 'unix' | 'custom';
   customFilename: string;
   persistedCustomFilename: string;
@@ -127,6 +129,8 @@ const DEFAULT_PROJECT_CONFIG = {
   exportRange: { start: 0, end: 0 },
   exportRangeCustomized: false,
   exportHardware: 'auto' as 'auto' | 'gpu' | 'cpu',
+  exportFormat: 'mp4' as 'mp4' | 'mov-alpha',
+  exportLogEnabled: false,
   content: [] as any[],
   speakers: {
     A: {
@@ -482,6 +486,8 @@ function App() {
   const [renderCacheInfo, setRenderCacheInfo] = useState<RenderCacheInfo | null>(null);
   const [exportQuality, setExportQuality] = useState<'fast' | 'balance' | 'high'>('balance');
   const [exportHardware, setExportHardware] = useState<'auto' | 'gpu' | 'cpu'>('auto');
+  const [exportFormat, setExportFormat] = useState<'mp4' | 'mov-alpha'>('mp4');
+  const [exportLogEnabled, setExportLogEnabled] = useState(false);
   const [filenameTemplate, setFilenameTemplate] = useState<'default' | 'timestamp' | 'unix' | 'custom'>('default');
   const [customFilename, setCustomFilename] = useState('');
   const [persistedCustomFilename, setPersistedCustomFilename] = useState('');
@@ -531,10 +537,12 @@ function App() {
     exportRange: JSON.parse(JSON.stringify(exportRange)),
     exportRangeTouched: exportRangeTouchedRef.current,
     exportQuality,
+    exportFormat,
+    exportLogEnabled,
     filenameTemplate,
     customFilename,
     persistedCustomFilename,
-  }), [config, subtitles, webAssContent, exportRange, exportQuality, filenameTemplate, customFilename, persistedCustomFilename]);
+  }), [config, subtitles, webAssContent, exportRange, exportQuality, exportFormat, exportLogEnabled, filenameTemplate, customFilename, persistedCustomFilename]);
   const syncHistoryAvailability = useCallback(() => {
     setCanUndo(historyPastRef.current.length > 0);
     setCanRedo(historyFutureRef.current.length > 0);
@@ -571,6 +579,8 @@ function App() {
     exportRangeTouchedRef.current = snapshot.exportRangeTouched;
     setExportRange(snapshot.exportRange);
     setExportQuality(snapshot.exportQuality);
+    setExportFormat(snapshot.exportFormat);
+    setExportLogEnabled(snapshot.exportLogEnabled);
     setFilenameTemplate(snapshot.filenameTemplate);
     setCustomFilename(snapshot.customFilename);
     setPersistedCustomFilename(snapshot.persistedCustomFilename);
@@ -1533,10 +1543,11 @@ const [previewScale, setPreviewScale] = useState(1);
 
   // Keep preview chat anchored by virtualized render window.
 
-  const generateFilename = (template: 'default' | 'timestamp' | 'unix' | 'custom', customName: string): string => {
+  const generateFilename = (template: 'default' | 'timestamp' | 'unix' | 'custom', customName: string, format: 'mp4' | 'mov-alpha'): string => {
+    const extension = format === 'mov-alpha' ? 'mov' : 'mp4';
     if (template === 'custom' && customName.trim()) {
       const name = customName.trim();
-      return name.endsWith('.mp4') ? name : `${name}.mp4`;
+      return /\.[A-Za-z0-9]+$/.test(name) ? name : `${name}.${extension}`;
     }
 
     const now = new Date();
@@ -1545,12 +1556,12 @@ const [previewScale, setPreviewScale] = useState(1);
     const unixTime = Math.floor(now.getTime() / 1000);
 
     if (template === 'timestamp') {
-      return `pomchat_${dateStr}_${timeStr}.mp4`;
+      return `pomchat_${dateStr}_${timeStr}.${extension}`;
     }
     if (template === 'unix') {
-      return `pomchat_${unixTime}.mp4`;
+      return `pomchat_${unixTime}.${extension}`;
     }
-    return 'pomchat.mp4';
+    return `pomchat.${extension}`;
   };
 
   const normalizeExportDirectory = (rawPath: string) => {
@@ -1687,6 +1698,24 @@ const [previewScale, setPreviewScale] = useState(1);
     markProjectDirty();
   }, [filenameTemplate, markProjectDirty, pushHistorySnapshot]);
 
+  const handleExportFormatChange = useCallback((nextFormat: 'mp4' | 'mov-alpha') => {
+    if (exportFormat === nextFormat) {
+      return;
+    }
+    pushHistorySnapshot();
+    setExportFormat(nextFormat);
+    markProjectDirty();
+  }, [exportFormat, markProjectDirty, pushHistorySnapshot]);
+
+  const handleExportLogEnabledChange = useCallback((nextEnabled: boolean) => {
+    if (exportLogEnabled === nextEnabled) {
+      return;
+    }
+    pushHistorySnapshot();
+    setExportLogEnabled(nextEnabled);
+    markProjectDirty();
+  }, [exportLogEnabled, markProjectDirty, pushHistorySnapshot]);
+
   const handleCustomFilenameChange = useCallback((nextFilename: string) => {
     if (customFilename === nextFilename) {
       return;
@@ -1747,7 +1776,10 @@ const [previewScale, setPreviewScale] = useState(1);
     setPersistedCustomFilename((prev) => (prev === nextCustomFilename ? prev : nextCustomFilename));
     const nextHardware = config.exportHardware === 'gpu' || config.exportHardware === 'cpu' ? config.exportHardware : 'auto';
     setExportHardware((prev) => (prev === nextHardware ? prev : nextHardware));
-  }, [config.exportQuality, config.filenameTemplate, config.customFilename, config.exportHardware]);
+    const nextFormat = config.exportFormat === 'mov-alpha' ? 'mov-alpha' : 'mp4';
+    setExportFormat((prev) => (prev === nextFormat ? prev : nextFormat));
+    setExportLogEnabled((prev) => (prev === Boolean(config.exportLogEnabled) ? prev : Boolean(config.exportLogEnabled)));
+  }, [config.exportQuality, config.filenameTemplate, config.customFilename, config.exportHardware, config.exportFormat, config.exportLogEnabled]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1765,10 +1797,12 @@ const [previewScale, setPreviewScale] = useState(1);
       const sameExportRangeCustomized = Boolean(prev.exportRangeCustomized) === exportRangeTouchedRef.current;
       const sameQuality = prev.exportQuality === exportQuality;
       const sameHardware = prev.exportHardware === exportHardware;
+      const sameFormat = prev.exportFormat === exportFormat;
+      const sameLogEnabled = Boolean(prev.exportLogEnabled) === exportLogEnabled;
       const sameTemplate = prev.filenameTemplate === filenameTemplate;
       const sameCustomFilename = prev.customFilename === persistedCustomFilename;
 
-      if (sameExportRange && sameExportRangeCustomized && sameQuality && sameHardware && sameTemplate && sameCustomFilename) {
+      if (sameExportRange && sameExportRangeCustomized && sameQuality && sameHardware && sameFormat && sameLogEnabled && sameTemplate && sameCustomFilename) {
         return prev;
       }
 
@@ -1778,11 +1812,13 @@ const [previewScale, setPreviewScale] = useState(1);
         exportRangeCustomized: exportRangeTouchedRef.current,
         exportQuality,
         exportHardware,
+        exportFormat,
+        exportLogEnabled,
         filenameTemplate,
         customFilename: persistedCustomFilename
       };
     });
-  }, [exportRange, exportQuality, exportHardware, filenameTemplate, persistedCustomFilename]);
+  }, [exportRange, exportQuality, exportHardware, exportFormat, exportLogEnabled, filenameTemplate, persistedCustomFilename]);
 
   useEffect(() => {
     if (!window.electron) {
@@ -1802,6 +1838,8 @@ const [previewScale, setPreviewScale] = useState(1);
           ? t('export.stageEncoding')
           : stage === 'Encoding video (FFmpeg)'
             ? t('export.stageEncodingFfmpeg')
+            : stage === 'Encoding MOV alpha (FFmpeg)'
+              ? t('export.stageEncodingMovAlpha')
             : stage === 'Muxing audio/video'
               ? t('export.stageMuxing')
               : stage;
@@ -1877,7 +1915,7 @@ const [previewScale, setPreviewScale] = useState(1);
       return;
     }
 
-    const filename = generateFilename(filenameTemplate, customFilename);
+    const filename = generateFilename(filenameTemplate, customFilename, exportFormat);
     trimmedPath = applyFilenameTemplateToPath(trimmedPath, filename);
 
     if (exportRange.end <= exportRange.start) {
@@ -1902,6 +1940,8 @@ const [previewScale, setPreviewScale] = useState(1);
         exportRange,
         exportQuality,
         exportHardware,
+        exportFormat,
+        exportLogEnabled,
         crf,
         x264Preset: preset
       });
@@ -1925,7 +1965,7 @@ const [previewScale, setPreviewScale] = useState(1);
       setIsExporting(false);
       exportProgressActiveRef.current = false;
     }
-  }, [exportOutputPath, exportRange, exportQuality, filenameTemplate, customFilename, getExportConfig, showToast, t, generateFilename, calculateCRF, calculateX264Preset]);
+  }, [exportOutputPath, exportRange, exportQuality, exportHardware, exportFormat, exportLogEnabled, filenameTemplate, customFilename, getExportConfig, showToast, t, generateFilename, calculateCRF, calculateX264Preset]);
 
   const handleRevealExport = useCallback(async () => {
     const targetPath = lastExportOutputPath || exportOutputPath.trim();
@@ -3855,10 +3895,12 @@ const [previewScale, setPreviewScale] = useState(1);
          progress={exportProgress}
          statusMessage={exportStatusMessage}
          renderCacheInfo={renderCacheInfo}
-            exportQuality={exportQuality}
-            exportHardware={exportHardware}
-            filenameTemplate={filenameTemplate}
-            customFilename={customFilename}
+         exportQuality={exportQuality}
+         exportHardware={exportHardware}
+         exportFormat={exportFormat}
+         exportLogEnabled={exportLogEnabled}
+         filenameTemplate={filenameTemplate}
+         customFilename={customFilename}
           onClose={() => {
            if (!isExporting) {
              setShowExportModal(false);
@@ -3867,10 +3909,12 @@ const [previewScale, setPreviewScale] = useState(1);
          onOutputPathChange={setExportOutputPath}
          onChoosePath={handleChooseExportPath}
          onQuickSave={() => setExportOutputPath(quickSavePath)}
-          onRangeChange={updateExportRange}
-          onQualityChange={handleExportQualityChange}
-          onHardwareChange={setExportHardware}
-          onFilenameTemplateChange={handleFilenameTemplateChange}
+         onRangeChange={updateExportRange}
+         onQualityChange={handleExportQualityChange}
+         onHardwareChange={setExportHardware}
+         onExportFormatChange={handleExportFormatChange}
+         onExportLogEnabledChange={handleExportLogEnabledChange}
+         onFilenameTemplateChange={handleFilenameTemplateChange}
          onCustomFilenameChange={handleCustomFilenameChange}
          onStartExport={handleStartExport}
          onRevealOutput={handleRevealExport}

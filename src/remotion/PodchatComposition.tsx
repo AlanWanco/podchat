@@ -65,8 +65,10 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const topAnnotations = visibleAnnotations.filter((item) => props.speakers[item.speaker]?.style?.annotationPosition === 'top');
   const bottomAnnotations = visibleAnnotations.filter((item) => (props.speakers[item.speaker]?.style?.annotationPosition ?? 'bottom') === 'bottom');
 
+  const baseBackgroundColor = props.transparentBackground ? 'rgba(0,0,0,0)' : '#111111';
+
   return (
-    <AbsoluteFill style={{ backgroundColor: '#111111', overflow: 'hidden', fontFamily: 'system-ui' }}>
+    <AbsoluteFill style={{ backgroundColor: baseBackgroundColor, overflow: 'hidden', fontFamily: 'system-ui' }}>
       {props.background?.image ? (
         <AbsoluteFill>
           {/\.gif(\?|$)/i.test(props.background.image) ? (
@@ -118,7 +120,9 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
           )}
         </AbsoluteFill>
       ) : null}
-      <AbsoluteFill style={{ backgroundColor: props.background?.image ? 'rgba(0,0,0,0.06)' : '#111111' }} />
+      {!props.transparentBackground && (
+        <AbsoluteFill style={{ backgroundColor: props.background?.image ? 'rgba(0,0,0,0.06)' : '#111111' }} />
+      )}
 
       {props.audioPath ? (
         <Sequence from={0}>
