@@ -56,6 +56,8 @@ export interface SharedChatLayout {
   animationDuration?: number;
   showAvatar?: boolean;
   showMeta?: boolean;
+  compactMode?: boolean;
+  compactSpacing?: number;
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -154,6 +156,8 @@ interface ChatMessageBubbleProps {
   layoutScale: number;
   chatLayout?: SharedChatLayout;
   fallbackAvatarBorderColor?: string;
+  prevSpeakerId?: string;
+  nextSpeakerId?: string;
   renderAvatar?: (args: { src: string; alt: string; style: React.CSSProperties }) => React.ReactNode;
   renderBubble: (args: BubbleRenderArgs) => React.ReactNode;
 }
@@ -166,6 +170,8 @@ export function ChatMessageBubble({
   layoutScale,
   chatLayout,
   fallbackAvatarBorderColor = '#ffffff',
+  prevSpeakerId,
+  nextSpeakerId,
   renderAvatar,
   renderBubble
 }: ChatMessageBubbleProps) {
@@ -183,18 +189,60 @@ export function ChatMessageBubble({
     ? { opacity: 1, transform: undefined, filter: undefined }
     : getBubbleMotionState(currentProgress, animationStyle, speaker.side);
 
+  // Compact mode context
+  const compactMode = chatLayout?.compactMode ?? false;
+  const speakerId = item.speakerId;
+  const isSameAsPrev = compactMode && prevSpeakerId === speakerId;
+  const isSameAsNext = compactMode && nextSpeakerId === speakerId;
+
   const fallbackBg = speaker.theme === 'dark' ? '#2563eb' : '#ffffff';
   const fallbackText = speaker.theme === 'dark' ? '#ffffff' : '#111827';
   const bgColor = speaker.style?.bgColor || fallbackBg;
   const textColor = speaker.style?.textColor || fallbackText;
   const borderColor = speaker.style?.borderColor || '#ffffff';
   const borderOpacity = speaker.style?.borderOpacity ?? 1;
+
+  // Compact mode corner logic (Telegram-style):
+  // - The corner closest to the avatar (top-left for isLeft, top-right for !isLeft) is sharp when
+  //   this message follows a same-speaker message (isSameAsPrev).
+  // - The corner closest to the avatar at the bottom (bottom-left for isLeft, bottom-right for !isLeft)
+  //   is sharp when the next message is also from the same speaker (isSameAsNext).
   const radius = snapPx((speaker.style?.borderRadius ?? 28) * combinedScale);
-  const sharpCornerRadius = Math.max(3, snapPx(4 * combinedScale));
-  const topLeftRadius = isLeft ? sharpCornerRadius : radius;
-  const topRightRadius = isLeft ? radius : sharpCornerRadius;
+  const sharpCornerRadius = compactMode ? Math.max(3, snapPx(4 * combinedScale)) : Math.max(3, snapPx(4 * combinedScale));
+
+  let topLeftRadius: number;
+  let topRightRadius: number;
+  let bottomLeftRadius: number;
+  let bottomRightRadius: number;
+
+  if (compactMode) {
+    if (isLeft) {
+      // Avatar side = left; avatar-adjacent corners are top-left and bottom-left
+      topLeftRadius = isSameAsPrev ? sharpCornerRadius : radius;
+      topRightRadius = radius;
+      bottomLeftRadius = isSameAsNext ? sharpCornerRadius : radius;
+      bottomRightRadius = radius;
+    } else {
+      // Avatar side = right; avatar-adjacent corners are top-right and bottom-right
+      topLeftRadius = radius;
+      topRightRadius = isSameAsPrev ? sharpCornerRadius : radius;
+      bottomLeftRadius = radius;
+      bottomRightRadius = isSameAsNext ? sharpCornerRadius : radius;
+    }
+  } else {
+    topLeftRadius = isLeft ? sharpCornerRadius : radius;
+    topRightRadius = isLeft ? radius : sharpCornerRadius;
+    bottomLeftRadius = radius;
+    bottomRightRadius = radius;
+  }
+
   const shadowSize = snapPx((speaker.style?.shadowSize ?? 7) * combinedScale);
-  const margin = snapPx((speaker.style?.margin ?? 14) * combinedScale);
+  // compactSpacing controls inter-bubble gap in both modes.
+  // In compact mode it applies to consecutive same-speaker gaps; in normal mode it replaces speaker margin.
+  const compactSpacing = chatLayout?.compactSpacing ?? 14;
+  const baseMargin = snapPx((compactMode ? (speaker.style?.margin ?? compactSpacing) : compactSpacing) * combinedScale);
+  const compactGap = Math.max(1, snapPx(2 * combinedScale));
+  const margin = compactMode && isSameAsNext ? compactGap : baseMargin;
   const paddingX = snapPx((speaker.style?.paddingX ?? 20) * combinedScale);
   const paddingY = snapPx((speaker.style?.paddingY ?? 12) * combinedScale);
   const bubbleGap = snapPx(16 * combinedScale);
@@ -219,12 +267,27 @@ export function ChatMessageBubble({
     : 'none';
   const shouldEnableBlockShadow = currentProgress >= 0.98 || (chatLayout?.animationStyle || 'rise') === 'none';
 
+  // Compact mode: show avatar only on the last message of a consecutive run (isSameAsNext = false)
+  const showAvatarGlobal = chatLayout?.showAvatar ?? true;
+  const showAvatarThisBubble = showAvatarGlobal && (!compactMode || !isSameAsNext);
+
+  // Compact mode: show speaker name only below the last message of a run
+  const showMetaGlobal = chatLayout?.showMeta ?? true;
+  // In normal mode: name shown above bubble; in compact: name shown below the last bubble of the run
+  const showNameAbove = showMetaGlobal && !compactMode;
+  const showNameBelow = showMetaGlobal && compactMode && !isSameAsNext;
+
+  // Compact timestamp: shown beside bubble (outside, on the far end)
+  // Normal mode: shown inline with name row above bubble
+  const showTimestampBeside = compactMode && showMetaGlobal;
+
   return (
     <div
       style={{
         display: 'flex',
         width: '100%',
-        justifyContent: isLeft ? 'flex-start' : 'flex-end',
+        flexDirection: 'column',
+        alignItems: isLeft ? 'flex-start' : 'flex-end',
         marginBottom: `${margin}px`,
         transform: motionState.transform,
         transformOrigin: isLeft ? 'left center' : 'right center',
@@ -232,31 +295,41 @@ export function ChatMessageBubble({
         filter: motionState.filter
       }}
     >
+      {/* Main row: avatar + bubble (+ beside-timestamp in compact) */}
       <div
         style={{
           display: 'flex',
           flexDirection: isLeft ? 'row' : 'row-reverse',
           gap: `${bubbleGap}px`,
           maxWidth: '100%',
-          alignItems: 'flex-start'
+          // In compact mode align avatar bottom to bubble bottom (not pulled down by name row below)
+          alignItems: compactMode ? 'flex-end' : 'flex-start'
         }}
       >
-        {speaker.avatar && renderAvatar && (chatLayout?.showAvatar ?? true) ? renderAvatar({
-          src: speaker.avatar,
-          alt: speaker.name || '',
-          style: {
-            width: `${avatarPx}px`,
-            height: `${avatarPx}px`,
-            minWidth: `${avatarPx}px`,
-            borderRadius: '999px',
-            objectFit: 'cover',
-            backgroundColor: speaker.style?.avatarBorderColor || fallbackAvatarBorderColor,
-            borderWidth: `${avatarBorderWidth}px`,
-            borderColor: speaker.style?.avatarBorderColor || fallbackAvatarBorderColor,
-            boxShadow: bubbleShadow,
-            overflow: 'hidden'
-          }
-        }) : null}
+        {/* Avatar column */}
+        {showAvatarGlobal && renderAvatar ? (
+          showAvatarThisBubble && speaker.avatar ? renderAvatar({
+            src: speaker.avatar,
+            alt: speaker.name || '',
+            style: {
+              width: `${avatarPx}px`,
+              height: `${avatarPx}px`,
+              minWidth: `${avatarPx}px`,
+              borderRadius: '999px',
+              objectFit: 'cover',
+              backgroundColor: speaker.style?.avatarBorderColor || fallbackAvatarBorderColor,
+              borderWidth: `${avatarBorderWidth}px`,
+              borderColor: speaker.style?.avatarBorderColor || fallbackAvatarBorderColor,
+              boxShadow: bubbleShadow,
+              overflow: 'hidden'
+            }
+          }) : (
+            // Placeholder to keep alignment when avatar is hidden in compact run
+            <div style={{ width: `${avatarPx}px`, minWidth: `${avatarPx}px`, flexShrink: 0 }} />
+          )
+        ) : null}
+
+        {/* Bubble + meta column */}
         <div
           style={{
             display: 'flex',
@@ -266,7 +339,8 @@ export function ChatMessageBubble({
             filter: shouldEnableBlockShadow ? speakerBlockShadow : 'none'
           }}
         >
-          {speaker.name && (chatLayout?.showMeta ?? true) ? (
+          {/* Name row above bubble (normal mode only) */}
+          {showNameAbove && speaker.name ? (
             <div
               style={{
                 display: 'flex',
@@ -284,36 +358,95 @@ export function ChatMessageBubble({
               </span>
             </div>
           ) : null}
-          {renderBubble({
-            outerStyle: {
-              position: 'relative',
-              overflow: 'hidden',
-              isolation: 'isolate',
-              backgroundColor: finalBgColor,
-              fontFamily: speaker.style?.fontFamily || 'system-ui',
-              fontSize: `${fontSize}px`,
-              fontWeight: speaker.style?.fontWeight || 'normal',
-              backgroundClip: 'padding-box',
-              borderTopLeftRadius: `${topLeftRadius}px`,
-              borderTopRightRadius: `${topRightRadius}px`,
-              borderBottomLeftRadius: `${radius}px`,
-              borderBottomRightRadius: `${radius}px`,
-              border: (speaker.style?.borderWidth ?? 0) > 0 ? `${speaker.style?.borderWidth ?? 0}px solid ${rgba(borderColor, borderOpacity)}` : 'none',
-              boxShadow: bubbleShadow,
-               maxWidth: `${bubbleMaxWidthPx}px`
-            },
-            contentStyle: {
-              position: 'relative',
-              zIndex: 1,
-              padding: `${paddingY}px ${paddingX}px`,
-              color: textColor,
-              whiteSpace: 'pre-wrap',
-              lineHeight: 1.35
-            },
-            children: item.text
-          })}
+
+          {/* Bubble row (bubble + beside timestamp in compact mode) */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: isLeft ? 'row' : 'row-reverse',
+              alignItems: 'flex-end',
+              gap: showTimestampBeside ? `${metaGap}px` : undefined,
+              width: '100%'
+            }}
+          >
+            {renderBubble({
+              outerStyle: {
+                position: 'relative',
+                overflow: 'hidden',
+                isolation: 'isolate',
+                backgroundColor: finalBgColor,
+                fontFamily: speaker.style?.fontFamily || 'system-ui',
+                fontSize: `${fontSize}px`,
+                fontWeight: speaker.style?.fontWeight || 'normal',
+                backgroundClip: 'padding-box',
+                borderTopLeftRadius: `${topLeftRadius}px`,
+                borderTopRightRadius: `${topRightRadius}px`,
+                borderBottomLeftRadius: `${bottomLeftRadius}px`,
+                borderBottomRightRadius: `${bottomRightRadius}px`,
+                border: (speaker.style?.borderWidth ?? 0) > 0 ? `${speaker.style?.borderWidth ?? 0}px solid ${rgba(borderColor, borderOpacity)}` : 'none',
+                boxShadow: bubbleShadow,
+                maxWidth: `${bubbleMaxWidthPx}px`
+              },
+              contentStyle: {
+                position: 'relative',
+                zIndex: 1,
+                padding: `${paddingY}px ${paddingX}px`,
+                color: textColor,
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.35
+              },
+              children: item.text
+            })}
+
+            {/* Timestamp beside bubble (compact mode) */}
+            {showTimestampBeside ? (
+              <span
+                style={{
+                  fontSize: `${timestampSize}px`,
+                  fontFamily: timestampFontFamily,
+                  color: timestampColor,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  paddingBottom: `${snapPx(4 * combinedScale)}px`
+                }}
+              >
+                {formatTimestamp(item.start)}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
+
+      {/* Name below, aligned with avatar edge (compact mode, last of run).
+          Use the same flex-row structure as the main row so the name sits
+          directly under the bubble column, left/right edge matching the avatar. */}
+      {showNameBelow && speaker.name ? (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isLeft ? 'row' : 'row-reverse',
+            gap: `${bubbleGap}px`,
+            maxWidth: '100%',
+            marginTop: `${snapPx(4 * combinedScale)}px`
+          }}
+        >
+          {/* Spacer that mirrors the avatar column width */}
+          {showAvatarGlobal && renderAvatar ? (
+            <div style={{ width: `${avatarPx}px`, minWidth: `${avatarPx}px`, flexShrink: 0 }} />
+          ) : null}
+          <span
+            style={{
+              fontSize: `${speakerNameSize}px`,
+              fontFamily: speaker.style?.nameFontFamily || speaker.style?.fontFamily || 'system-ui',
+              fontWeight: speaker.style?.nameFontWeight || 700,
+              color: speaker.style?.nameColor || '#ffffff',
+              WebkitTextStroke: speakerNameStrokeWidth > 0 ? `${speakerNameStrokeWidth}px ${speakerNameStrokeColor}` : undefined
+            }}
+          >
+            {speaker.name}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

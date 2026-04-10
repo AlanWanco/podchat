@@ -142,11 +142,13 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
       >
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: bottomPadding, display: 'flex', flexDirection: 'column' }}>
-            {visibleMessages.map((item) => {
+            {visibleMessages.map((item, index) => {
               const speaker = props.speakers[item.speaker];
               if (!speaker) {
                 return null;
               }
+              const prevSpeakerId = index > 0 ? visibleMessages[index - 1].speaker : undefined;
+              const nextSpeakerId = index < visibleMessages.length - 1 ? visibleMessages[index + 1].speaker : undefined;
 
               return (
                 <ChatMessageBubble
@@ -157,6 +159,8 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                   canvasWidth={width}
                   layoutScale={layoutScale}
                   chatLayout={props.chatLayout}
+                  prevSpeakerId={prevSpeakerId}
+                  nextSpeakerId={nextSpeakerId}
                   renderAvatar={({ src, alt, style }) => (
                     (() => {
                       const outerWidth = parseSizePx(style.width, 80);

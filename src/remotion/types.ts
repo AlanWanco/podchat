@@ -80,6 +80,8 @@ export interface PodchatExportInput {
     maxVisibleBubbles?: number;
     showAvatar?: boolean;
     showMeta?: boolean;
+    compactMode?: boolean;
+    compactSpacing?: number;
   };
   speakers: Record<string, SpeakerConfig>;
   content: SubtitleContentItem[];

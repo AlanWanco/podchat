@@ -96,7 +96,9 @@ const DEFAULT_CHAT_LAYOUT = {
   animationDuration: 0.2,
   maxVisibleBubbles: 15,
   showAvatar: true,
-  showMeta: true
+  showMeta: true,
+  compactMode: false,
+  compactSpacing: 14
 };
 
 const DEFAULT_UI_CONFIG = {
@@ -1192,7 +1194,12 @@ const [previewScale, setPreviewScale] = useState(1);
     if (window.electron) {
       setRecentProject((prev: string | null) => (prev === ui.recentProject ? prev : ui.recentProject));
     }
-    setPresets((prev: Record<string, any>) => JSON.stringify(prev) === JSON.stringify(ui.presets || {}) ? prev : (ui.presets || DEFAULT_UI_CONFIG.presets));
+    setPresets((prev: Record<string, any>) => {
+      const next = ui.presets ?? DEFAULT_UI_CONFIG.presets;
+      if (prev === next) return prev;
+      if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+      return next;
+    });
   }, [config.ui]);
 
    useEffect(() => {
@@ -3638,9 +3645,11 @@ const [previewScale, setPreviewScale] = useState(1);
                     {subtitlesLoading ? (
                       <div className="text-center opacity-50 my-auto">{t('app.loadSubtitle')}</div>
                     ) : (
-                      visibleMessages.map((item) => {
+                      visibleMessages.map((item, index) => {
                         const speaker = config.speakers[item.speakerId];
                         if (!speaker || speaker.type === 'annotation') return null;
+                        const prevSpeakerId = index > 0 ? visibleMessages[index - 1].speakerId : undefined;
+                        const nextSpeakerId = index < visibleMessages.length - 1 ? visibleMessages[index + 1].speakerId : undefined;
 
                         return (
                           <ChatMessageBubble
@@ -3652,6 +3661,8 @@ const [previewScale, setPreviewScale] = useState(1);
                             layoutScale={previewScale}
                             chatLayout={previewChatLayout}
                             fallbackAvatarBorderColor={isDarkMode ? '#1f2937' : '#ffffff'}
+                            prevSpeakerId={prevSpeakerId}
+                            nextSpeakerId={nextSpeakerId}
                             renderAvatar={({ src, alt, style }) => (
                               <img
                                 src={resolvePath(src)}

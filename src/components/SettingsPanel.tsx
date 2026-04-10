@@ -866,6 +866,25 @@ export function SettingsPanel({
                        <span>{(config.chatLayout?.showMeta ?? true) ? t('common.enabled') : t('common.disabled')}</span>
                      </button>
                    </div>
+                   <div className="space-y-1.5">
+                     <label className="block text-xs opacity-70">{t('project.compactMode')}</label>
+                     <button
+                       type="button"
+                       onClick={() => updateChatLayout('compactMode', !(config.chatLayout?.compactMode ?? false))}
+                       className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
+                       style={{
+                         backgroundColor: (config.chatLayout?.compactMode ?? false) ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
+                         borderColor: (config.chatLayout?.compactMode ?? false) ? `${secondaryThemeColor}55` : uiTheme.border,
+                         color: uiTheme.text,
+                       }}
+                     >
+                       <span>{(config.chatLayout?.compactMode ?? false) ? t('common.enabled') : t('common.disabled')}</span>
+                     </button>
+                   </div>
+                   <div className="space-y-1.5">
+                     <span className="text-xs opacity-70">{t('project.compactSpacing')}</span>
+                     {renderNumberInput(config.chatLayout?.compactSpacing ?? 14, (value) => updateChatLayout('compactSpacing', value), { className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                   </div>
                  </div>
                </div>
              </div>
