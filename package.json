@@ -56,7 +56,8 @@
       "src/remotion/**",
       "src/components/chat/**",
       "node_modules/esbuild/**",
-      "node_modules/@esbuild/**"
+      "node_modules/@esbuild/**",
+      "node_modules/@rspack/**"
     ],
     "directories": {
       "buildResources": "build",
