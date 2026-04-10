@@ -556,6 +556,8 @@ function PreviewTextAsset({
   onEditBoxChange,
   canvasWidth,
   canvasHeight,
+  blur = 0,
+  brightness = 1,
 }: {
   slide: BackgroundSlideItem;
   currentTime: number;
@@ -565,6 +567,8 @@ function PreviewTextAsset({
   onEditBoxChange?: (box: { centerX: number; centerY: number; width: number; height: number }) => void;
   canvasWidth: number;
   canvasHeight: number;
+  blur?: number;
+  brightness?: number;
 }) {
   const animationStyle = slide.animationStyle || 'fade';
   const animationDuration = slide.animationDuration ?? 0.24;
@@ -641,6 +645,7 @@ function PreviewTextAsset({
           ...baseStyle,
           width: `${measuredWidth}px`,
           height: `${measuredHeight}px`,
+          filter: `blur(${blur}px) brightness(${brightness})`,
           pointerEvents: onDoubleClick || onPointerDown ? 'auto' : 'none',
           cursor: onPointerDown ? 'grab' : undefined,
           touchAction: onPointerDown ? 'none' : undefined,
@@ -4094,6 +4099,8 @@ const [previewScale, setPreviewScale] = useState(1);
                       currentTime={previewRenderTime}
                       canvasWidth={canvasWidth}
                       canvasHeight={canvasHeight}
+                      blur={slide.inheritBackgroundFilters === false ? 0 : (config.background.blur || 0)}
+                      brightness={slide.inheritBackgroundFilters === false ? 1 : (config.background.brightness ?? 1)}
                       onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
                       onDoubleClick={undefined}
                       onPointerDown={undefined}
@@ -4257,6 +4264,8 @@ const [previewScale, setPreviewScale] = useState(1);
                       currentTime={previewRenderTime}
                       canvasWidth={canvasWidth}
                       canvasHeight={canvasHeight}
+                      blur={0}
+                      brightness={1}
                       onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
                       onDoubleClick={() => {
                         setActiveInsertImageId(slide.id);

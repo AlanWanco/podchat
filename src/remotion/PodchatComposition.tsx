@@ -18,9 +18,13 @@ const parseSizePx = (value: string | number | undefined, fallback: number) => {
 const renderSlideText = ({
   slide,
   currentTime,
+  blur = 0,
+  brightness = 1,
 }: {
   slide: BackgroundSlideItem;
   currentTime: number;
+  blur?: number;
+  brightness?: number;
 }) => {
   const animationStyle = slide.animationStyle || 'fade';
   const animationDuration = slide.animationDuration ?? 0.24;
@@ -44,6 +48,7 @@ const renderSlideText = ({
           transform: `translate(-50%, -50%) translate(${slide.offsetX ?? 0}px, ${slide.offsetY ?? 0}px) rotate(${slide.rotation ?? 0}deg) scale(${slide.scale ?? 1}) ${motionState.transform || ''}`.trim(),
           transformOrigin: '50% 50%',
           opacity: (slide.opacity ?? 1) * motionState.opacity,
+          filter: `blur(${blur}px) brightness(${brightness})`,
           fontFamily: slide.fontFamily || 'system-ui',
           fontSize: `${fontSize}px`,
           fontWeight: slide.fontWeight || '700',
@@ -274,7 +279,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
       {backgroundSlidesBelowChat.map((slide) => (
         <AbsoluteFill key={`bg-slide-${slide.id}`}>
           {slide.type === 'text'
-            ? renderSlideText({ slide, currentTime })
+            ? renderSlideText({ slide, currentTime, blur: slide.inheritBackgroundFilters === false ? 0 : (props.background?.blur ?? 0), brightness: slide.inheritBackgroundFilters === false ? 1 : (props.background?.brightness ?? 1) })
             : renderSlideAsset({
                 src: slide.image,
                 fit: slide.fit,
@@ -435,7 +440,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
       {backgroundSlidesAboveChat.map((slide) => (
         <AbsoluteFill key={`overlay-slide-${slide.id}`}>
           {slide.type === 'text'
-            ? renderSlideText({ slide, currentTime })
+            ? renderSlideText({ slide, currentTime, blur: 0, brightness: 1 })
             : renderSlideAsset({
                 src: slide.image,
                 fit: slide.fit,
