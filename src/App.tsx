@@ -9,7 +9,7 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { AssImportModal } from './components/AssImportModal';
 import { ExportModal } from './components/ExportModal';
 import { AboutModal, type UpdateCheckResult } from './components/AboutModal';
-import { ChatAnnotationBubble, ChatMessageBubble } from './components/chat/SharedChatBubbles';
+import { ChatAnnotationBubble, ChatMessageBubble, computeInterruptedVisibleMessages } from './components/chat/SharedChatBubbles';
 import { getBubbleMotionState } from './components/chat/SharedChatBubbles';
 import { useAssSubtitle } from './hooks/useAssSubtitle';
 import { translate, type Language } from './i18n';
@@ -2434,10 +2434,25 @@ const [previewScale, setPreviewScale] = useState(1);
     return `/@fs${segments.map((segment, index) => (index === 0 ? segment : `/${encodeURIComponent(segment)}`)).join('')}`;
   };
 
+  const toFilePreviewPath = (localPath: string) => {
+    const normalized = localPath.replace(/\\/g, '/');
+    if (/^[a-zA-Z]:\//.test(normalized)) {
+      const [drive, ...segments] = normalized.split('/');
+      return `file:///${drive}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
+    }
+    if (normalized.startsWith('//')) {
+      const [host, ...segments] = normalized.replace(/^\/\//, '').split('/');
+      return `file://${host}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
+    }
+    const segments = normalized.split('/');
+    return `file://${segments.map((segment, index) => (index === 0 ? segment : encodeURIComponent(segment))).join('/')}`;
+  };
+
   const resolveLocalPreviewPath = (path: string | undefined): string | undefined => {
     if (!path) return path;
     const trimmed = path.trim();
     if (!trimmed) return undefined;
+    const useFilePreviewPath = typeof window !== 'undefined' && Boolean(window.electron) && !import.meta.env.DEV;
     if (/^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
     if (trimmed.startsWith('file://')) {
       try {
@@ -2445,15 +2460,16 @@ const [previewScale, setPreviewScale] = useState(1);
         const host = url.host ? `//${url.host}` : '';
         const pathname = decodeURIComponent(url.pathname);
         const normalizedPath = /^\/[a-zA-Z]:\//.test(pathname) ? pathname.slice(1) : pathname;
-        return toFsServePath(`${host}${normalizedPath}`);
+        return useFilePreviewPath ? toFilePreviewPath(`${host}${normalizedPath}`) : toFsServePath(`${host}${normalizedPath}`);
       } catch {
-        return toFsServePath(trimmed.replace(/^file:\/\/?/, '/'));
+        const fallbackPath = trimmed.replace(/^file:\/\/?/, '/');
+        return useFilePreviewPath ? toFilePreviewPath(fallbackPath) : toFsServePath(fallbackPath);
       }
     }
     if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
-    if (/^[a-zA-Z]:[\\/]/.test(trimmed)) return toFsServePath(trimmed);
-    if (trimmed.startsWith('\\\\')) return toFsServePath(trimmed);
-    if (trimmed.startsWith('/') && !trimmed.startsWith('/projects/') && !trimmed.startsWith('/assets/')) return toFsServePath(trimmed);
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed)) return useFilePreviewPath ? toFilePreviewPath(trimmed) : toFsServePath(trimmed);
+    if (trimmed.startsWith('\\\\')) return useFilePreviewPath ? toFilePreviewPath(trimmed) : toFsServePath(trimmed);
+    if (trimmed.startsWith('/') && !trimmed.startsWith('/projects/') && !trimmed.startsWith('/assets/')) return useFilePreviewPath ? toFilePreviewPath(trimmed) : toFsServePath(trimmed);
     return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   };
 
@@ -3461,7 +3477,7 @@ const [previewScale, setPreviewScale] = useState(1);
       return previewRenderTime >= appearanceTime;
     });
 
-    return appeared.slice(-(config.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT));
+    return computeInterruptedVisibleMessages(appeared, config.speakers, config.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT);
   }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, config.chatLayout?.maxVisibleBubbles, previewRenderTime]);
   useEffect(() => {
     const bgVideo = previewBackgroundVideoRef.current;

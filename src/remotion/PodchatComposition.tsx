@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Audio, Img, Loop, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { Gif } from '@remotion/gif';
 import type { BackgroundSlideItem, PodchatExportInput } from './types';
-import { ChatAnnotationBubble, ChatMessageBubble, getBubbleMotionState } from '../components/chat/SharedChatBubbles';
+import { ChatAnnotationBubble, ChatMessageBubble, computeInterruptedVisibleMessages, getBubbleMotionState } from '../components/chat/SharedChatBubbles';
 
 const MESSAGE_FALLBACK_COUNT = 32;
 
@@ -201,7 +201,11 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
     const appearanceTime = Math.max(0, item.start - ((props.chatLayout?.animationStyle || 'rise') === 'none' ? 0 : animationDuration));
     return currentTime >= appearanceTime;
   });
-  const visibleMessages = appearedMessages.slice(-(props.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT));
+  const visibleMessages = computeInterruptedVisibleMessages(
+    appearedMessages.map((item) => ({ ...item, speakerId: item.speaker })),
+    Object.fromEntries(Object.entries(props.speakers).map(([key, value]) => [key, { side: value.side, type: value.type }])),
+    props.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT,
+  ).map((item) => ({ ...item, speaker: item.speakerId }));
 
   const visibleAnnotations = sortedContent.filter((item) => {
     const speaker = props.speakers[item.speaker];

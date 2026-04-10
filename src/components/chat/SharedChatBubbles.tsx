@@ -60,6 +60,33 @@ export interface SharedChatLayout {
   compactSpacing?: number;
 }
 
+export const computeInterruptedVisibleMessages = <T extends { start: number; end: number; speakerId: string }>(
+  appearedMessages: T[],
+  speakers: Record<string, { side?: 'left' | 'right' | 'center'; type?: 'speaker' | 'annotation' }>,
+  maxVisible: number,
+) => {
+  const base = appearedMessages.slice(-Math.max(1, maxVisible * 2));
+  const interruptionIndexes = new Set<number>();
+
+  for (let i = 0; i < base.length; i += 1) {
+    const host = base[i];
+    const hostSpeaker = speakers[host.speakerId];
+    if (!hostSpeaker || hostSpeaker.type === 'annotation') continue;
+    for (let j = i + 1; j < base.length; j += 1) {
+      const intruder = base[j];
+      const intruderSpeaker = speakers[intruder.speakerId];
+      if (!intruderSpeaker || intruderSpeaker.type === 'annotation') continue;
+      const fullyContained = intruder.start >= host.start && intruder.end <= host.end;
+      if (!fullyContained) continue;
+      interruptionIndexes.add(j);
+    }
+  }
+
+  const regular = base.filter((_, index) => !interruptionIndexes.has(index));
+  const interruptions = base.filter((_, index) => interruptionIndexes.has(index));
+  return [...regular, ...interruptions].slice(-maxVisible);
+};
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const MIN_LAYOUT_SCALE = 0.15;
 
