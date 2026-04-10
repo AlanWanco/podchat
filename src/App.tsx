@@ -2452,7 +2452,7 @@ const [previewScale, setPreviewScale] = useState(1);
     if (!path) return path;
     const trimmed = path.trim();
     if (!trimmed) return undefined;
-    const useFilePreviewPath = typeof window !== 'undefined' && Boolean(window.electron) && !import.meta.env.DEV;
+    const useFilePreviewPath = typeof window !== 'undefined' && Boolean(window.electron);
     if (/^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
     if (trimmed.startsWith('file://')) {
       try {
