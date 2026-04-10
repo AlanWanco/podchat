@@ -4123,7 +4123,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 </div>
               ))}
 
-              <div className="absolute inset-0 z-[35] pointer-events-none">
+              <div className="absolute inset-0 z-[24] pointer-events-none">
                 {backgroundSlidesBelowChat.map((slide: BackgroundSlideItem) => {
                   const box = slideEditBoxes[slide.id];
                   if (!box) return null;
