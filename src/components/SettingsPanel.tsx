@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, type ReactNode } from 'react';
-import { Settings, Image as ImageIcon, Users, Save, Moon, Sun, Trash2, Plus, X, Check, ArrowLeftRight, LayoutTemplate, Type, Box, Layout, FolderOpen } from 'lucide-react';
+import { Settings, Image as ImageIcon, Users, Save, Moon, Sun, Trash2, Plus, X, Check, ArrowLeftRight, LayoutTemplate, Type, Box, Layout, FolderOpen, Clock3, Pencil } from 'lucide-react';
 import { translate, type Language } from '../i18n';
 import { createThemeTokens } from '../theme';
 import { Tooltip } from './ui/Tooltip';
@@ -54,6 +54,12 @@ interface SettingsPanelProps {
   hideHeader?: boolean;
   panelCollapsed?: boolean;
   onTogglePanelCollapsed?: () => void;
+  onSeek?: (time: number) => void;
+  currentTime?: number;
+  activeInsertImageId?: string | null;
+  onActiveInsertImageChange?: (id: string | null) => void;
+  onEditInsertImage?: (id: string) => void;
+  resolveAssetSrc?: (src?: string) => string | undefined;
 }
 
 export function SettingsPanel({ 
@@ -64,7 +70,13 @@ export function SettingsPanel({
   onSelectImage, onRequestRemoveSpeaker, globalOnly = false, showSubtitleTab = false, subtitleContent = null,
   compactHeader = false, hideHeaderTitle = false, hideHeaderSave = false,
   hideHeader = false,
-  panelCollapsed = false, onTogglePanelCollapsed
+  panelCollapsed = false, onTogglePanelCollapsed,
+  onSeek,
+  currentTime = 0,
+  activeInsertImageId,
+  onActiveInsertImageChange,
+  onEditInsertImage,
+  resolveAssetSrc
 }: SettingsPanelProps) {
   const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
@@ -105,8 +117,45 @@ export function SettingsPanel({
   const [presetPromptMode, setPresetPromptMode] = useState<'save' | 'rename'>('save');
   const [presetNameInput, setPresetNameInput] = useState("");
   const [activeSpeakerTab, setActiveSpeakerTab] = useState<string | null>(null);
+  const [activeBackgroundSlideTab, setActiveBackgroundSlideTab] = useState<string | null>(null);
+  const [draggingBackgroundSlideId, setDraggingBackgroundSlideId] = useState<string | null>(null);
+  // Independent tab display order — decoupled from layer/backgroundOrder/overlayOrder
+  const [tabOrderIds, setTabOrderIds] = useState<string[]>([]);
   const speakerKeys = Object.keys(config.speakers).filter((key) => config.speakers[key]?.type !== 'annotation');
   const currentSpeakerTab = activeSpeakerTab && speakerKeys.includes(activeSpeakerTab) ? activeSpeakerTab : (speakerKeys[0] || null);
+  const backgroundSlides = Array.isArray(config.background?.slides) ? config.background.slides : [];
+
+  // Keep tabOrderIds in sync when slides are added/removed (not during drags)
+  useEffect(() => {
+    if (draggingBackgroundSlideId) return; // don't resync during drag
+    // New slides are inserted in visual layer order: overlay (above) first, then background (below)
+    const aboveIds: string[] = backgroundSlides
+      .filter((s: any) => s.layer === 'overlay')
+      .sort((a: any, b: any) => (a.overlayOrder ?? 0) - (b.overlayOrder ?? 0))
+      .map((s: any) => s.id as string);
+    const belowIds: string[] = backgroundSlides
+      .filter((s: any) => (s.layer || 'background') === 'background')
+      .sort((a: any, b: any) => (a.backgroundOrder ?? 0) - (b.backgroundOrder ?? 0))
+      .map((s: any) => s.id as string);
+    const allIds = [...aboveIds, ...belowIds];
+    setTabOrderIds((prev) => {
+      // Keep existing order, add new ones at end (in layer order), remove deleted ones
+      const kept = prev.filter((id) => allIds.includes(id));
+      const added = allIds.filter((id) => !kept.includes(id));
+      return [...kept, ...added];
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backgroundSlides.map((s: any) => s.id).join(',')]);
+
+  // Tabs rendered in tabOrderIds order (falls back to backgroundSlides order when tabOrderIds empty)
+  const tabOrderedSlides: any[] = tabOrderIds.length > 0
+    ? tabOrderIds.map((id) => backgroundSlides.find((s: any) => s.id === id)).filter(Boolean)
+    : backgroundSlides;
+
+  const derivedBackgroundSlideTab = activeInsertImageId || activeBackgroundSlideTab;
+  const currentBackgroundSlide = derivedBackgroundSlideTab
+    ? backgroundSlides.find((slide: any) => slide.id === derivedBackgroundSlideTab) || null
+    : (tabOrderedSlides[0] || null);
 
   useEffect(() => {
     if (globalOnly && activeTab !== 'global') {
@@ -128,6 +177,102 @@ export function SettingsPanel({
     onConfigChange({
       ...config,
       background: { ...config.background, [key]: value }
+    });
+  };
+
+  const updateBackgroundSlides = (slides: any[]) => {
+    onConfigChange({
+      ...config,
+      background: { ...config.background, slides }
+    });
+  };
+
+  const updateBackgroundSlide = (slideId: string, updater: (slide: any, index: number) => any) => {
+    const nextSlides = backgroundSlides.map((slide: any, index: number) => slide.id === slideId ? updater(slide, index) : slide);
+    updateBackgroundSlides(nextSlides);
+  };
+
+  const addBackgroundSlide = (type: 'image' | 'text' = 'image') => {
+    const nextIndex = backgroundSlides.length + 1;
+    const slide = {
+      id: `slide-${Date.now()}`,
+      type,
+      name: type === 'text' ? `字${nextIndex}` : `图${nextIndex}`,
+      image: '',
+      text: '文本',
+      start: 0,
+      end: Math.max(3, config.exportRange?.end || 3),
+      fit: 'contain',
+      position: 'center',
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      backgroundOrder: backgroundSlides.filter((item: any) => item.layer === 'background').length,
+      overlayOrder: backgroundSlides.filter((item: any) => item.layer !== 'background').length,
+      layer: 'overlay',
+      inheritBackgroundFilters: true,
+      animationStyle: 'blur',
+      animationDuration: 0.01,
+      opacity: 1,
+      textColor: '#FFFFFF',
+      textStrokeColor: '#000000',
+      textStrokeWidth: 0,
+      textShadowColor: '#00000088',
+      textShadowSize: 0,
+      fontFamily: 'system-ui',
+      fontSize: 96,
+      fontWeight: '700',
+    };
+    updateBackgroundSlides([...backgroundSlides, slide]);
+    setActiveBackgroundSlideTab(slide.id);
+    onActiveInsertImageChange?.(slide.id);
+  };
+
+  const removeBackgroundSlide = (slideId: string) => {
+    const nextSlides = backgroundSlides.filter((slide: any) => slide.id !== slideId);
+    updateBackgroundSlides(nextSlides);
+    setActiveBackgroundSlideTab(nextSlides[0]?.id || null);
+    onActiveInsertImageChange?.(nextSlides[0]?.id || null);
+  };
+
+  const setBackgroundSlideExplicitOrder = (slideId: string, nextOrder: number) => {
+    const sourceSlide = backgroundSlides.find((slide: any) => slide.id === slideId);
+    if (!sourceSlide) return;
+    const layerKey = (sourceSlide.layer || 'background') === 'overlay' ? 'overlayOrder' : 'backgroundOrder';
+    const sameLayerSlides = backgroundSlides
+      .filter((slide: any) => (slide.layer || 'background') === (sourceSlide.layer || 'background'))
+      .sort((a: any, b: any) => ((a[layerKey] ?? 0) - (b[layerKey] ?? 0)));
+    const clampedIndex = Math.max(0, Math.min(sameLayerSlides.length - 1, nextOrder - 1));
+    const reorderedLayerSlides = sameLayerSlides.filter((slide: any) => slide.id !== slideId);
+    const movingSlide = sameLayerSlides.find((slide: any) => slide.id === slideId);
+    if (!movingSlide) return;
+    reorderedLayerSlides.splice(clampedIndex, 0, movingSlide);
+    const nextSlides = backgroundSlides.map((item: any) => {
+      const replacementIndex = reorderedLayerSlides.findIndex((candidate: any) => candidate.id === item.id);
+      if (replacementIndex === -1) return item;
+      return {
+        ...item,
+        backgroundOrder: item.layer === 'background' ? replacementIndex : item.backgroundOrder,
+        overlayOrder: item.layer !== 'background' ? replacementIndex : item.overlayOrder,
+      };
+    });
+    updateBackgroundSlides(nextSlides);
+    setActiveBackgroundSlideTab(slideId);
+    onActiveInsertImageChange?.(slideId);
+  };
+
+  const reorderBackgroundSlideTabs = (fromId: string, toId: string) => {
+    if (!fromId || !toId || fromId === toId) return;
+    // Only reorder the tab display order — completely independent of layer/backgroundOrder/overlayOrder
+    setTabOrderIds((prev) => {
+      const fromIndex = prev.indexOf(fromId);
+      const toIndex = prev.indexOf(toId);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
     });
   };
 
@@ -736,6 +881,26 @@ export function SettingsPanel({
                     title={t('project.bubbleMaxWidth.title')}
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs opacity-70">{t('project.maxVisibleBubbles')}</span>
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{config.chatLayout?.maxVisibleBubbles ?? 3}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="32"
+                    step="1"
+                    value={config.chatLayout?.maxVisibleBubbles ?? 15}
+                    onChange={(e) => updateChatLayout('maxVisibleBubbles', parseInt(e.target.value, 10))}
+                    className="w-full"
+                    style={themedRangeStyle}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-xs opacity-70">{t('project.compactSpacing')}</span>
+                  {renderNumberInput(config.chatLayout?.compactSpacing ?? 14, (value) => updateChatLayout('compactSpacing', value), { className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                </div>
               </div>
 
               <hr style={{ borderColor: uiTheme.border }} />
@@ -754,6 +919,36 @@ export function SettingsPanel({
                   <div className="space-y-1.5">
                     <span className="text-xs opacity-70">{t('project.speakerNameSize')}</span>
                     {renderNumberInput(config.chatLayout?.speakerNameSize ?? 22, (value) => updateChatLayout('speakerNameSize', value), { className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs opacity-70">{t('project.showAvatar')}</label>
+                    <button
+                      type="button"
+                      onClick={() => updateChatLayout('showAvatar', !(config.chatLayout?.showAvatar ?? true))}
+                      className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
+                      style={{
+                        backgroundColor: (config.chatLayout?.showAvatar ?? true) ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
+                        borderColor: (config.chatLayout?.showAvatar ?? true) ? `${secondaryThemeColor}55` : uiTheme.border,
+                        color: uiTheme.text,
+                      }}
+                    >
+                      <span>{(config.chatLayout?.showAvatar ?? true) ? t('common.enabled') : t('common.disabled')}</span>
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs opacity-70">{t('project.showMeta')}</label>
+                    <button
+                      type="button"
+                      onClick={() => updateChatLayout('showMeta', !(config.chatLayout?.showMeta ?? true))}
+                      className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
+                      style={{
+                        backgroundColor: (config.chatLayout?.showMeta ?? true) ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
+                        borderColor: (config.chatLayout?.showMeta ?? true) ? `${secondaryThemeColor}55` : uiTheme.border,
+                        color: uiTheme.text,
+                      }}
+                    >
+                      <span>{(config.chatLayout?.showMeta ?? true) ? t('common.enabled') : t('common.disabled')}</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -820,52 +1015,6 @@ export function SettingsPanel({
                       style={themedRangeStyle}
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs opacity-70">{t('project.maxVisibleBubbles')}</span>
-                      <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ color: themeColor, backgroundColor: `${themeColor}18` }}>{config.chatLayout?.maxVisibleBubbles ?? 3}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="32"
-                      step="1"
-                       value={config.chatLayout?.maxVisibleBubbles ?? 15}
-                       onChange={(e) => updateChatLayout('maxVisibleBubbles', parseInt(e.target.value, 10))}
-                       className="w-full"
-                       style={themedRangeStyle}
-                     />
-                   </div>
-                   <div className="space-y-1.5">
-                     <label className="block text-xs opacity-70">{t('project.showAvatar')}</label>
-                     <button
-                       type="button"
-                       onClick={() => updateChatLayout('showAvatar', !(config.chatLayout?.showAvatar ?? true))}
-                       className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
-                       style={{
-                         backgroundColor: (config.chatLayout?.showAvatar ?? true) ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
-                         borderColor: (config.chatLayout?.showAvatar ?? true) ? `${secondaryThemeColor}55` : uiTheme.border,
-                         color: uiTheme.text,
-                       }}
-                     >
-                       <span>{(config.chatLayout?.showAvatar ?? true) ? t('common.enabled') : t('common.disabled')}</span>
-                     </button>
-                   </div>
-                   <div className="space-y-1.5">
-                     <label className="block text-xs opacity-70">{t('project.showMeta')}</label>
-                     <button
-                       type="button"
-                       onClick={() => updateChatLayout('showMeta', !(config.chatLayout?.showMeta ?? true))}
-                       className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
-                       style={{
-                         backgroundColor: (config.chatLayout?.showMeta ?? true) ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
-                         borderColor: (config.chatLayout?.showMeta ?? true) ? `${secondaryThemeColor}55` : uiTheme.border,
-                         color: uiTheme.text,
-                       }}
-                     >
-                       <span>{(config.chatLayout?.showMeta ?? true) ? t('common.enabled') : t('common.disabled')}</span>
-                     </button>
-                   </div>
                    <div className="space-y-1.5">
                      <label className="block text-xs opacity-70">{t('project.compactMode')}</label>
                      <button
@@ -881,12 +1030,8 @@ export function SettingsPanel({
                        <span>{(config.chatLayout?.compactMode ?? false) ? t('common.enabled') : t('common.disabled')}</span>
                      </button>
                    </div>
-                   <div className="space-y-1.5">
-                     <span className="text-xs opacity-70">{t('project.compactSpacing')}</span>
-                     {renderNumberInput(config.chatLayout?.compactSpacing ?? 14, (value) => updateChatLayout('compactSpacing', value), { className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
-                   </div>
-                 </div>
-               </div>
+                  </div>
+                </div>
              </div>
 
             <div className="p-4 rounded-xl border space-y-4 shadow-sm" style={{ backgroundColor: uiTheme.cardBg, borderColor: uiTheme.border, boxShadow: `0 6px 18px ${uiTheme.shadow}` }}>
@@ -999,6 +1144,342 @@ export function SettingsPanel({
                     style={themedRangeStyle}
                   />
                 </div>
+              </div>
+              <div className="rounded-xl border p-3 space-y-3" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgSubtle }}>
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm font-medium" style={{ color: uiTheme.text }}>
+                    <LayoutTemplate size={14} /> {t('project.insertImages')}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => addBackgroundSlide('image')} className="text-xs flex items-center gap-1" style={{ color: secondaryThemeColor }}>
+                      <Plus size={12} /> 插入图片
+                    </button>
+                    <button type="button" onClick={() => addBackgroundSlide('text')} className="text-xs flex items-center gap-1" style={{ color: themeColor }}>
+                      <Plus size={12} /> 插入文字
+                    </button>
+                  </div>
+                </div>
+
+                {backgroundSlides.length > 0 ? (
+                  <>
+                    <div className="flex overflow-x-auto custom-scrollbar pb-2 gap-2 border-b" style={{ borderColor: uiTheme.border }}>
+                      {tabOrderedSlides.map((slide: any, index: number) => {
+                        const fallbackLabel = slide.type === 'text' ? `字${index + 1}` : `图${index + 1}`;
+                        const label = (slide.name || '').trim() || fallbackLabel;
+                        const isActive = (currentBackgroundSlide?.id || activeBackgroundSlideTab) === slide.id;
+                        return (
+                          <button
+                            key={slide.id}
+                            type="button"
+                            draggable
+                            onDragStart={(event) => {
+                              event.dataTransfer.effectAllowed = 'move';
+                              event.dataTransfer.setData('application/x-pomchat-insert-image-tab', slide.id);
+                              setDraggingBackgroundSlideId(slide.id);
+                            }}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={() => {
+                              if (draggingBackgroundSlideId) {
+                                reorderBackgroundSlideTabs(draggingBackgroundSlideId, slide.id);
+                                setDraggingBackgroundSlideId(null);
+                              }
+                            }}
+                            onDragEnd={() => setDraggingBackgroundSlideId(null)}
+                            onClick={() => {
+                              setActiveBackgroundSlideTab(slide.id);
+                              onActiveInsertImageChange?.(slide.id);
+                              if (typeof slide.start === 'number' && onSeek) {
+                                onSeek(slide.start);
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border"
+                            style={isActive ? { backgroundColor: themeColor, borderColor: themeColor, color: '#ffffff' } : { backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.textMuted }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {currentBackgroundSlide ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="shrink-0 w-10 h-10 rounded-md border flex items-center justify-center overflow-hidden" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBg }}>
+                            {currentBackgroundSlide.type === 'text' ? (
+                              <div className="px-1 text-[10px] leading-tight font-semibold text-center" style={{ color: currentBackgroundSlide.textColor || uiTheme.text }}>
+                                {(currentBackgroundSlide.text || 'T').slice(0, 2)}
+                              </div>
+                            ) : currentBackgroundSlide.image ? (
+                              <img src={resolveAssetSrc ? resolveAssetSrc(currentBackgroundSlide.image) : currentBackgroundSlide.image} alt="preview" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="text-[10px] opacity-50">IMG</div>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={currentBackgroundSlide.name || ''}
+                            onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, name: e.target.value }))}
+                            placeholder={t('project.insertImageNamePlaceholder')}
+                            className={`min-w-0 flex-1 border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
+                            style={inputSurfaceStyle}
+                          />
+                          <button type="button" onClick={() => removeBackgroundSlide(currentBackgroundSlide.id)} className="shrink-0 p-2 rounded border" style={{ borderColor: uiTheme.border, color: '#ef4444' }}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        {currentBackgroundSlide.type !== 'text' ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={currentBackgroundSlide.image || ''}
+                              onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, image: e.target.value }))}
+                              className={`flex-1 w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
+                              style={inputSurfaceStyle}
+                              placeholder={t('project.insertImagePath')}
+                            />
+                            {onSelectImage && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const path = await onSelectImage();
+                                  if (path) {
+                                    updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, image: path }));
+                                  }
+                                }}
+                                className="px-3 border rounded-md flex items-center justify-center transition-colors"
+                                style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBg }}
+                                title={t('project.selectLocalImage')}
+                              >
+                                <FolderOpen size={16} style={{ color: uiTheme.textMuted }} />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">文字内容</span>
+                            <textarea
+                              value={currentBackgroundSlide.text || ''}
+                              onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, text: e.target.value }))}
+                              className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`}
+                              style={{ ...inputSurfaceStyle, minHeight: '88px', resize: 'vertical' }}
+                            />
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex items-end">
+                            <button type="button" onClick={() => onEditInsertImage?.(currentBackgroundSlide.id)} className="w-full h-8 rounded-md border px-2.5 text-[11px] transition-colors inline-flex items-center justify-center gap-1.5 font-medium leading-none" style={{ borderColor: `${secondaryThemeColor}66`, backgroundColor: `${secondaryThemeColor}16`, color: uiTheme.text, boxShadow: `0 6px 16px ${secondaryThemeColor}18` }}>
+                              <Pencil size={14} style={{ color: secondaryThemeColor }} />
+                              {currentBackgroundSlide.type === 'text' ? '编辑文字' : '编辑图片'}
+                            </button>
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">图片层级</span>
+                            {renderNumberInput(
+                              (currentBackgroundSlide.layer || 'background') === 'overlay'
+                                ? ((currentBackgroundSlide.overlayOrder ?? 0) + 1)
+                                : ((currentBackgroundSlide.backgroundOrder ?? 0) + 1),
+                              (value) => setBackgroundSlideExplicitOrder(currentBackgroundSlide.id, Math.round(value)),
+                              { min: 1, step: 1, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle }
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.slideStartSeconds')}</span>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                {renderNumberInput(currentBackgroundSlide.start ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, start: Math.max(0, Number(value.toFixed(2))) })), { min: 0, step: 0.01, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                              </div>
+                              <button type="button" onClick={() => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, start: Number(currentTime.toFixed(2)) }))} className="px-2 border rounded-md text-xs shrink-0" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBg }} title={t('project.useCurrentTime')}>
+                                <Clock3 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.slideEndSeconds')}</span>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                {renderNumberInput(currentBackgroundSlide.end ?? 3, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, end: Math.max(slide.start ?? 0, Number(value.toFixed(2))) })), { min: 0, step: 0.01, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                              </div>
+                              <button type="button" onClick={() => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, end: Math.max(slide.start ?? 0, Number(currentTime.toFixed(2))) }))} className="px-2 border rounded-md text-xs shrink-0" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBg }} title={t('project.useCurrentTime')}>
+                                <Clock3 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {currentBackgroundSlide.type !== 'text' ? <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.backgroundFit')}</span>
+                            <select value={currentBackgroundSlide.fit || 'cover'} onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, fit: e.target.value }))} className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} style={inputSurfaceStyle}>
+                              <option value="cover">{t('project.fitCover')}</option>
+                              <option value="contain">{t('project.fitContain')}</option>
+                              <option value="fill">{t('project.fitFill')}</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.backgroundPosition')}</span>
+                            <select value={currentBackgroundSlide.position || 'center'} onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, position: e.target.value }))} className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} style={inputSurfaceStyle}>
+                              <option value="center">{t('project.posCenter')}</option>
+                              <option value="top">{t('project.posTop')}</option>
+                              <option value="bottom">{t('project.posBottom')}</option>
+                              <option value="left">{t('project.posLeft')}</option>
+                              <option value="right">{t('project.posRight')}</option>
+                              <option value="top-left">{t('project.posTopLeft')}</option>
+                              <option value="top-right">{t('project.posTopRight')}</option>
+                              <option value="bottom-left">{t('project.posBottomLeft')}</option>
+                              <option value="bottom-right">{t('project.posBottomRight')}</option>
+                            </select>
+                          </div>
+                        </div> : null}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.slideScale')}</span>
+                            {renderNumberInput(currentBackgroundSlide.scale ?? 1, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, scale: Math.max(0.1, value) })), { min: 0.1, step: 0.05, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.slideRotation')}</span>
+                            {renderNumberInput(currentBackgroundSlide.rotation ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, rotation: Number(value.toFixed(2)) })), { step: 1, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.slideOffsetX')}</span>
+                            {renderNumberInput(currentBackgroundSlide.offsetX ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, offsetX: value })), { step: 2, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.slideOffsetY')}</span>
+                            {renderNumberInput(currentBackgroundSlide.offsetY ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, offsetY: value })), { step: 2, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.insertImageLayer')}</span>
+                            <select value={currentBackgroundSlide.layer || 'background'} onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => {
+                              const nextLayer = e.target.value as 'background' | 'overlay';
+                              if (nextLayer === slide.layer) {
+                                return { ...slide, layer: nextLayer };
+                              }
+                              const maxBackgroundOrder = Math.max(-1, ...backgroundSlides.filter((item: any) => item.id !== slide.id && item.layer === 'background').map((item: any) => item.backgroundOrder ?? 0));
+                              const maxOverlayOrder = Math.max(-1, ...backgroundSlides.filter((item: any) => item.id !== slide.id && item.layer !== 'background').map((item: any) => item.overlayOrder ?? 0));
+                              return {
+                                ...slide,
+                                layer: nextLayer,
+                                backgroundOrder: nextLayer === 'background' ? maxBackgroundOrder + 1 : (slide.backgroundOrder ?? maxBackgroundOrder + 1),
+                                overlayOrder: nextLayer === 'overlay' ? maxOverlayOrder + 1 : (slide.overlayOrder ?? maxOverlayOrder + 1),
+                              };
+                            })} className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} style={inputSurfaceStyle}>
+                              <option value="background">{t('project.insertImageLayerBackground')}</option>
+                              <option value="overlay">{t('project.insertImageLayerOverlay')}</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.animationStyle')}</span>
+                            <select value={currentBackgroundSlide.animationStyle || 'blur'} onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, animationStyle: e.target.value }))} className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} style={inputSurfaceStyle}>
+                              <option value="none">{t('anim.none')}</option>
+                              <option value="fade">{t('anim.fade')}</option>
+                              <option value="rise">{t('anim.rise')}</option>
+                              <option value="pop">{t('anim.pop')}</option>
+                              <option value="slide">{t('anim.slide')}</option>
+                              <option value="blur">{t('anim.blur')}</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {currentBackgroundSlide.type === 'text' ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">字体</span>
+                                {renderFontFamilyFields(currentBackgroundSlide.fontFamily || 'system-ui', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, fontFamily: value })))}
+                              </div>
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">字重</span>
+                                <select value={currentBackgroundSlide.fontWeight || '700'} onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, fontWeight: e.target.value }))} className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} style={inputSurfaceStyle}>
+                                  <option value="normal">normal</option>
+                                  <option value="bold">bold</option>
+                                  <option value="100">100</option>
+                                  <option value="300">300</option>
+                                  <option value="500">500</option>
+                                  <option value="700">700</option>
+                                  <option value="900">900</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">字号</span>
+                                {renderNumberInput(currentBackgroundSlide.fontSize ?? 96, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, fontSize: Math.max(8, value) })), { min: 8, step: 1, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                              </div>
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">透明度</span>
+                                {renderNumberInput(currentBackgroundSlide.opacity ?? 1, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, opacity: Math.max(0, Math.min(1, Number(value.toFixed(2)))) })), { min: 0, max: 1, step: 0.05, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">文字颜色</span>
+                                {renderColorInput(currentBackgroundSlide.textColor || '#FFFFFF', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textColor: value })))}
+                              </div>
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">描边颜色</span>
+                                {renderColorInput(currentBackgroundSlide.textStrokeColor || '#000000', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textStrokeColor: value })))}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">描边大小</span>
+                                {renderNumberInput(currentBackgroundSlide.textStrokeWidth ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textStrokeWidth: Math.max(0, value) })), { min: 0, step: 0.5, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                              </div>
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">阴影颜色</span>
+                                {renderColorInput(currentBackgroundSlide.textShadowColor || '#00000088', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textShadowColor: value })))}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">阴影大小</span>
+                                {renderNumberInput(currentBackgroundSlide.textShadowSize ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textShadowSize: Math.max(0, value) })), { min: 0, step: 1, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                              </div>
+                              <div />
+                            </div>
+                          </>
+                        ) : null}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <span className="text-xs opacity-70">{t('project.animationSpeed')}</span>
+                            {renderNumberInput(currentBackgroundSlide.animationDuration ?? 0.01, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, animationDuration: Math.max(0, Number(value.toFixed(2))) })), { min: 0, step: 0.01, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-xs opacity-70">{t('project.insertImageInheritFilters')}</label>
+                            <button
+                              type="button"
+                              onClick={() => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, inheritBackgroundFilters: !(slide.inheritBackgroundFilters ?? true) }))}
+                              disabled={(currentBackgroundSlide.layer || 'background') === 'overlay'}
+                              className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors disabled:opacity-50"
+                              style={{
+                                backgroundColor: (currentBackgroundSlide.inheritBackgroundFilters ?? true) ? `${secondaryThemeColor}14` : uiTheme.panelBg,
+                                borderColor: (currentBackgroundSlide.inheritBackgroundFilters ?? true) ? `${secondaryThemeColor}55` : uiTheme.border,
+                                color: uiTheme.text,
+                              }}
+                            >
+                              <span>{(currentBackgroundSlide.inheritBackgroundFilters ?? true) ? t('common.enabled') : t('common.disabled')}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="text-xs opacity-60">{t('project.insertImagesEmpty')}</div>
+                )}
               </div>
             </div>
           </div>

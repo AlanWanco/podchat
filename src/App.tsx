@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { SettingsPanel } from './components/SettingsPanel';
 import { PlayerControls } from './components/PlayerControls';
 import { SubtitlePanel } from './components/SubtitlePanel';
@@ -10,11 +10,13 @@ import { AssImportModal } from './components/AssImportModal';
 import { ExportModal } from './components/ExportModal';
 import { AboutModal, type UpdateCheckResult } from './components/AboutModal';
 import { ChatAnnotationBubble, ChatMessageBubble } from './components/chat/SharedChatBubbles';
+import { getBubbleMotionState } from './components/chat/SharedChatBubbles';
 import { useAssSubtitle } from './hooks/useAssSubtitle';
 import { translate, type Language } from './i18n';
 import { createThemeTokens } from './theme';
 import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
 import { Tooltip } from './components/ui/Tooltip';
+import type { BackgroundSlideItem } from './remotion/types';
 import './App.css';
 
 const LIGHT_THEME_DEFAULT = '#9ca4b8';
@@ -127,7 +129,8 @@ const DEFAULT_PROJECT_CONFIG = {
     blur: 8,
     brightness: 1,
     fit: 'contain',
-    position: 'center'
+    position: 'center',
+    slides: [] as BackgroundSlideItem[]
   },
   audioPath: '',
   assPath: '',
@@ -224,7 +227,42 @@ const sanitizeProjectConfig = (parsed: any) => {
       paddingLeft: parsed?.chatLayout?.paddingLeft ?? legacyPaddingX ?? (DEFAULT_PROJECT_CONFIG.chatLayout as any)?.paddingLeft ?? DEFAULT_PROJECT_CONFIG.chatLayout?.paddingX ?? DEFAULT_CHAT_LAYOUT.paddingLeft,
       paddingRight: parsed?.chatLayout?.paddingRight ?? legacyPaddingX ?? (DEFAULT_PROJECT_CONFIG.chatLayout as any)?.paddingRight ?? DEFAULT_PROJECT_CONFIG.chatLayout?.paddingX ?? DEFAULT_CHAT_LAYOUT.paddingRight
     },
-    background: { ...DEFAULT_PROJECT_CONFIG.background, ...(parsed?.background || {}) },
+    background: {
+      ...DEFAULT_PROJECT_CONFIG.background,
+      ...(parsed?.background || {}),
+      slides: Array.isArray(parsed?.background?.slides)
+        ? parsed.background.slides.map((slide: any, index: number) => ({
+            id: typeof slide?.id === 'string' && slide.id ? slide.id : `slide-${index + 1}`,
+            type: slide?.type === 'text' ? 'text' : 'image',
+            name: typeof slide?.name === 'string' ? slide.name : ((slide?.type === 'text' ? `字${index + 1}` : `图${index + 1}`)),
+            image: typeof slide?.image === 'string' ? slide.image : '',
+            text: typeof slide?.text === 'string' ? slide.text : '文本',
+            start: typeof slide?.start === 'number' && Number.isFinite(slide.start) ? slide.start : 0,
+            end: typeof slide?.end === 'number' && Number.isFinite(slide.end) ? slide.end : 3,
+            fit: slide?.fit === 'contain' || slide?.fit === 'fill' ? slide.fit : 'cover',
+            position: typeof slide?.position === 'string' ? slide.position : 'center',
+            scale: typeof slide?.scale === 'number' && Number.isFinite(slide.scale) ? slide.scale : 1,
+            offsetX: typeof slide?.offsetX === 'number' && Number.isFinite(slide.offsetX) ? slide.offsetX : 0,
+            offsetY: typeof slide?.offsetY === 'number' && Number.isFinite(slide.offsetY) ? slide.offsetY : 0,
+            rotation: typeof slide?.rotation === 'number' && Number.isFinite(slide.rotation) ? slide.rotation : 0,
+            backgroundOrder: typeof slide?.backgroundOrder === 'number' && Number.isFinite(slide.backgroundOrder) ? slide.backgroundOrder : index,
+            overlayOrder: typeof slide?.overlayOrder === 'number' && Number.isFinite(slide.overlayOrder) ? slide.overlayOrder : index,
+            layer: slide?.layer === 'overlay' ? 'overlay' : 'background',
+            inheritBackgroundFilters: slide?.inheritBackgroundFilters !== false,
+            animationStyle: ['none', 'fade', 'rise', 'pop', 'slide', 'blur'].includes(slide?.animationStyle) ? slide.animationStyle : 'fade',
+            animationDuration: typeof slide?.animationDuration === 'number' && Number.isFinite(slide.animationDuration) ? slide.animationDuration : 0.24,
+            opacity: typeof slide?.opacity === 'number' && Number.isFinite(slide.opacity) ? slide.opacity : 1,
+            textColor: typeof slide?.textColor === 'string' ? slide.textColor : '#FFFFFF',
+            textStrokeColor: typeof slide?.textStrokeColor === 'string' ? slide.textStrokeColor : '#000000',
+            textStrokeWidth: typeof slide?.textStrokeWidth === 'number' && Number.isFinite(slide.textStrokeWidth) ? slide.textStrokeWidth : 0,
+            textShadowColor: typeof slide?.textShadowColor === 'string' ? slide.textShadowColor : '#00000088',
+            textShadowSize: typeof slide?.textShadowSize === 'number' && Number.isFinite(slide.textShadowSize) ? slide.textShadowSize : 0,
+            fontFamily: typeof slide?.fontFamily === 'string' ? slide.fontFamily : 'system-ui',
+            fontSize: typeof slide?.fontSize === 'number' && Number.isFinite(slide.fontSize) ? slide.fontSize : 96,
+            fontWeight: typeof slide?.fontWeight === 'string' ? slide.fontWeight : '700',
+          }))
+        : []
+    },
     speakers: Object.fromEntries(
       Object.entries({ ...DEFAULT_PROJECT_CONFIG.speakers, ...(parsed?.speakers || {}) }).map(([speakerId, speaker]: [string, any]) => [
         speakerId,
@@ -327,99 +365,351 @@ const sanitizeProjectOverrides = (value: unknown) => {
   return overrides;
 };
 
-function SnapshotBubble({
-  canvasRef,
-  backgroundSrc,
-  backgroundBrightness,
-  backgroundBaseBlur,
-  blurPx,
-  tintColor,
-  className,
-  outerStyle,
-  contentStyle,
-  children
+function PreviewBackgroundAsset({
+  src,
+  fit,
+  position,
+  blur,
+  brightness,
+  scale = 1,
+  offsetX = 0,
+  offsetY = 0,
+  rotation = 0,
+  animationStyle = 'none',
+  animationDuration = 0.2,
+  currentTime,
+  start = 0,
+  end,
+  draggable = false,
+  onPointerDown,
+  onDoubleClick,
+  editOverlay,
+  onEditBoxChange,
 }: {
-  canvasRef: React.RefObject<HTMLDivElement | null>;
-  backgroundSrc?: string;
-  backgroundBrightness: number;
-  backgroundBaseBlur: number;
-  blurPx: number;
-  tintColor: string;
-  className: string;
-  outerStyle: React.CSSProperties;
-  contentStyle: React.CSSProperties;
-  children: React.ReactNode;
+  src?: string;
+  fit?: string;
+  position?: string;
+  blur: number;
+  brightness: number;
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+  rotation?: number;
+  animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
+  animationDuration?: number;
+  currentTime: number;
+  start?: number;
+  end?: number;
+  draggable?: boolean;
+  onPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onDoubleClick?: () => void;
+  editOverlay?: React.ReactNode;
+  onEditBoxChange?: (box: { centerX: number; centerY: number; width: number; height: number }) => void;
 }) {
-  const bubbleRef = useRef<HTMLDivElement>(null);
-  const [metrics, setMetrics] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-  const samplingBleed = Math.max(16, blurPx * 4);
+  // Track container size and natural image size to compute contain-fit overlay rect
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
-  useLayoutEffect(() => {
-    const bubbleEl = bubbleRef.current;
-    const canvasEl = canvasRef.current;
-    if (!bubbleEl || !canvasEl) return;
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setContainerSize({ w: entry.contentRect.width, h: entry.contentRect.height });
+    });
+    obs.observe(el);
+    setContainerSize({ w: el.clientWidth, h: el.clientHeight });
+    return () => obs.disconnect();
+  }, []);
 
-    const updateMetrics = () => {
-      const bubbleRect = bubbleEl.getBoundingClientRect();
-      const canvasRect = canvasEl.getBoundingClientRect();
-      const nextMetrics = {
-        left: bubbleRect.left - canvasRect.left,
-        top: bubbleRect.top - canvasRect.top,
-        width: canvasRect.width,
-        height: canvasRect.height
-      };
-      setMetrics((prev) => {
-        if (
-          prev &&
-          prev.left === nextMetrics.left &&
-          prev.top === nextMetrics.top &&
-          prev.width === nextMetrics.width &&
-          prev.height === nextMetrics.height
-        ) {
-          return prev;
-        }
-        return nextMetrics;
-      });
-    };
+  if (!src) {
+    return null;
+  }
 
-    updateMetrics();
-    const resizeObserver = new ResizeObserver(updateMetrics);
-    resizeObserver.observe(bubbleEl);
-    resizeObserver.observe(canvasEl);
-    window.addEventListener('resize', updateMetrics);
+  const objectFit = fit === 'contain' || fit === 'fill' ? fit : 'cover';
+  const objectPosition = (() => {
+    switch (position) {
+      case 'top': return 'center top';
+      case 'bottom': return 'center bottom';
+      case 'left': return 'left center';
+      case 'right': return 'right center';
+      case 'top-left': return 'left top';
+      case 'top-right': return 'right top';
+      case 'bottom-left': return 'left bottom';
+      case 'bottom-right': return 'right bottom';
+      default: return 'center center';
+    }
+  })();
+  const appearanceTime = Math.max(0, start - (animationStyle === 'none' ? 0 : animationDuration));
+  const progress = animationStyle === 'none' || animationDuration <= 0
+    ? 1
+    : Math.max(0, Math.min(1, (currentTime - appearanceTime) / animationDuration));
+  const disappearProgress = typeof end === 'number' && currentTime > end && animationStyle !== 'none' && animationDuration > 0
+    ? Math.max(0, Math.min(1, 1 - ((currentTime - end) / animationDuration)))
+    : 1;
+  const motionState = getBubbleMotionState(progress * disappearProgress, animationStyle, 'left');
+  // Transform applied to the asset (and matched by the edit overlay so controls track the image).
+  // transformOrigin is always 50% 50% so rotate/scale behaves like PS Free Transform (center-based).
+  const assetTransform = `${objectFit === 'cover' ? 'scale(1.05) ' : ''}translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg) scale(${scale}) ${motionState.transform || ''}`.trim();
+  const assetStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    objectFit,
+    objectPosition,
+    filter: `blur(${blur}px) brightness(${brightness})`,
+    transform: assetTransform,
+    transformOrigin: '50% 50%',
+    opacity: motionState.opacity,
+  };
 
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', updateMetrics);
-    };
-  }, [canvasRef]);
+  // For contain fit, compute the actual rendered rect of the image inside the container
+  // so the edit overlay wraps exactly the image area (not the full container).
+  let overlayRect: React.CSSProperties = { inset: 0 };
+  if (objectFit === 'contain' && containerSize && naturalSize && naturalSize.w > 0 && naturalSize.h > 0) {
+    const cw = containerSize.w;
+    const ch = containerSize.h;
+    const iw = naturalSize.w;
+    const ih = naturalSize.h;
+    const containerAspect = cw / ch;
+    const imageAspect = iw / ih;
+    let renderedW: number;
+    let renderedH: number;
+    if (imageAspect > containerAspect) {
+      renderedW = cw;
+      renderedH = cw / imageAspect;
+    } else {
+      renderedH = ch;
+      renderedW = ch * imageAspect;
+    }
+    const left = (cw - renderedW) / 2;
+    const top = (ch - renderedH) / 2;
+    overlayRect = { left, top, width: renderedW, height: renderedH };
+  }
+
+  const overlayWidth = 'width' in overlayRect && typeof overlayRect.width === 'number' ? overlayRect.width : containerSize?.w ?? 0;
+  const overlayHeight = 'height' in overlayRect && typeof overlayRect.height === 'number' ? overlayRect.height : containerSize?.h ?? 0;
+  const overlayLeft = 'left' in overlayRect && typeof overlayRect.left === 'number' ? overlayRect.left : 0;
+  const overlayTop = 'top' in overlayRect && typeof overlayRect.top === 'number' ? overlayRect.top : 0;
+
+  useEffect(() => {
+    if (!onEditBoxChange) return;
+    onEditBoxChange({
+      centerX: overlayLeft + overlayWidth / 2 + offsetX,
+      centerY: overlayTop + overlayHeight / 2 + offsetY,
+      width: overlayWidth * scale,
+      height: overlayHeight * scale,
+    });
+  }, [offsetX, offsetY, onEditBoxChange, overlayHeight, overlayLeft, overlayTop, overlayWidth, scale]);
+
+  // The edit overlay shares the same transform so controls naturally stick to the image
+  const overlayStyle: React.CSSProperties = {
+    position: 'absolute',
+    ...overlayRect,
+    transform: assetTransform,
+    transformOrigin: '50% 50%',
+    pointerEvents: 'none',
+  };
+  const interactionStyle: React.CSSProperties = {
+    position: 'absolute',
+    ...overlayRect,
+    transform: assetTransform,
+    transformOrigin: '50% 50%',
+    pointerEvents: onPointerDown || onDoubleClick ? 'auto' : 'none',
+    cursor: draggable ? 'grab' : undefined,
+    touchAction: draggable ? 'none' : undefined,
+  };
+
+  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(src);
+  const media = isVideo
+    ? <video src={src} muted loop playsInline className="w-full h-full" style={{ ...assetStyle, pointerEvents: 'none' }} />
+    : (
+      <img
+        src={src}
+        alt="Background asset"
+        draggable={false}
+        referrerPolicy="no-referrer"
+        className="w-full h-full select-none"
+        style={{ ...assetStyle, pointerEvents: 'none' }}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+        }}
+      />
+    );
 
   return (
-    <div ref={bubbleRef} className={className} style={outerStyle}>
-      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-        {backgroundSrc && metrics && blurPx > 0 ? (
-          <img
-            src={backgroundSrc}
-            alt=""
-            referrerPolicy="no-referrer"
-            style={{
-              position: 'absolute',
-              left: `${-(metrics.left + samplingBleed)}px`,
-              top: `${-(metrics.top + samplingBleed)}px`,
-              width: `${metrics.width + samplingBleed * 2}px`,
-              height: `${metrics.height + samplingBleed * 2}px`,
-              objectFit: 'cover',
-              filter: `blur(${Math.max(6, backgroundBaseBlur + blurPx * 1.2)}px) brightness(${backgroundBrightness})`,
-              transform: 'scale(1.05)',
-              transformOrigin: 'center center'
-            }}
-          />
-        ) : null}
-        <div style={{ position: 'absolute', inset: 0, backgroundColor: tintColor }} />
-      </div>
-      <div style={contentStyle}>{children}</div>
+    <div ref={containerRef} className="w-full h-full relative" style={{ pointerEvents: 'none' }}>
+      {media}
+      {(onPointerDown || onDoubleClick) && <div onPointerDown={onPointerDown} onDoubleClick={onDoubleClick} style={interactionStyle} />}
+      {editOverlay && <div style={overlayStyle}>{editOverlay}</div>}
     </div>
   );
+}
+
+function PreviewTextAsset({
+  slide,
+  currentTime,
+  onDoubleClick,
+  onPointerDown,
+  editOverlay,
+  onEditBoxChange,
+  canvasWidth,
+  canvasHeight,
+}: {
+  slide: BackgroundSlideItem;
+  currentTime: number;
+  onDoubleClick?: () => void;
+  onPointerDown?: React.PointerEventHandler<HTMLDivElement>;
+  editOverlay?: React.ReactNode;
+  onEditBoxChange?: (box: { centerX: number; centerY: number; width: number; height: number }) => void;
+  canvasWidth: number;
+  canvasHeight: number;
+}) {
+  const animationStyle = slide.animationStyle || 'fade';
+  const animationDuration = slide.animationDuration ?? 0.24;
+  const appearanceTime = Math.max(0, slide.start - (animationStyle === 'none' ? 0 : animationDuration));
+  const progress = animationStyle === 'none' || animationDuration <= 0 ? 1 : Math.max(0, Math.min(1, (currentTime - appearanceTime) / animationDuration));
+  const disappearProgress = typeof slide.end === 'number' && currentTime > slide.end && animationStyle !== 'none' && animationDuration > 0
+    ? Math.max(0, Math.min(1, 1 - ((currentTime - slide.end) / animationDuration)))
+    : 1;
+  const motionState = getBubbleMotionState(progress * disappearProgress, animationStyle, 'left');
+  const textLines = (slide.text || '').split('\n');
+  const fontSize = slide.fontSize ?? 96;
+  const strokeWidth = slide.textStrokeWidth ?? 0;
+  const estimatedWidth = Math.max(120, Math.max(...textLines.map((line) => line.length), 1) * fontSize * 0.62 + strokeWidth * 4 + 16);
+  const estimatedHeight = Math.max(fontSize * 1.2, textLines.length * fontSize * 1.15 + strokeWidth * 4 + 16);
+  const textGroupRef = useRef<SVGGElement | null>(null);
+  const [textBox, setTextBox] = useState<{ width: number; height: number; minX: number; minY: number; rawWidth: number; rawHeight: number } | null>(null);
+  const transform = `translate(-50%, -50%) translate(${slide.offsetX ?? 0}px, ${slide.offsetY ?? 0}px) rotate(${slide.rotation ?? 0}deg) scale(${slide.scale ?? 1}) ${motionState.transform || ''}`.trim();
+  const baseStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    transform,
+    transformOrigin: '50% 50%',
+    opacity: (slide.opacity ?? 1) * motionState.opacity,
+  };
+
+  useLayoutEffect(() => {
+    const group = textGroupRef.current;
+    if (!group) return;
+    try {
+      const bbox = group.getBBox();
+      const padding = strokeWidth + 4;
+      const nextBox = {
+        width: Math.max(1, bbox.width + padding * 2),
+        height: Math.max(1, bbox.height + padding * 2),
+        minX: bbox.x,
+        minY: bbox.y,
+        rawWidth: bbox.width,
+        rawHeight: bbox.height,
+      };
+      setTextBox((prev) => (
+        prev && prev.width === nextBox.width && prev.height === nextBox.height && prev.minX === nextBox.minX && prev.minY === nextBox.minY && prev.rawWidth === nextBox.rawWidth && prev.rawHeight === nextBox.rawHeight
+          ? prev
+          : nextBox
+      ));
+    } catch {
+      setTextBox((prev) => prev ?? { width: estimatedWidth, height: estimatedHeight, minX: 0, minY: 0, rawWidth: estimatedWidth, rawHeight: estimatedHeight });
+    }
+  }, [estimatedHeight, estimatedWidth, fontSize, slide.fontFamily, slide.fontWeight, slide.text, strokeWidth]);
+
+  const measuredWidth = textBox?.width ?? estimatedWidth;
+  const measuredHeight = textBox?.height ?? estimatedHeight;
+  const measuredMinX = textBox?.minX ?? 0;
+  const measuredMinY = textBox?.minY ?? 0;
+  const measuredRawWidth = textBox?.rawWidth ?? estimatedWidth;
+  const measuredRawHeight = textBox?.rawHeight ?? estimatedHeight;
+
+  useEffect(() => {
+    if (!onEditBoxChange) return;
+    onEditBoxChange({
+      centerX: canvasWidth / 2 + (slide.offsetX ?? 0),
+      centerY: canvasHeight / 2 + (slide.offsetY ?? 0),
+      width: measuredWidth * (slide.scale ?? 1),
+      height: measuredHeight * (slide.scale ?? 1),
+    });
+  }, [canvasHeight, canvasWidth, measuredHeight, measuredWidth, onEditBoxChange, slide.offsetX, slide.offsetY, slide.scale]);
+
+  return (
+    <div className="absolute inset-0" style={{ pointerEvents: 'none' }}>
+      <div
+        onDoubleClick={onDoubleClick}
+        onPointerDown={onPointerDown}
+        style={{
+          ...baseStyle,
+          width: `${measuredWidth}px`,
+          height: `${measuredHeight}px`,
+          pointerEvents: onDoubleClick || onPointerDown ? 'auto' : 'none',
+          cursor: onPointerDown ? 'grab' : undefined,
+          touchAction: onPointerDown ? 'none' : undefined,
+        }}
+      >
+        <svg width={measuredWidth} height={measuredHeight} overflow="visible" style={{ display: 'block' }}>
+          <g ref={textGroupRef} transform={`translate(${measuredWidth / 2 - (measuredMinX + measuredRawWidth / 2)}, ${measuredHeight / 2 - (measuredMinY + measuredRawHeight / 2)})`}>
+            {textLines.map((line, index) => (
+              <text
+                key={`${line}-${index}`}
+                x={0}
+                y={index * fontSize * 1.15}
+                textAnchor="middle"
+                fontFamily={slide.fontFamily || 'system-ui'}
+                fontSize={fontSize}
+                fontWeight={slide.fontWeight || '700'}
+                fill={slide.textColor || '#FFFFFF'}
+                stroke={slide.textStrokeWidth ? (slide.textStrokeColor || '#000000') : 'none'}
+                strokeWidth={slide.textStrokeWidth ?? 0}
+                paintOrder="stroke"
+                filter={(slide.textShadowSize ?? 0) > 0 ? `drop-shadow(0 0 ${slide.textShadowSize ?? 0}px ${slide.textShadowColor || '#00000088'})` : undefined}
+              >
+                {line || ' '}
+              </text>
+            ))}
+          </g>
+        </svg>
+      </div>
+      {editOverlay ? <div style={{ ...baseStyle, pointerEvents: 'none' }}>{editOverlay}</div> : null}
+    </div>
+  );
+}
+
+function getPreviewSlideBounds(slide: BackgroundSlideItem, canvasWidth: number, canvasHeight: number) {
+  if (slide.type === 'text') {
+    const fontSize = slide.fontSize ?? 96;
+    const text = slide.text || '';
+    const longestLine = text.split('\n').reduce((max, line) => Math.max(max, line.length), 1);
+    const lineCount = Math.max(1, text.split('\n').length);
+    const width = Math.max(120, longestLine * fontSize * 0.62 + (slide.textStrokeWidth ?? 0) * 4 + 16) * (slide.scale ?? 1);
+    const height = Math.max(fontSize * 1.4, lineCount * fontSize * 1.15 + (slide.textStrokeWidth ?? 0) * 4 + 16) * (slide.scale ?? 1);
+    return {
+      left: canvasWidth / 2 + (slide.offsetX ?? 0) - width / 2,
+      top: canvasHeight / 2 + (slide.offsetY ?? 0) - height / 2,
+      width,
+      height,
+    };
+  }
+
+  const fit = slide.fit === 'contain' || slide.fit === 'fill' ? slide.fit : 'cover';
+  const scale = slide.scale ?? 1;
+  if (fit === 'contain') {
+    const base = Math.min(canvasWidth, canvasHeight) * 0.72;
+    const width = base * scale;
+    const height = base * scale;
+    return {
+      left: canvasWidth / 2 + (slide.offsetX ?? 0) - width / 2,
+      top: canvasHeight / 2 + (slide.offsetY ?? 0) - height / 2,
+      width,
+      height,
+    };
+  }
+
+  return {
+    left: canvasWidth / 2 + (slide.offsetX ?? 0) - (canvasWidth * scale) / 2,
+    top: canvasHeight / 2 + (slide.offsetY ?? 0) - (canvasHeight * scale) / 2,
+    width: canvasWidth * scale,
+    height: canvasHeight * scale,
+  };
 }
 
 function App() {
@@ -489,6 +779,10 @@ function App() {
   const [exportStatusMessage, setExportStatusMessage] = useState<string | null>(null);
   const [lastExportOutputPath, setLastExportOutputPath] = useState('');
   const [lastExportSucceeded, setLastExportSucceeded] = useState(false);
+  const [activeInsertImageId, setActiveInsertImageId] = useState<string | null>(null);
+  const [isInsertImageEditMode, setIsInsertImageEditMode] = useState(false);
+  const insertImageDragRef = useRef<{ id: string; mode: 'move' | 'scale' | 'rotate'; startX: number; startY: number; initialOffsetX: number; initialOffsetY: number; initialScale: number; initialRotation: number; initialDistance?: number; initialAngle?: number } | null>(null);
+  const [slideEditBoxes, setSlideEditBoxes] = useState<Record<string, { centerX: number; centerY: number; width: number; height: number }>>({});
   const [renderCacheInfo, setRenderCacheInfo] = useState<RenderCacheInfo | null>(null);
   const [exportQuality, setExportQuality] = useState<'fast' | 'balance' | 'high'>('balance');
   const [exportHardware, setExportHardware] = useState<'auto' | 'gpu' | 'cpu'>('auto');
@@ -525,7 +819,6 @@ function App() {
   const webProjectInputRef = useRef<HTMLInputElement>(null);
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const previewFrameRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const previewBackgroundVideoRef = useRef<HTMLVideoElement>(null);
   const subtitleFormat = (config.subtitleFormat || 'ass') as SubtitleFormat;
   const { subtitles, setSubtitles, loading: subtitlesLoading } = useAssSubtitle(config.assPath, config.speakers, webAssContent, config.content, subtitleFormat);
@@ -674,14 +967,6 @@ function App() {
   const aspectRatio = `${canvasWidth} / ${canvasHeight}`;
   const aspectLabel = `${canvasWidth}:${canvasHeight}`;
 const [previewScale, setPreviewScale] = useState(1);
-  const [previewFrameSize, setPreviewFrameSize] = useState(() => {
-    const base = 520;
-    const scale = Math.min(base / canvasWidth, base / canvasHeight);
-    return {
-      width: Math.round(canvasWidth * scale),
-      height: Math.round(canvasHeight * scale)
-    };
-  });
 
   useLayoutEffect(() => {
     const areaEl = previewAreaRef.current;
@@ -702,10 +987,6 @@ const [previewScale, setPreviewScale] = useState(1);
       const nextScale = Math.min(widthRatio, heightRatio);
       const safeScale = Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1;
       setPreviewScale(safeScale);
-      setPreviewFrameSize({
-        width: Math.round(canvasWidth * safeScale),
-        height: Math.round(canvasHeight * safeScale)
-      });
     };
 
     updateScale();
@@ -740,10 +1021,6 @@ const [previewScale, setPreviewScale] = useState(1);
       const nextScale = Math.min(availableWidth / canvasWidth, availableHeight / canvasHeight);
       const safeScale = Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1;
       setPreviewScale(safeScale);
-      setPreviewFrameSize({
-        width: Math.round(canvasWidth * safeScale),
-        height: Math.round(canvasHeight * safeScale)
-      });
     };
 
     const t1 = window.setTimeout(forceScale, 50);
@@ -1689,12 +1966,16 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const getExportConfig = () => {
     const restConfig = getProjectConfig();
+    const resolveExportAssetPath = (assetPath: string | undefined) => {
+      const cachedPath = cachedRemoteAssets[assetPath || ''] || assetPath;
+      return resolvePath(cachedPath) || cachedPath || '';
+    };
     const remappedSpeakers = Object.fromEntries(
       Object.entries(restConfig.speakers || {}).map(([key, speaker]: [string, any]) => [
         key,
         {
           ...speaker,
-          avatar: cachedRemoteAssets[speaker?.avatar || ''] || speaker?.avatar || ''
+          avatar: resolveExportAssetPath(speaker?.avatar)
         }
       ])
     );
@@ -1704,7 +1985,13 @@ const [previewScale, setPreviewScale] = useState(1);
       background: restConfig.background
         ? {
             ...restConfig.background,
-            image: cachedRemoteAssets[restConfig.background.image || ''] || restConfig.background.image
+            image: resolveExportAssetPath(restConfig.background.image),
+            slides: Array.isArray(restConfig.background.slides)
+              ? restConfig.background.slides.map((slide: BackgroundSlideItem) => ({
+                  ...slide,
+                  image: resolveExportAssetPath(slide.image)
+                }))
+              : []
           }
         : restConfig.background
     };
@@ -2125,21 +2412,21 @@ const [previewScale, setPreviewScale] = useState(1);
     window.addEventListener('pointercancel', onPointerUp);
   };
 
-  const toFileUrl = (localPath: string) => {
+  const toFsServePath = (localPath: string) => {
     const normalized = localPath.replace(/\\/g, '/');
 
     if (/^[a-zA-Z]:\//.test(normalized)) {
       const [drive, ...segments] = normalized.split('/');
-      return `file:///${drive}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
+      return `/@fs/${drive}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
     }
 
     if (normalized.startsWith('//')) {
       const [host, ...segments] = normalized.replace(/^\/\//, '').split('/');
-      return `file://${host}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
+      return `/@fs//${host}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
     }
 
     const segments = normalized.split('/');
-    return `file://${segments.map((segment, index) => (index === 0 ? segment : encodeURIComponent(segment))).join('/')}`;
+    return `/@fs${segments.map((segment, index) => (index === 0 ? segment : `/${encodeURIComponent(segment)}`)).join('')}`;
   };
 
   const detectVideoMediaInfo = useCallback(async (src: string) => {
@@ -2190,11 +2477,21 @@ const [previewScale, setPreviewScale] = useState(1);
     if (!trimmed) return undefined;
 
     if (cachedRemoteAssets[trimmed]) {
-      return toFileUrl(cachedRemoteAssets[trimmed]);
+      return toFsServePath(cachedRemoteAssets[trimmed]);
     }
 
-    if (/^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('file://')) {
+    if (/^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
       return trimmed;
+    }
+
+    if (trimmed.startsWith('file://')) {
+      try {
+        const url = new URL(trimmed);
+        const host = url.host ? `//${url.host}` : '';
+        return `/@fs${host}${url.pathname}`;
+      } catch {
+        return toFsServePath(trimmed.replace(/^file:\/\/?/, '/'));
+      }
     }
 
     if (/^www\./i.test(trimmed)) {
@@ -2202,15 +2499,15 @@ const [previewScale, setPreviewScale] = useState(1);
     }
 
     if (/^[a-zA-Z]:[\\/]/.test(trimmed)) {
-      return toFileUrl(trimmed);
+      return toFsServePath(trimmed);
     }
 
     if (trimmed.startsWith('\\\\')) {
-      return toFileUrl(trimmed);
+      return toFsServePath(trimmed);
     }
 
     if (trimmed.startsWith('/') && !trimmed.startsWith('/projects/') && !trimmed.startsWith('/assets/')) {
-      return toFileUrl(trimmed);
+      return toFsServePath(trimmed);
     }
 
     return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
@@ -2223,6 +2520,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
     const urls = [
       config.background?.image,
+      ...(config.background?.slides || []).map((slide: BackgroundSlideItem) => slide?.image),
       ...Object.values(config.speakers || {}).map((speaker: any) => speaker?.avatar)
     ].filter((value): value is string => Boolean(value) && /^https?:\/\//i.test(value));
 
@@ -2253,9 +2551,35 @@ const [previewScale, setPreviewScale] = useState(1);
     return () => {
       cancelled = true;
     };
-  }, [config.background?.image, config.speakers, cachedRemoteAssets]);
+  }, [config.background?.image, config.background?.slides, config.speakers, cachedRemoteAssets]);
 
   const resolvedAudioPath = webAudioObjectUrl || resolvePath(config.audioPath) || '';
+  const backgroundSlides = Array.isArray(config.background?.slides) ? config.background.slides : [];
+  const activeInsertImageSlide = backgroundSlides.find((slide: BackgroundSlideItem) => slide.id === activeInsertImageId) || null;
+  const activeInsertImageBounds = useMemo(() => {
+    if (!activeInsertImageSlide) {
+      return null;
+    }
+    const editBox = slideEditBoxes[activeInsertImageSlide.id];
+    if (editBox) {
+      return {
+        left: editBox.centerX - editBox.width / 2,
+        top: editBox.centerY - editBox.height / 2,
+        width: editBox.width,
+        height: editBox.height,
+      };
+    }
+    return getPreviewSlideBounds(activeInsertImageSlide, canvasWidth, canvasHeight);
+  }, [activeInsertImageSlide, canvasWidth, canvasHeight, slideEditBoxes]);
+  const updateSlideEditBox = useCallback((slideId: string, box: { centerX: number; centerY: number; width: number; height: number }) => {
+    setSlideEditBoxes((prev) => {
+      const current = prev[slideId];
+      if (current && current.centerX === box.centerX && current.centerY === box.centerY && current.width === box.width && current.height === box.height) {
+        return prev;
+      }
+      return { ...prev, [slideId]: box };
+    });
+  }, []);
 
   const getBackgroundObjectPosition = (position?: string) => {
     switch (position) {
@@ -2519,7 +2843,7 @@ const [previewScale, setPreviewScale] = useState(1);
         showToast(t('app.imageImported'));
 
         if (isVideo) {
-          const mediaInfo = await detectVideoMediaInfo(toFileUrl(filePath));
+          const mediaInfo = await detectVideoMediaInfo(toFsServePath(filePath));
           if (mediaInfo.duration) {
             setConfig((prev: any) => ({
               ...prev,
@@ -2581,7 +2905,7 @@ const [previewScale, setPreviewScale] = useState(1);
       showToast(t('app.imageImported'));
 
       if (isVideo) {
-        const mediaInfo = await detectVideoMediaInfo(toFileUrl(filePath));
+        const mediaInfo = await detectVideoMediaInfo(toFsServePath(filePath));
         applyTrackedConfigUpdater((prev: any) => ({
           ...prev,
           background: {
@@ -2998,6 +3322,66 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [autoSaveProject, handleSaveProject, isProjectDirty, projectChangeTick, projectPath]);
 
   useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const drag = insertImageDragRef.current;
+      if (!drag) return;
+      const safePreviewScale = previewScale > 0 ? previewScale : 1;
+      const deltaX = (event.clientX - drag.startX) / safePreviewScale;
+      const deltaY = (event.clientY - drag.startY) / safePreviewScale;
+      const currentDistance = drag.mode === 'scale' && previewFrameRef.current && activeInsertImageBounds
+        ? (() => {
+            const frameRect = previewFrameRef.current!.getBoundingClientRect();
+            const centerX = frameRect.left + (activeInsertImageBounds.left + activeInsertImageBounds.width / 2) * safePreviewScale;
+            const centerY = frameRect.top + (activeInsertImageBounds.top + activeInsertImageBounds.height / 2) * safePreviewScale;
+            return Math.sqrt((event.clientX - centerX) ** 2 + (event.clientY - centerY) ** 2) / safePreviewScale;
+          })()
+        : 0;
+      const currentAngle = drag.mode === 'rotate' && previewFrameRef.current && activeInsertImageBounds
+        ? (() => {
+            const frameRect = previewFrameRef.current!.getBoundingClientRect();
+            const centerX = frameRect.left + (activeInsertImageBounds.left + activeInsertImageBounds.width / 2) * safePreviewScale;
+            const centerY = frameRect.top + (activeInsertImageBounds.top + activeInsertImageBounds.height / 2) * safePreviewScale;
+            return Math.atan2(event.clientY - centerY, event.clientX - centerX) * 180 / Math.PI;
+          })()
+        : 0;
+      applyTrackedConfigUpdater((prev: any) => ({
+        ...prev,
+        background: {
+          ...(prev?.background || DEFAULT_PROJECT_CONFIG.background),
+          slides: (prev?.background?.slides || []).map((slide: BackgroundSlideItem) => slide.id === drag.id
+            ? drag.mode === 'move'
+              ? { ...slide, offsetX: Math.round(drag.initialOffsetX + deltaX), offsetY: Math.round(drag.initialOffsetY + deltaY) }
+              : drag.mode === 'scale'
+                ? { ...slide, scale: Math.max(0.1, Number((drag.initialScale * (Math.max(1, currentDistance) / Math.max(1, drag.initialDistance ?? 1))).toFixed(3))) }
+                : { ...slide, rotation: Number((drag.initialRotation + (currentAngle - (drag.initialAngle ?? currentAngle))).toFixed(2)) }
+            : slide)
+        }
+      }));
+    };
+
+    const handlePointerUp = () => {
+      insertImageDragRef.current = null;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsInsertImageEditMode(false);
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeInsertImageBounds, applyTrackedConfigUpdater, previewScale]);
+
+  useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
       if (!(target instanceof HTMLElement)) {
         return false;
@@ -3049,6 +3433,17 @@ const [previewScale, setPreviewScale] = useState(1);
     const fps = Math.max(1, config.fps || 60);
     return Math.round(currentTime * fps) / fps;
   }, [currentTime, config.fps]);
+  const visibleBackgroundSlides = backgroundSlides.filter((slide: BackgroundSlideItem) => {
+    const animationDuration = slide.animationDuration ?? 0.24;
+    const appearanceTime = Math.max(0, slide.start - ((slide.animationStyle || 'fade') === 'none' ? 0 : animationDuration));
+    return previewRenderTime >= appearanceTime && previewRenderTime <= (slide.end + animationDuration);
+  });
+  const backgroundSlidesBelowChat = visibleBackgroundSlides
+    .filter((slide: BackgroundSlideItem) => (slide.layer || 'background') === 'background')
+    .sort((a: BackgroundSlideItem, b: BackgroundSlideItem) => (a.backgroundOrder ?? 0) - (b.backgroundOrder ?? 0));
+  const backgroundSlidesAboveChat = visibleBackgroundSlides
+    .filter((slide: BackgroundSlideItem) => slide.layer === 'overlay')
+    .sort((a: BackgroundSlideItem, b: BackgroundSlideItem) => (a.overlayOrder ?? 0) - (b.overlayOrder ?? 0));
   const visibleAnnotations = subtitles.filter((item) => {
     const speaker = config.speakers[item.speakerId];
     if (!speaker || speaker.type !== 'annotation') return false;
@@ -3070,20 +3465,6 @@ const [previewScale, setPreviewScale] = useState(1);
 
     return appeared.slice(-(config.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT));
   }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, config.chatLayout?.maxVisibleBubbles, previewRenderTime]);
-  const latestVisibleMessageId = visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1].id : '';
-
-  useEffect(() => {
-    if (!scrollRef.current) {
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    });
-  }, [latestVisibleMessageId, seekTick]);
-
   useEffect(() => {
     const bgVideo = previewBackgroundVideoRef.current;
     const backgroundImage = config.background?.image || '';
@@ -3138,18 +3519,36 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [config.chatLayout, isMobileWebLayout]);
 
   const handleAppDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes('application/x-pomchat-insert-image-tab')) {
+      return;
+    }
+    if (isInsertImageEditMode) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
     setIsDragOver(true);
   };
   const handleAppDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes('application/x-pomchat-insert-image-tab')) {
+      return;
+    }
+    if (isInsertImageEditMode) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragOver(false);
   };
   const handleAppDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes('application/x-pomchat-insert-image-tab')) {
+      return;
+    }
+    if (isInsertImageEditMode) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
@@ -3272,6 +3671,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
+                resolveAssetSrc={resolvePath}
               />
             </div>
           </div>
@@ -3434,12 +3834,18 @@ const [previewScale, setPreviewScale] = useState(1);
                 onSave={handleSaveProject}
                 showToast={showToast}
                 presets={presets}
-                onPresetsChange={handlePresetsChangeTracked}
-                onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                onSelectImage={handleSelectImage}
-              />
+                   onPresetsChange={handlePresetsChangeTracked}
+                   onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
+                   activeTab={activeTab}
+                   setActiveTab={setActiveTab}
+                   onSelectImage={handleSelectImage}
+                   onSeek={handleSeek}
+                   currentTime={previewRenderTime}
+                   activeInsertImageId={activeInsertImageId}
+                   onActiveInsertImageChange={setActiveInsertImageId}
+                   onEditInsertImage={(id) => { setActiveInsertImageId(id); setIsInsertImageEditMode(true); }}
+                   resolveAssetSrc={resolvePath}
+                  />
             </div>
           )}
           {settingsPosition === 'left' && showSettings && !shouldHideSidePanels && (
@@ -3601,6 +4007,7 @@ const [previewScale, setPreviewScale] = useState(1);
                    activeTab={activeTab}
                   setActiveTab={setActiveTab}
                   onSelectImage={handleSelectImage}
+                  resolveAssetSrc={resolvePath}
                 />
               </div>
             </div>
@@ -3620,12 +4027,14 @@ const [previewScale, setPreviewScale] = useState(1);
                 onContextMenu={handleCopyPreviewToClipboard}
                 className="relative pointer-events-auto bg-transparent rounded-lg overflow-hidden flex flex-col border shrink-0"
                 style={{
-                  width: `${previewFrameSize.width}px`,
-                  height: `${previewFrameSize.height}px`,
+                  width: `${canvasWidth}px`,
+                  height: `${canvasHeight}px`,
                   aspectRatio,
                   borderColor: isDarkMode ? '#1f2937' : '#d1d5db',
                   isolation: 'isolate',
-                  boxShadow: '0 12px 28px rgba(0,0,0,0.16)'
+                  boxShadow: '0 12px 28px rgba(0,0,0,0.16)',
+                  transform: `scale(${previewScale})`,
+                  transformOrigin: 'center center',
                 }}
               >
               
@@ -3673,23 +4082,100 @@ const [previewScale, setPreviewScale] = useState(1);
                 </div>
               )}
 
+              {backgroundSlidesBelowChat.map((slide: BackgroundSlideItem) => (
+                <div
+                  key={slide.id}
+                  className="absolute inset-0"
+                  style={{ zIndex: 12 + (slide.backgroundOrder ?? 0), overflow: activeInsertImageId === slide.id && isInsertImageEditMode ? 'visible' : 'hidden', pointerEvents: 'none' }}
+                >
+                  {slide.type === 'text' ? (
+                    <PreviewTextAsset
+                      slide={slide}
+                      currentTime={previewRenderTime}
+                      canvasWidth={canvasWidth}
+                      canvasHeight={canvasHeight}
+                      onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
+                      onDoubleClick={() => {
+                        setActiveInsertImageId(slide.id);
+                        setIsInsertImageEditMode(true);
+                      }}
+                      onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        insertImageDragRef.current = {
+                          id: slide.id,
+                          mode: 'move',
+                          startX: event.clientX,
+                          startY: event.clientY,
+                          initialOffsetX: slide.offsetX ?? 0,
+                          initialOffsetY: slide.offsetY ?? 0,
+                          initialScale: slide.scale ?? 1,
+                          initialRotation: slide.rotation ?? 0,
+                        };
+                        document.body.style.userSelect = 'none';
+                        document.body.style.cursor = 'grabbing';
+                      } : undefined}
+                    editOverlay={undefined}
+                    />
+                  ) : <PreviewBackgroundAsset
+                    src={resolvePath(slide.image)}
+                    fit={slide.fit}
+                    position={slide.position}
+                    blur={slide.inheritBackgroundFilters === false ? 0 : (config.background.blur || 0)}
+                    brightness={slide.inheritBackgroundFilters === false ? 1 : (config.background.brightness ?? 1)}
+                    scale={slide.scale ?? 1}
+                    offsetX={slide.offsetX ?? 0}
+                    offsetY={slide.offsetY ?? 0}
+                    rotation={slide.rotation ?? 0}
+                    animationStyle={slide.animationStyle || 'fade'}
+                    animationDuration={slide.animationDuration ?? 0.24}
+                    currentTime={previewRenderTime}
+                    start={slide.start}
+                    end={slide.end}
+                    draggable={activeInsertImageId === slide.id && isInsertImageEditMode}
+                    onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
+                    onDoubleClick={() => {
+                      setActiveInsertImageId(slide.id);
+                      setIsInsertImageEditMode(true);
+                    }}
+                    onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      insertImageDragRef.current = {
+                        id: slide.id,
+                        mode: 'move',
+                        startX: event.clientX,
+                        startY: event.clientY,
+                        initialOffsetX: slide.offsetX ?? 0,
+                        initialOffsetY: slide.offsetY ?? 0,
+                        initialScale: slide.scale ?? 1,
+                        initialRotation: slide.rotation ?? 0,
+                      };
+                      document.body.style.userSelect = 'none';
+                      document.body.style.cursor = 'grabbing';
+                    } : undefined}
+                    editOverlay={undefined}
+                  />}
+                </div>
+              ))}
+
               {/* Chat Stream */}
               <div
                 className="absolute inset-0 z-20 flex flex-col overflow-hidden"
                 style={{
-                  paddingTop: `${(previewChatLayout?.paddingTop ?? 48) * Math.max(0.35, previewScale)}px`,
-                  paddingLeft: `${(previewChatLayout?.paddingLeft ?? previewChatLayout?.paddingX ?? 48) * Math.max(0.35, previewScale)}px`,
-                  paddingRight: `${(previewChatLayout?.paddingRight ?? previewChatLayout?.paddingX ?? 48) * Math.max(0.35, previewScale)}px`
+                  paddingTop: `${previewChatLayout?.paddingTop ?? 48}px`,
+                  paddingLeft: `${previewChatLayout?.paddingLeft ?? previewChatLayout?.paddingX ?? 48}px`,
+                  paddingRight: `${previewChatLayout?.paddingRight ?? previewChatLayout?.paddingX ?? 48}px`,
+                  justifyContent: 'space-between'
                 }}
               >
                 <div
-                  ref={scrollRef}
-                  className="preview-scroll-hidden flex-1 min-h-0 overflow-y-auto"
+                  className="flex-1 min-h-0 overflow-hidden relative"
                 >
                   <div
-                    className="flex min-h-full flex-col justify-end"
+                    className="absolute left-0 right-0 flex flex-col"
                     style={{
-                      paddingBottom: `${(previewChatLayout?.paddingBottom ?? 80) * Math.max(0.35, previewScale)}px`
+                      bottom: `${previewChatLayout?.paddingBottom ?? 80}px`
                     }}
                   >
                     {subtitlesLoading ? (
@@ -3709,7 +4195,7 @@ const [previewScale, setPreviewScale] = useState(1);
                             speaker={speaker}
                             currentTime={previewRenderTime}
                             canvasWidth={canvasWidth}
-                            layoutScale={previewScale}
+                            layoutScale={1}
                             chatLayout={previewChatLayout}
                             fallbackAvatarBorderColor={isDarkMode ? '#1f2937' : '#ffffff'}
                             prevSpeakerId={prevSpeakerId}
@@ -3717,7 +4203,7 @@ const [previewScale, setPreviewScale] = useState(1);
                             isLatestVisible={isLatestVisible}
                             renderAvatar={({ src, alt, style }) => {
                               const bubbleScale = previewChatLayout?.bubbleScale ?? 1.5;
-                              const combinedScale = Math.max(0.1, previewScale) * bubbleScale;
+                              const combinedScale = Math.max(0.1, 1) * bubbleScale;
                               const borderWidth = Math.max(2, Math.round(4 * combinedScale));
                               const borderColor = speaker.style?.avatarBorderColor || (isDarkMode ? '#1f2937' : '#ffffff');
                               return (
@@ -3735,26 +4221,11 @@ const [previewScale, setPreviewScale] = useState(1);
                                 />
                               );
                             }}
-                            renderBubble={({ outerStyle, contentStyle, children }) => {
-                              const tintColor = typeof outerStyle.backgroundColor === 'string' ? outerStyle.backgroundColor : '#ffffff';
-                              const bubbleStyle = { ...outerStyle };
-                              delete bubbleStyle.backgroundColor;
-                              return (
-                                <SnapshotBubble
-                                  canvasRef={previewFrameRef}
-                                  backgroundSrc={resolvePath(config.background?.image)}
-                                  backgroundBrightness={config.background?.brightness ?? 1}
-                                  backgroundBaseBlur={config.background?.blur || 0}
-                                  blurPx={0}
-                                  tintColor={tintColor}
-                                  className="break-words"
-                                  outerStyle={bubbleStyle}
-                                  contentStyle={contentStyle}
-                                >
-                                  <p className="leading-relaxed whitespace-pre-wrap">{children}</p>
-                                </SnapshotBubble>
-                              );
-                            }}
+                            renderBubble={({ outerStyle, contentStyle, children }) => (
+                              <div style={outerStyle}>
+                                <div style={contentStyle}>{children}</div>
+                              </div>
+                            )}
                           />
                         );
                       })
@@ -3763,8 +4234,85 @@ const [previewScale, setPreviewScale] = useState(1);
                 </div>
               </div>
 
+              {backgroundSlidesAboveChat.map((slide: BackgroundSlideItem) => (
+                <div
+                  key={slide.id}
+                  className="absolute inset-0"
+                  style={{ zIndex: 25 + (slide.overlayOrder ?? 0), overflow: activeInsertImageId === slide.id && isInsertImageEditMode ? 'visible' : 'hidden', pointerEvents: 'none' }}
+                >
+                  {slide.type === 'text' ? (
+                    <PreviewTextAsset
+                      slide={slide}
+                      currentTime={previewRenderTime}
+                      canvasWidth={canvasWidth}
+                      canvasHeight={canvasHeight}
+                      onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
+                      onDoubleClick={() => {
+                        setActiveInsertImageId(slide.id);
+                        setIsInsertImageEditMode(true);
+                      }}
+                      onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        insertImageDragRef.current = {
+                          id: slide.id,
+                          mode: 'move',
+                          startX: event.clientX,
+                          startY: event.clientY,
+                          initialOffsetX: slide.offsetX ?? 0,
+                          initialOffsetY: slide.offsetY ?? 0,
+                          initialScale: slide.scale ?? 1,
+                          initialRotation: slide.rotation ?? 0,
+                        };
+                        document.body.style.userSelect = 'none';
+                        document.body.style.cursor = 'grabbing';
+                      } : undefined}
+                      editOverlay={undefined}
+                    />
+                  ) : <PreviewBackgroundAsset
+                    src={resolvePath(slide.image)}
+                    fit={slide.fit}
+                    position={slide.position}
+                    blur={0}
+                    brightness={1}
+                    scale={slide.scale ?? 1}
+                    offsetX={slide.offsetX ?? 0}
+                    offsetY={slide.offsetY ?? 0}
+                    rotation={slide.rotation ?? 0}
+                    animationStyle={slide.animationStyle || 'fade'}
+                    animationDuration={slide.animationDuration ?? 0.24}
+                    currentTime={previewRenderTime}
+                    start={slide.start}
+                    end={slide.end}
+                    draggable={activeInsertImageId === slide.id && isInsertImageEditMode}
+                    onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
+                    onDoubleClick={() => {
+                      setActiveInsertImageId(slide.id);
+                      setIsInsertImageEditMode(true);
+                    }}
+                    onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      insertImageDragRef.current = {
+                        id: slide.id,
+                        mode: 'move',
+                        startX: event.clientX,
+                        startY: event.clientY,
+                        initialOffsetX: slide.offsetX ?? 0,
+                        initialOffsetY: slide.offsetY ?? 0,
+                        initialScale: slide.scale ?? 1,
+                        initialRotation: slide.rotation ?? 0,
+                      };
+                      document.body.style.userSelect = 'none';
+                      document.body.style.cursor = 'grabbing';
+                    } : undefined}
+                    editOverlay={undefined}
+                  />}
+                </div>
+              ))}
+
               {visibleAnnotations.length > 0 && (
-                <div className="absolute inset-x-0 top-0 bottom-0 z-30 pointer-events-none flex flex-col justify-between" style={{ padding: `${24 * Math.max(0.35, previewScale)}px ${32 * Math.max(0.35, previewScale)}px` }}>
+                <div className="absolute inset-x-0 top-0 bottom-0 z-30 pointer-events-none flex flex-col justify-between" style={{ padding: '24px 32px' }}>
                   <div className="flex flex-col items-center gap-3">
                     {visibleAnnotations.filter((item) => config.speakers[item.speakerId]?.style?.annotationPosition === 'top').map((item) => {
                       const speaker = config.speakers[item.speakerId];
@@ -3774,7 +4322,7 @@ const [previewScale, setPreviewScale] = useState(1);
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
                             currentTime={previewRenderTime}
-                            layoutScale={previewScale}
+                            layoutScale={1}
                             chatLayout={{ ...previewChatLayout, bubbleScale: previewChatLayout?.bubbleScale }}
                           />
                         </div>
@@ -3790,12 +4338,102 @@ const [previewScale, setPreviewScale] = useState(1);
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
                             currentTime={previewRenderTime}
-                            layoutScale={previewScale}
+                            layoutScale={1}
                             chatLayout={{ ...previewChatLayout, bubbleScale: previewChatLayout?.bubbleScale }}
                           />
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+              {activeInsertImageSlide && activeInsertImageBounds && isInsertImageEditMode && (
+                <div className="absolute inset-0 z-40 pointer-events-none">
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${activeInsertImageBounds.left}px`,
+                      top: `${activeInsertImageBounds.top}px`,
+                      width: `${activeInsertImageBounds.width}px`,
+                      height: `${activeInsertImageBounds.height}px`,
+                      transform: `rotate(${activeInsertImageSlide.rotation ?? 0}deg)`,
+                      transformOrigin: '50% 50%',
+                    }}
+                  >
+                    <div className="absolute inset-0 border-2 border-dashed rounded pointer-events-none" style={{ borderColor: `${secondaryThemeColor}99`, boxShadow: `0 0 0 1px ${themeColor}44 inset` }} />
+                    <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none" style={{ top: '-56px', width: '2px', height: '56px', backgroundColor: `${secondaryThemeColor}88` }} />
+                    <button
+                      type="button"
+                      className="absolute left-1/2 rounded-full border pointer-events-auto"
+                      style={{ top: '-56px', width: '40px', height: '40px', transform: 'translate(-50%, -50%)', backgroundColor: isDarkMode ? '#111827' : '#ffffff', borderColor: secondaryThemeColor, boxShadow: `0 0 0 4px ${secondaryThemeColor}33`, cursor: 'grab', touchAction: 'none' }}
+                      title="旋转"
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const frameRect = previewFrameRef.current?.getBoundingClientRect();
+                        const centerX = (frameRect?.left ?? 0) + (activeInsertImageBounds.left + activeInsertImageBounds.width / 2) * (previewScale > 0 ? previewScale : 1);
+                        const centerY = (frameRect?.top ?? 0) + (activeInsertImageBounds.top + activeInsertImageBounds.height / 2) * (previewScale > 0 ? previewScale : 1);
+                        const initialAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX) * 180 / Math.PI;
+                        insertImageDragRef.current = {
+                          id: activeInsertImageSlide.id,
+                          mode: 'rotate',
+                          startX: event.clientX,
+                          startY: event.clientY,
+                          initialOffsetX: activeInsertImageSlide.offsetX ?? 0,
+                          initialOffsetY: activeInsertImageSlide.offsetY ?? 0,
+                          initialScale: activeInsertImageSlide.scale ?? 1,
+                          initialRotation: activeInsertImageSlide.rotation ?? 0,
+                          initialAngle,
+                        };
+                        document.body.style.userSelect = 'none';
+                        document.body.style.cursor = 'grabbing';
+                      }}
+                    />
+                    {([
+                      { left: '0%', top: '0%', cursor: 'nwse-resize' },
+                      { left: '100%', top: '0%', cursor: 'nesw-resize' },
+                      { left: '0%', top: '100%', cursor: 'nesw-resize' },
+                      { left: '100%', top: '100%', cursor: 'nwse-resize' },
+                    ]).map((handle, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        className="absolute rounded-sm border pointer-events-auto"
+                        style={{ left: handle.left, top: handle.top, width: '32px', height: '32px', backgroundColor: isDarkMode ? '#111827' : '#ffffff', borderColor: secondaryThemeColor, boxShadow: `0 0 0 4px ${secondaryThemeColor}33`, transform: 'translate(-50%, -50%)', cursor: handle.cursor, touchAction: 'none' }}
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const frameRect = previewFrameRef.current?.getBoundingClientRect();
+                          const boundsCenterX = activeInsertImageBounds.left + activeInsertImageBounds.width / 2;
+                          const boundsCenterY = activeInsertImageBounds.top + activeInsertImageBounds.height / 2;
+                          const localCenterX = frameRect ? frameRect.left + boundsCenterX * (previewScale > 0 ? previewScale : 1) : event.clientX;
+                          const localCenterY = frameRect ? frameRect.top + boundsCenterY * (previewScale > 0 ? previewScale : 1) : event.clientY;
+                          const initialDistance = Math.sqrt((event.clientX - localCenterX) ** 2 + (event.clientY - localCenterY) ** 2) / (previewScale > 0 ? previewScale : 1);
+                          insertImageDragRef.current = {
+                            id: activeInsertImageSlide.id,
+                            mode: 'scale',
+                            startX: event.clientX,
+                            startY: event.clientY,
+                            initialOffsetX: activeInsertImageSlide.offsetX ?? 0,
+                            initialOffsetY: activeInsertImageSlide.offsetY ?? 0,
+                            initialScale: activeInsertImageSlide.scale ?? 1,
+                            initialRotation: activeInsertImageSlide.rotation ?? 0,
+                            initialDistance,
+                          };
+                          document.body.style.userSelect = 'none';
+                          document.body.style.cursor = handle.cursor;
+                        }}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      className="absolute rounded-full border pointer-events-auto inline-flex items-center justify-center font-bold"
+                      style={{ top: '-28px', right: '-92px', width: '56px', height: '56px', fontSize: '34px', lineHeight: 0.8, backgroundColor: isDarkMode ? 'rgba(17,24,39,0.92)' : 'rgba(255,255,255,0.96)', borderColor: `${secondaryThemeColor}66`, boxShadow: `0 0 0 4px ${secondaryThemeColor}2e`, color: uiTheme.text, cursor: 'pointer', padding: 0 }}
+                      onClick={() => setIsInsertImageEditMode(false)}
+                      title="退出编辑"
+                    >
+                      ×
+                    </button>
                   </div>
                 </div>
               )}
@@ -3843,6 +4481,12 @@ const [previewScale, setPreviewScale] = useState(1);
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onSelectImage={handleSelectImage}
+                onSeek={handleSeek}
+                currentTime={previewRenderTime}
+                activeInsertImageId={activeInsertImageId}
+                onActiveInsertImageChange={setActiveInsertImageId}
+                onEditInsertImage={(id) => { setActiveInsertImageId(id); setIsInsertImageEditMode(true); }}
+                resolveAssetSrc={resolvePath}
               />
             </div>
           </div>
@@ -3876,6 +4520,28 @@ const [previewScale, setPreviewScale] = useState(1);
         editingSub={editingSub}
         rangeSubtitle={editingSub ?? activePlaybackSubtitle}
         nearbySubtitles={nearbySubtitles}
+        backgroundSlides={backgroundSlides.map((slide: BackgroundSlideItem, index: number) => ({
+          id: slide.id,
+          start: slide.start,
+          end: slide.end,
+          name: (slide.name || '').trim() || (slide.type === 'text' ? `字${index + 1}` : `图${index + 1}`),
+          type: slide.type || 'image',
+          layer: slide.layer || 'background',
+          backgroundOrder: slide.backgroundOrder ?? index,
+          overlayOrder: slide.overlayOrder ?? index,
+        }))}
+        onBackgroundSlidesChange={(slides) => {
+          applyTrackedConfigUpdater((prev: any) => ({
+            ...prev,
+            background: {
+              ...(prev?.background || DEFAULT_PROJECT_CONFIG.background),
+              slides: (prev?.background?.slides || []).map((slide: BackgroundSlideItem) => {
+                const next = slides.find((item) => item.id === slide.id);
+                return next ? { ...slide, start: next.start, end: next.end } : slide;
+              })
+            }
+          }));
+        }}
         onEditingSubChange={(start, end) => {
           if (editingSub) {
             setEditingSub({ ...editingSub, start, end });
@@ -3945,6 +4611,7 @@ const [previewScale, setPreviewScale] = useState(1);
             hideHeader
             panelCollapsed={isMobileBottomPanelCollapsed}
             onTogglePanelCollapsed={() => setIsMobileBottomPanelCollapsed((prev) => !prev)}
+            resolveAssetSrc={resolvePath}
             subtitleContent={(
               <div className="h-full min-h-0 flex flex-col">
                 <div className="flex-1 min-h-0">

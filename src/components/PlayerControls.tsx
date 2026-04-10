@@ -1,4 +1,4 @@
-import { Play, Pause, SquareSquare, RotateCcw, Volume1, Repeat, Settings2, Clock3, SkipBack, SkipForward, ArrowRight, ArrowLeft, ArrowDown } from 'lucide-react';
+import { Play, Pause, SquareSquare, RotateCcw, Volume1, Repeat, Settings2, Clock3, SkipBack, SkipForward, ArrowRight, ArrowLeft, ArrowDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
@@ -30,6 +30,8 @@ interface PlayerControlsProps {
   editingSub?: { id: string, start: number, end: number, text: string } | null;
   rangeSubtitle?: { id: string, start: number, end: number, text: string } | null;
   nearbySubtitles?: Array<{ id: string; start: number; end: number; text: string; speakerId?: string }>;
+  backgroundSlides?: Array<{ id: string; start: number; end: number; name?: string; type?: 'image' | 'text'; layer?: 'background' | 'overlay'; backgroundOrder?: number; overlayOrder?: number }>;
+  onBackgroundSlidesChange?: (slides: Array<{ id: string; start: number; end: number }>) => void;
   onEditingSubChange?: (start: number, end: number) => void;
   compactMobile?: boolean;
 }
@@ -85,6 +87,8 @@ export const PlayerControls = memo(function PlayerControls({
   editingSub,
   rangeSubtitle,
   nearbySubtitles = [],
+  backgroundSlides = [],
+  onBackgroundSlidesChange,
   onEditingSubChange,
   compactMobile = false
 }: PlayerControlsProps) {
@@ -121,8 +125,59 @@ export const PlayerControls = memo(function PlayerControls({
   const [displayCurrentTime, setDisplayCurrentTime] = useState(0);
   const [waveformOverlayMetrics, setWaveformOverlayMetrics] = useState({ scrollLeft: 0, wrapperWidth: 0, viewportWidth: 0 });
   const [dragPreviewRange, setDragPreviewRange] = useState<{ start: number; end: number } | null>(null);
+  const backgroundSlideDragRef = useRef<{ id: string; edge: 'start' | 'end' } | null>(null);
+  const [waveformHoverPreview, setWaveformHoverPreview] = useState<{ x: number; time: number } | null>(null);
+  const [insertImageHoverLabel, setInsertImageHoverLabel] = useState<{ x: number; label: string; color: string } | null>(null);
+  const [isBackgroundSlideTrackCollapsed, setIsBackgroundSlideTrackCollapsed] = useState(true);
 
   const zoomRangeRef = useRef<HTMLInputElement>(null);
+
+  const textClass = isDarkMode ? "text-gray-400" : "text-gray-600";
+  const showWaveformContainer = audioPath ? isWaveformReady : true;
+  const liveCurrentTime = audioRef.current?.currentTime ?? displayCurrentTime;
+  const displayedExportRangeStart = dragPreviewRange?.start ?? exportRangeStart;
+  const displayedExportRangeEnd = dragPreviewRange?.end ?? exportRangeEnd;
+  const formattedExportRangeStart = formatTime(displayedExportRangeStart);
+  const formattedExportRangeEnd = formatTime(displayedExportRangeEnd);
+  const waveformDuration = Math.max(duration || 0, defaultExportEnd || 0, displayedExportRangeEnd || 0);
+  const clampedExportStart = waveformDuration > 0 ? Math.max(0, Math.min(displayedExportRangeStart, waveformDuration)) : 0;
+  const clampedExportEnd = waveformDuration > 0 ? Math.max(clampedExportStart, Math.min(displayedExportRangeEnd, waveformDuration)) : 0;
+  const exportBarStartPercent = waveformDuration > 0 ? (clampedExportStart / waveformDuration) * 100 : 0;
+  const exportBarWidthPercent = waveformDuration > 0 ? ((clampedExportEnd - clampedExportStart) / waveformDuration) * 100 : 0;
+  const backgroundSlidesBelow = backgroundSlides.filter((slide) => slide.layer !== 'overlay').sort((a, b) => (b.backgroundOrder ?? 0) - (a.backgroundOrder ?? 0));
+  const backgroundSlidesAbove = backgroundSlides.filter((slide) => slide.layer === 'overlay').sort((a, b) => (b.overlayOrder ?? 0) - (a.overlayOrder ?? 0));
+  const backgroundSlideTrackPadding = 4;
+  const backgroundSlideTrackHeight = backgroundSlides.length > 0 ? (isBackgroundSlideTrackCollapsed ? 8 : Math.min(88, 12 + backgroundSlides.length * 10) + backgroundSlideTrackPadding * 2) : 0;
+  const backgroundSlideBarHeight = 3;
+  const backgroundSlideTrackGap = 7;
+  const backgroundSlideGapToExportBar = backgroundSlides.length > 0 ? 7 : 1;
+  const backgroundSlideBars = waveformDuration > 0
+    ? [
+        ...backgroundSlidesAbove.map((slide, index) => ({
+          ...slide,
+          group: 'overlay' as const,
+          trackIndex: index,
+          left: `${Math.max(0, Math.min(100, (slide.start / waveformDuration) * 100))}%`,
+          width: `${Math.max(0, Math.min(100, ((Math.max(slide.end, slide.start) - slide.start) / waveformDuration) * 100))}%`,
+        })),
+        ...backgroundSlidesBelow.map((slide, index) => ({
+          ...slide,
+          group: 'background' as const,
+          trackIndex: index,
+          left: `${Math.max(0, Math.min(100, (slide.start / waveformDuration) * 100))}%`,
+          width: `${Math.max(0, Math.min(100, ((Math.max(slide.end, slide.start) - slide.start) / waveformDuration) * 100))}%`,
+        })),
+      ].filter((slide) => Number.parseFloat(slide.width) > 0)
+    : [];
+  const hasStartRangeSubtitle = Boolean(rangeSubtitle && rangeSubtitle.start >= 0);
+  const hasEndRangeSubtitle = Boolean(rangeSubtitle && rangeSubtitle.end >= 0);
+  const rangeTooltipStyle = {
+    backgroundColor: isDarkMode ? 'rgba(17, 24, 39, 0.78)' : 'rgba(255, 255, 255, 0.78)',
+    color: uiTheme.text,
+    border: `1px solid ${rgba(secondaryThemeColor, 0.3)}`,
+    backdropFilter: 'blur(14px) saturate(140%)',
+    WebkitBackdropFilter: 'blur(14px) saturate(140%)'
+  };
 
   useEffect(() => {
     hasUserAdjustedZoomRef.current = false;
@@ -353,8 +408,22 @@ export const PlayerControls = memo(function PlayerControls({
                .region[data-pomchat-nearby="1"] [part~="region-handle-left"],
                .region[data-pomchat-nearby="1"] [part~="region-handle-right"] {
                 display: none !important;
-              }
-             `;
+                }
+                .region[data-pomchat-background-slide="1"] {
+                  border: 1px solid transparent !important;
+                  background: ${rgba(secondaryThemeColor, 0.18)} !important;
+                  box-shadow: inset 0 0 0 1px ${rgba(secondaryThemeColor, 0.42)} !important;
+                }
+                .region[data-pomchat-background-slide="1"]::before,
+                .region[data-pomchat-background-slide="1"]::after,
+                .region[data-pomchat-background-slide="1"] .region-handle,
+                .region[data-pomchat-background-slide="1"] .handle,
+                .region[data-pomchat-background-slide="1"] [part~="region-handle"],
+                .region[data-pomchat-background-slide="1"] [part~="region-handle-left"],
+                .region[data-pomchat-background-slide="1"] [part~="region-handle-right"] {
+                  display: none !important;
+                }
+              `;
             host.shadowRoot.appendChild(regionStyle);
           }
       }
@@ -589,22 +658,48 @@ export const PlayerControls = memo(function PlayerControls({
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
+      const pointerWaveformDuration = Math.max(duration || 0, defaultExportEnd || 0, exportRangeEnd || 0);
+
+      if (backgroundSlideDragRef.current) {
+        const viewportRect = waveformRef.current?.getBoundingClientRect();
+        if (!viewportRect || pointerWaveformDuration <= 0) {
+          return;
+        }
+        const { scrollElement } = getWaveformOverlayElements();
+        const scrollLeft = scrollElement?.scrollLeft ?? waveformOverlayMetrics.scrollLeft;
+        const relativeX = event.clientX - viewportRect.left + scrollLeft;
+        const contentWidth = waveformOverlayMetrics.wrapperWidth || viewportRect.width;
+        const clampedX = Math.max(0, Math.min(relativeX, contentWidth));
+        const nextTime = Number(((clampedX / contentWidth) * pointerWaveformDuration).toFixed(2));
+        const dragTarget = backgroundSlideDragRef.current;
+
+        if (onBackgroundSlidesChange) {
+          onBackgroundSlidesChange(backgroundSlides.map((slide) => {
+            if (slide.id !== dragTarget.id) return slide;
+            if (dragTarget.edge === 'start') {
+              return { ...slide, start: Math.min(nextTime, slide.end) };
+            }
+            return { ...slide, end: Math.max(nextTime, slide.start) };
+          }));
+        }
+        return;
+      }
+
       const dragTarget = exportRangeDragRef.current;
       if (!dragTarget || !waveformOverlayMetrics.wrapperWidth) {
         return;
       }
 
-      const waveformDuration = Math.max(duration || 0, defaultExportEnd || 0, exportRangeEnd || 0);
       const { scrollElement } = getWaveformOverlayElements();
       const viewportRect = waveformRef.current?.getBoundingClientRect();
-      if (!viewportRect || waveformDuration <= 0) {
+      if (!viewportRect || pointerWaveformDuration <= 0) {
         return;
       }
 
       const scrollLeft = scrollElement?.scrollLeft ?? waveformOverlayMetrics.scrollLeft;
       const relativeX = event.clientX - viewportRect.left + scrollLeft;
       const clampedX = Math.max(0, Math.min(relativeX, waveformOverlayMetrics.wrapperWidth));
-      const nextTime = Number(((clampedX / waveformOverlayMetrics.wrapperWidth) * waveformDuration).toFixed(2));
+      const nextTime = Number(((clampedX / waveformOverlayMetrics.wrapperWidth) * pointerWaveformDuration).toFixed(2));
 
       if (dragTarget === 'start') {
         setDragPreviewRange((prev) => {
@@ -626,6 +721,13 @@ export const PlayerControls = memo(function PlayerControls({
     };
 
     const handlePointerUp = () => {
+      if (backgroundSlideDragRef.current) {
+        backgroundSlideDragRef.current = null;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        return;
+      }
+
       if (exportRangeDragRef.current && dragPreviewRange) {
         onExportRangeChange(dragPreviewRange);
       }
@@ -642,7 +744,7 @@ export const PlayerControls = memo(function PlayerControls({
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [defaultExportEnd, dragPreviewRange, duration, exportRangeEnd, exportRangeStart, getWaveformOverlayElements, onExportRangeChange, waveformOverlayMetrics]);
+  }, [backgroundSlides, defaultExportEnd, dragPreviewRange, duration, exportRangeEnd, exportRangeStart, getWaveformOverlayElements, onBackgroundSlidesChange, onExportRangeChange, waveformOverlayMetrics]);
 
   // Removed manual Sync effect since WaveSurfer syncs via the media element automatically.
   // UI time display is read directly from the audio element.
@@ -659,27 +761,6 @@ export const PlayerControls = memo(function PlayerControls({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const textClass = isDarkMode ? "text-gray-400" : "text-gray-600";
-  const showWaveformContainer = audioPath ? isWaveformReady : true;
-  const liveCurrentTime = audioRef.current?.currentTime ?? displayCurrentTime;
-  const displayedExportRangeStart = dragPreviewRange?.start ?? exportRangeStart;
-  const displayedExportRangeEnd = dragPreviewRange?.end ?? exportRangeEnd;
-  const formattedExportRangeStart = formatTime(displayedExportRangeStart);
-  const formattedExportRangeEnd = formatTime(displayedExportRangeEnd);
-  const waveformDuration = Math.max(duration || 0, defaultExportEnd || 0, displayedExportRangeEnd || 0);
-  const clampedExportStart = waveformDuration > 0 ? Math.max(0, Math.min(displayedExportRangeStart, waveformDuration)) : 0;
-  const clampedExportEnd = waveformDuration > 0 ? Math.max(clampedExportStart, Math.min(displayedExportRangeEnd, waveformDuration)) : 0;
-  const exportBarStartPercent = waveformDuration > 0 ? (clampedExportStart / waveformDuration) * 100 : 0;
-  const exportBarWidthPercent = waveformDuration > 0 ? ((clampedExportEnd - clampedExportStart) / waveformDuration) * 100 : 0;
-  const hasStartRangeSubtitle = Boolean(rangeSubtitle && rangeSubtitle.start >= 0);
-  const hasEndRangeSubtitle = Boolean(rangeSubtitle && rangeSubtitle.end >= 0);
-  const rangeTooltipStyle = {
-    backgroundColor: isDarkMode ? 'rgba(17, 24, 39, 0.78)' : 'rgba(255, 255, 255, 0.78)',
-    color: uiTheme.text,
-    border: `1px solid ${rgba(secondaryThemeColor, 0.3)}`,
-    backdropFilter: 'blur(14px) saturate(140%)',
-    WebkitBackdropFilter: 'blur(14px) saturate(140%)'
-  };
   const handlePlaceholderWaveformSeek = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (waveformDuration <= 0) {
       return;
@@ -690,6 +771,35 @@ export const PlayerControls = memo(function PlayerControls({
     const ratio = Math.max(0, Math.min(1, relativeX / rect.width));
     onSeek(ratio * waveformDuration);
   }, [onSeek, waveformDuration]);
+  const handlePlaceholderWaveformHover = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (waveformDuration <= 0) {
+      setWaveformHoverPreview(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const relativeX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+    const ratio = rect.width > 0 ? relativeX / rect.width : 0;
+    setWaveformHoverPreview({ x: relativeX, time: ratio * waveformDuration });
+  }, [waveformDuration]);
+  const handleRealWaveformHover = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (waveformDuration <= 0) {
+      setWaveformHoverPreview(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const relativeX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+    const contentWidth = waveformOverlayMetrics.wrapperWidth || rect.width;
+    const scrollRatio = rect.width > 0 ? relativeX / rect.width : 0;
+    const scrollLeft = waveformOverlayMetrics.scrollLeft;
+    const absoluteX = Math.max(0, Math.min(contentWidth, scrollLeft + scrollRatio * rect.width));
+    const time = contentWidth > 0 ? (absoluteX / contentWidth) * waveformDuration : 0;
+    setWaveformHoverPreview({ x: relativeX, time });
+  }, [waveformDuration, waveformOverlayMetrics.scrollLeft, waveformOverlayMetrics.wrapperWidth]);
+  const clearWaveformHover = useCallback(() => {
+    setWaveformHoverPreview(null);
+  }, []);
 
   return (
     <div className={`border-t flex flex-col shrink-0 z-20 transition-colors duration-300 [&_.text-xs]:text-sm ${compactMobile ? 'h-auto px-2.5 py-1.5' : 'h-auto px-6 py-2'}`} style={{ backgroundColor: uiTheme.toolbarBg, borderColor: uiTheme.border, boxShadow: `0 -4px 14px ${secondaryThemeColor}16` }}>
@@ -702,7 +812,7 @@ export const PlayerControls = memo(function PlayerControls({
           marginBottom: showWaveformContainer ? '0.5rem' : 0
         }}
       >
-          {audioPath && showWaveformContainer && editingSub && regionTooltip && (
+      {audioPath && showWaveformContainer && editingSub && regionTooltip && (
             <div
               className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 rounded-md text-[10px] font-mono z-[70] pointer-events-none whitespace-nowrap"
               style={{
@@ -715,21 +825,173 @@ export const PlayerControls = memo(function PlayerControls({
               {formatTime(regionTooltip.start)} - {formatTime(regionTooltip.end)}
             </div>
           )}
+          {showWaveformContainer && waveformHoverPreview && waveformDuration > 0 && (
+            <div
+              className="absolute bottom-full mb-2 px-2 py-1 rounded-md text-[10px] font-mono z-[65] pointer-events-none whitespace-nowrap -translate-x-1/2"
+              style={{
+                left: `${waveformHoverPreview.x}px`,
+                backgroundColor: isDarkMode ? `${themeColor}F2` : uiTheme.panelBgElevated,
+                color: isDarkMode ? '#ffffff' : uiTheme.text,
+                border: `1px solid ${secondaryThemeColor}`,
+                boxShadow: isDarkMode ? `0 8px 22px ${secondaryThemeColor}22` : `0 8px 20px ${secondaryThemeColor}1A`
+              }}
+            >
+              {formatTime(waveformHoverPreview.time)}
+            </div>
+          )}
+          {showWaveformContainer && insertImageHoverLabel && (
+            <div
+                className="absolute bottom-full mb-2 px-2 py-1 rounded-md text-[10px] z-[66] pointer-events-none whitespace-nowrap -translate-x-1/2"
+                style={{
+                  left: `${insertImageHoverLabel.x}px`,
+                  backgroundColor: isDarkMode ? `${insertImageHoverLabel.color}E6` : uiTheme.panelBgElevated,
+                  color: isDarkMode ? '#ffffff' : uiTheme.text,
+                  border: `1px solid ${insertImageHoverLabel.color}`,
+                  boxShadow: isDarkMode ? `0 8px 22px ${insertImageHoverLabel.color}22` : `0 8px 20px ${insertImageHoverLabel.color}1A`
+                }}
+              >
+                {insertImageHoverLabel.label}
+            </div>
+          )}
           {audioPath && showWaveformContainer && waveformOverlayMetrics.wrapperWidth > 0 && waveformDuration > 0 && (
-            <div className="relative w-full overflow-hidden mb-2" style={{ height: `${Math.max(exportHandleSize + 2, 14)}px` }}>
+            <div className="relative w-full overflow-visible mb-0.5" style={{ height: `${Math.max(exportHandleSize + 4, 14)}px`, marginTop: backgroundSlides.length > 0 ? `${backgroundSlideTrackHeight + backgroundSlideGapToExportBar}px` : undefined }}>
+              {backgroundSlideBars.length > 0 && (
+                <div
+                  className="absolute left-0 right-0 rounded-lg"
+                  style={{
+                    top: `${-(backgroundSlideTrackHeight + backgroundSlideGapToExportBar)}px`,
+                    height: `${backgroundSlideTrackHeight}px`,
+                    background: `linear-gradient(180deg, ${rgba(themeColor, isDarkMode ? 0.09 : 0.05)} 0%, ${rgba(themeColor, isDarkMode ? 0.05 : 0.025)} 100%)`,
+                    border: `1px solid ${rgba(themeColor, isDarkMode ? 0.18 : 0.12)}`,
+                    boxShadow: `inset 0 0 0 1px ${rgba(themeColor, isDarkMode ? 0.04 : 0.02)}`,
+                  }}
+                >
+                  {!isBackgroundSlideTrackCollapsed && backgroundSlidesBelow.length > 0 && backgroundSlidesAbove.length > 0 ? (
+                    <div
+                      className="absolute left-2 right-2"
+                      style={{
+                        top: `${backgroundSlideTrackPadding + backgroundSlidesAbove.length * (backgroundSlideBarHeight + backgroundSlideTrackGap) + 1}px`,
+                        height: '1px',
+                        backgroundColor: rgba(themeColor, isDarkMode ? 0.55 : 0.38),
+                      }}
+                    />
+                  ) : null}
+                </div>
+              )}
+              {/* Collapse/expand button — positioned at top of the track, outside the track container so it moves with track height */}
+              {backgroundSlideBars.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsBackgroundSlideTrackCollapsed((prev) => !prev)}
+                   className="absolute right-1.5 h-5 w-5 rounded-full border inline-flex items-center justify-center z-10"
+                  style={{
+                    top: `${-(backgroundSlideTrackHeight + backgroundSlideGapToExportBar) - 8}px`,
+                    borderColor: rgba(secondaryThemeColor, 0.3),
+                    backgroundColor: isDarkMode ? 'rgba(17,24,39,0.7)' : 'rgba(255,255,255,0.72)',
+                    color: secondaryThemeColor,
+                    transform: 'translateY(-50%)',
+                  }}
+                  title={isBackgroundSlideTrackCollapsed ? '展开时间轴编辑框' : '折叠时间轴编辑框'}
+                >
+                  {isBackgroundSlideTrackCollapsed ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+              )}
               <div
-                className="absolute top-1/2 left-0"
+                className="absolute left-0 top-0"
                 style={{
                   width: `${waveformOverlayMetrics.wrapperWidth}px`,
                   height: `${exportBarHeight}px`,
-                  transform: `translate(${-waveformOverlayMetrics.scrollLeft}px, -50%)`,
+                  transform: `translate(${-waveformOverlayMetrics.scrollLeft}px, 0)`,
                   backgroundColor: exportBarBaseColor,
                   borderRadius: 9999,
                   boxShadow: `inset 0 0 0 1px ${rgba(themeColor, isDarkMode ? 0.2 : 0.12)}`,
                 }}
-              >
-                <div
-                  className="absolute top-0 h-full rounded-full"
+                >
+                  {backgroundSlideBars.map((slide) => (
+                    <div
+                      key={slide.id}
+                      className="absolute"
+                      onMouseEnter={() => {
+                        if (!isBackgroundSlideTrackCollapsed && slide.name) {
+                          const leftPercent = Number.parseFloat(slide.left) || 0;
+                          const widthPercent = Number.parseFloat(slide.width) || 0;
+                          const centerPercent = leftPercent + widthPercent / 2;
+                          const x = (centerPercent / 100) * (waveformOverlayMetrics.viewportWidth || waveformOverlayMetrics.wrapperWidth || 0);
+                          setInsertImageHoverLabel({ x, label: slide.name, color: slide.group === 'background' ? themeColor : secondaryThemeColor });
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (!isBackgroundSlideTrackCollapsed) {
+                          setInsertImageHoverLabel(null);
+                        }
+                      }}
+                      style={{
+                        left: slide.left,
+                        width: slide.width,
+                        top: isBackgroundSlideTrackCollapsed
+                          ? `${-(backgroundSlideGapToExportBar + 5)}px`
+                          : `${-(backgroundSlideTrackHeight + backgroundSlideGapToExportBar) + backgroundSlideTrackPadding + (slide.group === 'overlay' ? slide.trackIndex * (backgroundSlideBarHeight + backgroundSlideTrackGap) : (backgroundSlidesAbove.length * (backgroundSlideBarHeight + backgroundSlideTrackGap)) + backgroundSlideTrackGap + slide.trackIndex * (backgroundSlideBarHeight + backgroundSlideTrackGap))}px`,
+                        height: `${backgroundSlideBarHeight}px`,
+                        minWidth: '10px',
+                        opacity: isBackgroundSlideTrackCollapsed ? 0.45 : 1,
+                        pointerEvents: isBackgroundSlideTrackCollapsed ? 'none' : 'auto',
+                      }}
+                    >
+                      <div
+                        className="absolute inset-0 rounded-sm"
+                        style={{
+                          backgroundColor: slide.group === 'background' ? themeColor : secondaryThemeColor,
+                          boxShadow: `0 0 0 1px ${rgba(slide.group === 'background' ? themeColor : secondaryThemeColor, isDarkMode ? 0.18 : 0.12)}`,
+                        }}
+                      />
+                      {!isBackgroundSlideTrackCollapsed ? <button
+                        type="button"
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full border"
+                        style={{
+                          left: 0,
+                          width: '10px',
+                          height: '10px',
+                          backgroundColor: uiTheme.panelBgElevated,
+                          borderColor: slide.group === 'background' ? themeColor : secondaryThemeColor,
+                          boxShadow: `0 0 0 1px ${rgba(slide.group === 'background' ? themeColor : secondaryThemeColor, isDarkMode ? 0.24 : 0.16)}`,
+                          cursor: 'ew-resize',
+                          pointerEvents: 'auto',
+                        }}
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          backgroundSlideDragRef.current = { id: slide.id, edge: 'start' };
+                          document.body.style.userSelect = 'none';
+                          document.body.style.cursor = 'ew-resize';
+                        }}
+                        title={slide.name}
+                      /> : null}
+                      {!isBackgroundSlideTrackCollapsed ? <button
+                        type="button"
+                        className="absolute top-1/2 translate-x-1/2 -translate-y-1/2 rounded-full border"
+                        style={{
+                          right: 0,
+                          width: '10px',
+                          height: '10px',
+                          backgroundColor: uiTheme.panelBgElevated,
+                          borderColor: slide.group === 'background' ? themeColor : secondaryThemeColor,
+                          boxShadow: `0 0 0 1px ${rgba(slide.group === 'background' ? themeColor : secondaryThemeColor, isDarkMode ? 0.24 : 0.16)}`,
+                          cursor: 'ew-resize',
+                          pointerEvents: 'auto',
+                        }}
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          backgroundSlideDragRef.current = { id: slide.id, edge: 'end' };
+                          document.body.style.userSelect = 'none';
+                          document.body.style.cursor = 'ew-resize';
+                        }}
+                        title={slide.name}
+                      /> : null}
+                    </div>
+                  ))}
+                  <div
+                    className="absolute top-0 h-full rounded-full"
                   style={{
                     left: `${exportBarStartPercent}%`,
                     width: `${exportBarWidthPercent}%`,
@@ -769,7 +1031,7 @@ export const PlayerControls = memo(function PlayerControls({
                   />
                   <button
                     type="button"
-                    className="absolute top-1/2 translate-x-1/2 -translate-y-1/2 rounded-full border pointer-events-auto transition-all duration-150 hover:scale-110"
+                    className="absolute top-1/2 -translate-y-1/2 translate-x-1/2 rounded-full border pointer-events-auto transition-all duration-150 hover:scale-110"
                     style={{
                       right: 0,
                       width: `${exportHandleSize}px`,
@@ -807,11 +1069,15 @@ export const PlayerControls = memo(function PlayerControls({
                 ref={waveformRef}
                 title={t('player.waveformTitle')}
                 style={{ visibility: isWaveformReady ? 'visible' : 'hidden' }}
+                onMouseMove={handleRealWaveformHover}
+                onMouseLeave={clearWaveformHover}
               />
             ) : (
               <div
                 className="w-full rounded-md border"
                 onClick={handlePlaceholderWaveformSeek}
+                onMouseMove={handlePlaceholderWaveformHover}
+                onMouseLeave={clearWaveformHover}
                 style={{
                   height: `${waveformHeight}px`,
                   borderColor: rgba(secondaryThemeColor, 0.2),

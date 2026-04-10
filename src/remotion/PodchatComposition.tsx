@@ -1,8 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Img, Loop, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { Gif } from '@remotion/gif';
-import type { PodchatExportInput } from './types';
-import { ChatAnnotationBubble, ChatMessageBubble } from '../components/chat/SharedChatBubbles';
+import type { BackgroundSlideItem, PodchatExportInput } from './types';
+import { ChatAnnotationBubble, ChatMessageBubble, getBubbleMotionState } from '../components/chat/SharedChatBubbles';
 
 const MESSAGE_FALLBACK_COUNT = 32;
 
@@ -13,6 +13,146 @@ const parseSizePx = (value: string | number | undefined, fallback: number) => {
     if (Number.isFinite(parsed)) return Math.max(1, parsed);
   }
   return Math.max(1, fallback);
+};
+
+const renderSlideText = ({
+  slide,
+  currentTime,
+}: {
+  slide: BackgroundSlideItem;
+  currentTime: number;
+}) => {
+  const animationStyle = slide.animationStyle || 'fade';
+  const animationDuration = slide.animationDuration ?? 0.24;
+  const appearanceTime = Math.max(0, slide.start - (animationStyle === 'none' ? 0 : animationDuration));
+  const progress = animationStyle === 'none' || animationDuration <= 0 ? 1 : Math.max(0, Math.min(1, (currentTime - appearanceTime) / animationDuration));
+  const disappearProgress = typeof slide.end === 'number' && currentTime > slide.end && animationStyle !== 'none' && animationDuration > 0
+    ? Math.max(0, Math.min(1, 1 - ((currentTime - slide.end) / animationDuration)))
+    : 1;
+  const motionState = getBubbleMotionState(progress * disappearProgress, animationStyle, 'left');
+  const fontSize = slide.fontSize ?? 96;
+  const strokeWidth = slide.textStrokeWidth ?? 0;
+  const shadowSize = slide.textShadowSize ?? 0;
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          transform: `translate(-50%, -50%) translate(${slide.offsetX ?? 0}px, ${slide.offsetY ?? 0}px) rotate(${slide.rotation ?? 0}deg) scale(${slide.scale ?? 1}) ${motionState.transform || ''}`.trim(),
+          transformOrigin: '50% 50%',
+          opacity: (slide.opacity ?? 1) * motionState.opacity,
+          fontFamily: slide.fontFamily || 'system-ui',
+          fontSize: `${fontSize}px`,
+          fontWeight: slide.fontWeight || '700',
+          lineHeight: 1.15,
+          color: slide.textColor || '#FFFFFF',
+          whiteSpace: 'pre-wrap',
+          textAlign: 'center',
+        }}
+      >
+        <svg overflow="visible" style={{ display: 'block' }}>
+          {(slide.text || '').split('\n').map((line, index) => (
+            <text
+              key={`${line}-${index}`}
+              x="0"
+              y={`${(index + 1) * fontSize * 1.15}`}
+              textAnchor="middle"
+              fontFamily={slide.fontFamily || 'system-ui'}
+              fontSize={fontSize}
+              fontWeight={slide.fontWeight || '700'}
+              fill={slide.textColor || '#FFFFFF'}
+              stroke={strokeWidth > 0 ? (slide.textStrokeColor || '#000000') : 'none'}
+              strokeWidth={strokeWidth}
+              paintOrder="stroke"
+              filter={shadowSize > 0 ? `drop-shadow(0 0 ${shadowSize}px ${slide.textShadowColor || '#00000088'})` : undefined}
+            >
+              {line || ' '}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+const renderSlideAsset = ({
+  src,
+  fit,
+  position,
+  blur,
+  brightness,
+  scale = 1,
+  offsetX = 0,
+  offsetY = 0,
+  rotation = 0,
+  animationStyle = 'none',
+  animationDuration = 0.2,
+  currentTime,
+  start = 0,
+  end,
+  width,
+  height,
+}: {
+  src?: string;
+  fit?: string;
+  position?: string;
+  blur: number;
+  brightness: number;
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+  rotation?: number;
+  animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
+  animationDuration?: number;
+  currentTime: number;
+  start?: number;
+  end?: number;
+  width: number;
+  height: number;
+}) => {
+  if (!src) return null;
+  const objectFit = fit === 'contain' || fit === 'fill' ? fit : 'cover';
+  const objectPosition = (() => {
+    switch (position) {
+      case 'top': return 'center top';
+      case 'bottom': return 'center bottom';
+      case 'left': return 'left center';
+      case 'right': return 'right center';
+      case 'top-left': return 'left top';
+      case 'top-right': return 'right top';
+      case 'bottom-left': return 'left bottom';
+      case 'bottom-right': return 'right bottom';
+      default: return 'center center';
+    }
+  })();
+  const appearanceTime = Math.max(0, start - ((animationStyle || 'fade') === 'none' ? 0 : animationDuration));
+  const progress = animationStyle === 'none' || animationDuration <= 0 ? 1 : Math.max(0, Math.min(1, (currentTime - appearanceTime) / animationDuration));
+  const disappearProgress = typeof end === 'number' && currentTime > end && animationStyle !== 'none' && animationDuration > 0
+    ? Math.max(0, Math.min(1, 1 - ((currentTime - end) / animationDuration)))
+    : 1;
+  const motionState = getBubbleMotionState(progress * disappearProgress, animationStyle, 'left');
+  const style: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    objectFit,
+    objectPosition,
+    filter: `blur(${blur}px) brightness(${brightness})`,
+    transform: `${objectFit === 'cover' ? 'scale(1.05) ' : ''}translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg) scale(${scale}) ${motionState.transform || ''}`.trim(),
+    transformOrigin: '50% 50%',
+    opacity: motionState.opacity,
+    display: 'block'
+  };
+
+  if (/\.gif(\?|$)/i.test(src)) {
+    return <Gif src={src} width={width} height={height} fit={objectFit as 'fill' | 'contain' | 'cover'} delayRenderTimeoutInMilliseconds={120000} style={style} />;
+  }
+  if (/\.(mp4|webm|mov)(\?|$)/i.test(src)) {
+    return <OffthreadVideo src={src} muted style={style} />;
+  }
+  return <Img src={src} style={style} />;
 };
 
 export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
@@ -64,6 +204,17 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   });
   const topAnnotations = visibleAnnotations.filter((item) => props.speakers[item.speaker]?.style?.annotationPosition === 'top');
   const bottomAnnotations = visibleAnnotations.filter((item) => (props.speakers[item.speaker]?.style?.annotationPosition ?? 'bottom') === 'bottom');
+  const visibleSlides = (props.background?.slides || []).filter((slide) => {
+    const slideAnimationDuration = slide.animationDuration ?? 0.24;
+    const appearanceTime = Math.max(0, slide.start - ((slide.animationStyle || 'fade') === 'none' ? 0 : slideAnimationDuration));
+    return currentTime >= appearanceTime && currentTime <= slide.end + slideAnimationDuration;
+  });
+  const backgroundSlidesBelowChat = visibleSlides
+    .filter((slide) => (slide.layer || 'background') === 'background')
+    .sort((a, b) => (a.backgroundOrder ?? 0) - (b.backgroundOrder ?? 0));
+  const backgroundSlidesAboveChat = visibleSlides
+    .filter((slide) => slide.layer === 'overlay')
+    .sort((a, b) => (a.overlayOrder ?? 0) - (b.overlayOrder ?? 0));
 
   const baseBackgroundColor = props.transparentBackground ? 'rgba(0,0,0,0)' : '#111111';
 
@@ -120,6 +271,30 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
           )}
         </AbsoluteFill>
       ) : null}
+      {backgroundSlidesBelowChat.map((slide) => (
+        <AbsoluteFill key={`bg-slide-${slide.id}`}>
+          {slide.type === 'text'
+            ? renderSlideText({ slide, currentTime })
+            : renderSlideAsset({
+                src: slide.image,
+                fit: slide.fit,
+                position: slide.position,
+                blur: slide.inheritBackgroundFilters === false ? 0 : (props.background?.blur ?? 0),
+                brightness: slide.inheritBackgroundFilters === false ? 1 : (props.background?.brightness ?? 1),
+                scale: slide.scale ?? 1,
+                offsetX: slide.offsetX ?? 0,
+                offsetY: slide.offsetY ?? 0,
+                rotation: slide.rotation ?? 0,
+                animationStyle: slide.animationStyle || 'fade',
+                animationDuration: slide.animationDuration ?? 0.24,
+                currentTime,
+                start: slide.start,
+                end: slide.end,
+                width: props.dimensions.width || width,
+                height: props.dimensions.height || width,
+              })}
+        </AbsoluteFill>
+      ))}
       {!props.transparentBackground && (
         <AbsoluteFill style={{ backgroundColor: props.background?.image ? 'rgba(0,0,0,0.06)' : '#111111' }} />
       )}
@@ -257,6 +432,30 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
           </div>
         </AbsoluteFill>
       ) : null}
+      {backgroundSlidesAboveChat.map((slide) => (
+        <AbsoluteFill key={`overlay-slide-${slide.id}`}>
+          {slide.type === 'text'
+            ? renderSlideText({ slide, currentTime })
+            : renderSlideAsset({
+                src: slide.image,
+                fit: slide.fit,
+                position: slide.position,
+                blur: 0,
+                brightness: 1,
+                scale: slide.scale ?? 1,
+                offsetX: slide.offsetX ?? 0,
+                offsetY: slide.offsetY ?? 0,
+                rotation: slide.rotation ?? 0,
+                animationStyle: slide.animationStyle || 'fade',
+                animationDuration: slide.animationDuration ?? 0.24,
+                currentTime,
+                start: slide.start,
+                end: slide.end,
+                width: props.dimensions.width || width,
+                height: props.dimensions.height || width,
+              })}
+        </AbsoluteFill>
+      ))}
     </AbsoluteFill>
   );
 };

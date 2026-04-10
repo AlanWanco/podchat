@@ -90,7 +90,7 @@ const easeOutBack = (t: number): number => {
   return t === 0 ? 0 : t === 1 ? 1 : c3 * t * t * t - c1 * t * t;
 };
 
-const getBubbleMotionState = (progress: number, style: SharedChatLayout['animationStyle'], side: SharedChatSpeaker['side']) => {
+export const getBubbleMotionState = (progress: number, style: SharedChatLayout['animationStyle'], side: SharedChatSpeaker['side']) => {
   const clamped = clamp(progress, 0, 1);
   const base = easeOutCubic(clamped);
   const quantize = (value: number) => Math.round(value);
@@ -283,14 +283,16 @@ export function ChatMessageBubble({
     <div
       style={{
         display: 'flex',
-        width: '100%',
+        maxWidth: '100%',
         flexDirection: 'column',
+        alignSelf: isLeft ? 'flex-start' : 'flex-end',
         alignItems: isLeft ? 'flex-start' : 'flex-end',
         marginBottom: isLatestVisible ? '0px' : `${margin}px`,
         transform: compactMode ? undefined : motionState.transform,
         transformOrigin: isLeft ? 'left center' : 'right center',
         opacity: compactMode ? 1 : motionState.opacity,
-        filter: compactMode ? undefined : motionState.filter
+        filter: compactMode ? undefined : motionState.filter,
+        pointerEvents: 'none'
       }}
     >
       {/* Main row: avatar + bubble (+ beside-timestamp in compact) */}
@@ -426,7 +428,8 @@ export function ChatMessageBubble({
                 padding: `${paddingY}px ${paddingX}px`,
                 color: textColor,
                 whiteSpace: 'pre-wrap',
-                lineHeight: 1.35
+                lineHeight: 1.35,
+                overflowWrap: 'break-word'
               },
               children: item.text
             })}

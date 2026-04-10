@@ -45,6 +45,15 @@ const resolveAppFilePath = (filePath) => {
   }
 
   const normalized = filePath.replace(/\\/g, '/');
+  if (normalized.startsWith('/@fs/')) {
+    const fsPath = normalized.slice('/@fs'.length);
+    try {
+      return decodeURIComponent(fsPath);
+    } catch (_error) {
+      return fsPath;
+    }
+  }
+
   if (normalized.startsWith('/projects/') || normalized.startsWith('projects/')) {
     return path.join(process.env.VITE_PUBLIC || process.env.APP_ROOT || process.cwd(), normalized.replace(/^\//, ''));
   }
@@ -267,6 +276,12 @@ const prepareInputProps = (config, mediaServer, binariesDirectory) => {
     background: {
       ...config.background,
       image: toMediaUrl(config.background?.image, mediaServer),
+      slides: Array.isArray(config.background?.slides)
+        ? config.background.slides.map((slide) => ({
+            ...slide,
+            image: toMediaUrl(slide?.image, mediaServer),
+          }))
+        : [],
     },
     speakers,
   };
