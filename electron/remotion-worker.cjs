@@ -252,6 +252,38 @@ const sendMessage = (message) => {
   }
 };
 
+const resolvePackagedModuleEntry = (packageName, fallbackEntry = 'dist/index.js') => {
+  const root = process.env.APP_ROOT || process.cwd();
+  const packageJsonCandidates = [
+    process.resourcesPath ? path.join(process.resourcesPath, 'app.asar', 'node_modules', packageName, 'package.json') : null,
+    path.join(root, 'app.asar', 'node_modules', packageName, 'package.json'),
+    path.join(root, 'node_modules', packageName, 'package.json'),
+    process.resourcesPath ? path.join(process.resourcesPath, 'app', 'node_modules', packageName, 'package.json') : null,
+  ].filter(Boolean);
+
+  const packageJsonPath = packageJsonCandidates.find((candidate) => fs.existsSync(candidate));
+  if (!packageJsonPath) {
+    throw new Error(`Package ${packageName} not found. Tried: ${packageJsonCandidates.join(', ')}`);
+  }
+
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  const entry = typeof packageJson.main === 'string' && packageJson.main
+    ? packageJson.main
+    : fallbackEntry;
+  const entryPath = path.join(path.dirname(packageJsonPath), entry);
+
+  if (!fs.existsSync(entryPath)) {
+    throw new Error(`Package entry for ${packageName} not found: ${entryPath}`);
+  }
+
+  return entryPath;
+};
+
+const requirePackagedModule = (packageName, fallbackEntry) => {
+  const entryPath = resolvePackagedModuleEntry(packageName, fallbackEntry);
+  return require(entryPath);
+};
+
 const prepareInputProps = (config, mediaServer, binariesDirectory) => {
   const speakers = Object.fromEntries(
     Object.entries(config.speakers || {}).map(([key, speaker]) => [
@@ -379,8 +411,8 @@ const getBundle = async (bundleFn) => {
 
 const runRender = async (config) => {
   const startedAt = Date.now();
-  const { bundle } = await import('@remotion/bundler');
-  const { renderMedia, selectComposition } = await import('@remotion/renderer');
+  const { bundle } = requirePackagedModule('@remotion/bundler', 'dist/index.js');
+  const { renderMedia, selectComposition } = requirePackagedModule('@remotion/renderer', 'dist/index.js');
   const mediaServer = await createLocalMediaServer();
   const binariesDirectory = patchMacCompositorBinaries();
   const browserExecutable = getBundledBrowserExecutable();

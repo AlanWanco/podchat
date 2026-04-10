@@ -3,6 +3,7 @@ import { AbsoluteFill, Audio, Img, Loop, OffthreadVideo, Sequence, useCurrentFra
 import { Gif } from '@remotion/gif';
 import type { BackgroundSlideItem, PodchatExportInput } from './types';
 import { ChatAnnotationBubble, ChatMessageBubble, computeInterruptedVisibleMessages, getBubbleMotionState } from '../components/chat/SharedChatBubbles';
+import { getTextAssetLayout, getTextAssetSvgMetrics } from './textAssetLayout';
 
 const MESSAGE_FALLBACK_COUNT = 32;
 
@@ -34,9 +35,9 @@ const renderSlideText = ({
     ? Math.max(0, Math.min(1, 1 - ((currentTime - slide.end) / animationDuration)))
     : 1;
   const motionState = getBubbleMotionState(progress * disappearProgress, animationStyle, 'left');
-  const fontSize = slide.fontSize ?? 96;
-  const strokeWidth = slide.textStrokeWidth ?? 0;
+  const { textLines, fontSize, strokeWidth, estimatedWidth, estimatedHeight } = getTextAssetLayout(slide);
   const shadowSize = slide.textShadowSize ?? 0;
+  const { textAnchorX, getLineY } = getTextAssetSvgMetrics({ width: estimatedWidth, height: estimatedHeight, fontSize, lineCount: textLines.length });
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
@@ -56,15 +57,19 @@ const renderSlideText = ({
           color: slide.textColor || '#FFFFFF',
           whiteSpace: 'pre-wrap',
           textAlign: 'center',
+          width: `${estimatedWidth}px`,
+          height: `${estimatedHeight}px`,
         }}
       >
-        <svg overflow="visible" style={{ display: 'block' }}>
-          {(slide.text || '').split('\n').map((line, index) => (
+        <svg width={estimatedWidth} height={estimatedHeight} overflow="visible" style={{ display: 'block' }}>
+          <g>
+          {textLines.map((line, index) => (
             <text
               key={`${line}-${index}`}
-              x="0"
-              y={`${(index + 1) * fontSize * 1.15}`}
+              x={textAnchorX}
+              y={getLineY(index)}
               textAnchor="middle"
+              dominantBaseline="hanging"
               fontFamily={slide.fontFamily || 'system-ui'}
               fontSize={fontSize}
               fontWeight={slide.fontWeight || '700'}
@@ -77,6 +82,7 @@ const renderSlideText = ({
               {line || ' '}
             </text>
           ))}
+          </g>
         </svg>
       </div>
     </AbsoluteFill>

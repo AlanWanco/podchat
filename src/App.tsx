@@ -17,6 +17,7 @@ import { createThemeTokens } from './theme';
 import { PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-react';
 import { Tooltip } from './components/ui/Tooltip';
 import type { BackgroundSlideItem } from './remotion/types';
+import { getTextAssetLayout, getTextAssetSvgMetrics } from './remotion/textAssetLayout';
 import './App.css';
 
 const LIGHT_THEME_DEFAULT = '#9ca4b8';
@@ -578,13 +579,9 @@ function PreviewTextAsset({
     ? Math.max(0, Math.min(1, 1 - ((currentTime - slide.end) / animationDuration)))
     : 1;
   const motionState = getBubbleMotionState(progress * disappearProgress, animationStyle, 'left');
-  const textLines = (slide.text || '').split('\n');
-  const fontSize = slide.fontSize ?? 96;
-  const strokeWidth = slide.textStrokeWidth ?? 0;
-  const estimatedWidth = Math.max(120, Math.max(...textLines.map((line) => line.length), 1) * fontSize * 0.62 + strokeWidth * 4 + 16);
-  const estimatedHeight = Math.max(fontSize * 1.2, textLines.length * fontSize * 1.15 + strokeWidth * 4 + 16);
+  const { textLines, fontSize, strokeWidth, estimatedWidth, estimatedHeight } = getTextAssetLayout(slide);
   const textGroupRef = useRef<SVGGElement | null>(null);
-  const [textBox, setTextBox] = useState<{ width: number; height: number; minX: number; minY: number; rawWidth: number; rawHeight: number } | null>(null);
+  const [textBox, setTextBox] = useState<{ width: number; height: number } | null>(null);
   const transform = `translate(-50%, -50%) translate(${slide.offsetX ?? 0}px, ${slide.offsetY ?? 0}px) rotate(${slide.rotation ?? 0}deg) scale(${slide.scale ?? 1}) ${motionState.transform || ''}`.trim();
   const baseStyle: React.CSSProperties = {
     position: 'absolute',
@@ -604,27 +601,20 @@ function PreviewTextAsset({
       const nextBox = {
         width: Math.max(1, bbox.width + padding * 2),
         height: Math.max(1, bbox.height + padding * 2),
-        minX: bbox.x,
-        minY: bbox.y,
-        rawWidth: bbox.width,
-        rawHeight: bbox.height,
       };
       setTextBox((prev) => (
-        prev && prev.width === nextBox.width && prev.height === nextBox.height && prev.minX === nextBox.minX && prev.minY === nextBox.minY && prev.rawWidth === nextBox.rawWidth && prev.rawHeight === nextBox.rawHeight
+        prev && prev.width === nextBox.width && prev.height === nextBox.height
           ? prev
           : nextBox
       ));
     } catch {
-      setTextBox((prev) => prev ?? { width: estimatedWidth, height: estimatedHeight, minX: 0, minY: 0, rawWidth: estimatedWidth, rawHeight: estimatedHeight });
+      setTextBox((prev) => prev ?? { width: estimatedWidth, height: estimatedHeight });
     }
   }, [estimatedHeight, estimatedWidth, fontSize, slide.fontFamily, slide.fontWeight, slide.text, strokeWidth]);
 
   const measuredWidth = textBox?.width ?? estimatedWidth;
   const measuredHeight = textBox?.height ?? estimatedHeight;
-  const measuredMinX = textBox?.minX ?? 0;
-  const measuredMinY = textBox?.minY ?? 0;
-  const measuredRawWidth = textBox?.rawWidth ?? estimatedWidth;
-  const measuredRawHeight = textBox?.rawHeight ?? estimatedHeight;
+  const { textAnchorX, getLineY } = getTextAssetSvgMetrics({ width: estimatedWidth, height: estimatedHeight, fontSize, lineCount: textLines.length });
 
   useEffect(() => {
     if (!onEditBoxChange) return;
@@ -649,16 +639,29 @@ function PreviewTextAsset({
           pointerEvents: onDoubleClick || onPointerDown ? 'auto' : 'none',
           cursor: onPointerDown ? 'grab' : undefined,
           touchAction: onPointerDown ? 'none' : undefined,
+          position: 'absolute',
         }}
       >
-        <svg width={measuredWidth} height={measuredHeight} overflow="visible" style={{ display: 'block' }}>
-          <g ref={textGroupRef} transform={`translate(${measuredWidth / 2 - (measuredMinX + measuredRawWidth / 2)}, ${measuredHeight / 2 - (measuredMinY + measuredRawHeight / 2)})`}>
+        <svg
+          width={estimatedWidth}
+          height={estimatedHeight}
+          overflow="visible"
+          style={{
+            display: 'block',
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          <g ref={textGroupRef}>
             {textLines.map((line, index) => (
               <text
                 key={`${line}-${index}`}
-                x={0}
-                y={index * fontSize * 1.15}
+                x={textAnchorX}
+                y={getLineY(index)}
                 textAnchor="middle"
+                dominantBaseline="hanging"
                 fontFamily={slide.fontFamily || 'system-ui'}
                 fontSize={fontSize}
                 fontWeight={slide.fontWeight || '700'}
@@ -1227,7 +1230,7 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const result = await window.electron.showOpenDialog({
         title: t('menu.importPresets'),
-        filters: [{ name: 'JSON', extensions: ['json'] }],
+        filters: [{ name: t('dialog.filterJson'), extensions: ['json'] }],
         properties: ['openFile']
       });
 
@@ -1268,7 +1271,7 @@ const [previewScale, setPreviewScale] = useState(1);
         return;
       }
 
-      const confirmed = window.confirm(`检测到 ${presetCount} 个预设 / ${speakerCount} 个 speaker，确定导入吗？`);
+      const confirmed = window.confirm(t('app.presetsImportConfirm', { presetCount, speakerCount }));
       if (!confirmed) {
         return;
       }
@@ -1287,7 +1290,7 @@ const [previewScale, setPreviewScale] = useState(1);
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = 'pomchat-presets.json';
+        anchor.download = t('dialog.defaultPresetFilename');
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
@@ -1302,8 +1305,8 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const result = await window.electron.showSaveDialog({
         title: t('menu.exportPresets'),
-        defaultPath: 'pomchat-presets.json',
-        filters: [{ name: 'JSON', extensions: ['json'] }]
+        defaultPath: t('dialog.defaultPresetFilename'),
+        filters: [{ name: t('dialog.filterJson'), extensions: ['json'] }]
       });
 
       if (result.canceled || !result.filePath) return;
@@ -1873,7 +1876,7 @@ const [previewScale, setPreviewScale] = useState(1);
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
       if (!Number.isFinite(audioRef.current.duration) || audioRef.current.duration <= 0) {
-        showToast('浏览器安全策略导致未自动加载音频，请重新选择音频文件');
+        showToast(t('app.audioReloadRequired'));
       }
       setDuration(audioRef.current.duration);
       const playbackKey = projectPath || config.assPath || config.audioPath;
@@ -2666,8 +2669,8 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const result = await window.electron.showSaveDialog({
         title: t('dialog.newProjectTitle'),
-        defaultPath: 'pomchat_project.pomchat',
-        filters: [{ name: 'PomChat Project', extensions: ['pomchat', 'json'] }]
+        defaultPath: t('dialog.defaultProjectFilename'),
+        filters: [{ name: t('dialog.filterProject'), extensions: ['pomchat', 'json'] }]
       });
       
       if (!result.canceled && result.filePath) {
@@ -2692,7 +2695,7 @@ const [previewScale, setPreviewScale] = useState(1);
         showToast(t('welcome.new'));
       }
     } catch (e: any) {
-      alert('创建失败: ' + e.message);
+      alert(`${t('dialog.errorCreateProjectFailed')}: ${e.message}`);
     }
   };
 
@@ -2719,7 +2722,7 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const res = await window.electron.showOpenDialog({
         title: t('dialog.selectAudioTitle'),
-        filters: [{ name: 'Audio Files', extensions: ['mp3', 'wav', 'aac', 'm4a', 'flac'] }],
+        filters: [{ name: t('dialog.filterAudio'), extensions: ['mp3', 'wav', 'aac', 'm4a', 'flac'] }],
         properties: ['openFile']
       });
       if (!res.canceled && res.filePaths.length > 0) {
@@ -2727,7 +2730,7 @@ const [previewScale, setPreviewScale] = useState(1);
         showToast(t('app.audioUpdated'));
       }
     } catch (e: any) {
-      alert('选择音频失败: ' + e.message);
+      alert(`${t('dialog.errorSelectAudioFailed')}: ${e.message}`);
     }
   };
 
@@ -2739,7 +2742,7 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const res = await window.electron.showOpenDialog({
         title: t('dialog.selectSubtitleTitle'),
-        filters: [{ name: 'Subtitle Files', extensions: ['ass', 'srt', 'lrc'] }],
+        filters: [{ name: t('dialog.filterSubtitle'), extensions: ['ass', 'srt', 'lrc'] }],
         properties: ['openFile']
       });
       if (!res.canceled && res.filePaths.length > 0) {
@@ -2762,7 +2765,7 @@ const [previewScale, setPreviewScale] = useState(1);
         }
       }
     } catch (e: any) {
-      alert('选择字幕失败: ' + e.message);
+      alert(`${t('dialog.errorSelectSubtitleFailed')}: ${e.message}`);
     }
   };
 
@@ -2797,8 +2800,8 @@ const [previewScale, setPreviewScale] = useState(1);
       
       const result = await window.electron.showSaveDialog({
         title: t('dialog.newProjectTitle'),
-        defaultPath: 'pomchat_project.pomchat',
-        filters: [{ name: 'PomChat Project', extensions: ['pomchat', 'json'] }]
+        defaultPath: t('dialog.defaultProjectFilename'),
+        filters: [{ name: t('dialog.filterProject'), extensions: ['pomchat', 'json'] }]
       });
       
       if (result.canceled || !result.filePath) return;
@@ -2944,20 +2947,20 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const handleSelectImage = async (): Promise<string | null> => {
     if (!window.electron) {
-      alert('网页版不支持此功能，请手动输入网络图片链接');
+      alert(t('dialog.webImageInputOnly'));
       return null;
     }
     try {
       const res = await window.electron.showOpenDialog({
         title: t('dialog.selectImageTitle'),
-        filters: [{ name: 'Media', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov'] }],
+        filters: [{ name: t('dialog.filterMedia'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov'] }],
         properties: ['openFile']
       });
       if (!res.canceled && res.filePaths.length > 0) {
         return res.filePaths[0];
       }
     } catch (e: any) {
-      alert('选择图片失败: ' + e.message);
+      alert(`${t('dialog.errorSelectImageFailed')}: ${e.message}`);
     }
     return null;
   };
@@ -2992,7 +2995,7 @@ const [previewScale, setPreviewScale] = useState(1);
       setShowSettings(true);
       showToast(t('app.projectLoaded'));
     } catch (e: any) {
-      alert('加载失败: ' + e.message);
+      alert(`${t('dialog.errorLoadFailed')}: ${e.message}`);
       if (filePath === recentProject) {
         setRecentProject(null);
         if (!window.electron) {
@@ -3011,7 +3014,7 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const result = await window.electron.showOpenDialog({
         title: t('dialog.openProjectTitle'),
-        filters: [{ name: 'PomChat Project', extensions: ['pomchat', 'json'] }],
+        filters: [{ name: t('dialog.filterProject'), extensions: ['pomchat', 'json'] }],
         properties: ['openFile']
       });
 
@@ -3019,7 +3022,7 @@ const [previewScale, setPreviewScale] = useState(1);
         await loadProjectFromPath(result.filePaths[0]);
       }
     } catch (e: any) {
-      alert('选择文件失败: ' + e.message);
+      alert(`${t('dialog.errorSelectFileFailed')}: ${e.message}`);
     }
   };
 
@@ -3114,7 +3117,7 @@ const [previewScale, setPreviewScale] = useState(1);
         return;
       }
 
-      const confirmed = window.confirm(`检测到 ${presetCount} 个预设 / ${speakerCount} 个 speaker，确定导入吗？`);
+      const confirmed = window.confirm(t('app.presetsImportConfirm', { presetCount, speakerCount }));
       if (!confirmed) {
         return;
       }
@@ -3171,7 +3174,7 @@ const [previewScale, setPreviewScale] = useState(1);
         }
         showToast(requiresAudioReload ? t('app.projectLoadedNeedAudio') : t('app.projectLoaded'));
       } catch (e: any) {
-        alert('加载失败: ' + e.message);
+        alert(`${t('dialog.errorLoadFailed')}: ${e.message}`);
       }
       return;
     }
@@ -3283,7 +3286,7 @@ const [previewScale, setPreviewScale] = useState(1);
         showToast(t('app.projectSaved'));
       }
     } catch (e: any) {
-      alert('保存失败: ' + e.message);
+      alert(`${t('dialog.errorSaveFailed')}: ${e.message}`);
     }
   }, [backupAssIfSpeakerNamesChanged, clearProjectDirty, config.speakers, getProjectConfig, projectPath, showToast, subtitles, t]);
 
@@ -3317,7 +3320,7 @@ const [previewScale, setPreviewScale] = useState(1);
       setShowSettings(true);
       showToast(requiresAudioReload ? t('app.projectLoadedNeedAudio') : t('app.projectLoaded'));
     } catch (e: any) {
-      alert('加载失败: ' + e.message);
+      alert(`${t('dialog.errorLoadFailed')}: ${e.message}`);
     } finally {
       event.target.value = '';
     }
