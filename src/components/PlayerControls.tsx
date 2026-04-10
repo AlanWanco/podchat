@@ -891,7 +891,7 @@ export const PlayerControls = memo(function PlayerControls({
                     color: secondaryThemeColor,
                     transform: 'translateY(-50%)',
                   }}
-                  title={isBackgroundSlideTrackCollapsed ? '展开时间轴编辑框' : '折叠时间轴编辑框'}
+                  title={isBackgroundSlideTrackCollapsed ? t('project.expandTimelineEditor') : t('project.collapseTimelineEditor')}
                 >
                   {isBackgroundSlideTrackCollapsed ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                 </button>
@@ -917,7 +917,7 @@ export const PlayerControls = memo(function PlayerControls({
                           const widthPercent = Number.parseFloat(slide.width) || 0;
                           const centerPercent = leftPercent + widthPercent / 2;
                           const x = (centerPercent / 100) * (waveformOverlayMetrics.viewportWidth || waveformOverlayMetrics.wrapperWidth || 0);
-                          setInsertImageHoverLabel({ x, label: `${slide.type === 'text' ? '文' : '图'} ${slide.name}`, color: slide.group === 'background' ? themeColor : secondaryThemeColor });
+                          setInsertImageHoverLabel({ x, label: `${slide.type === 'text' ? t('project.assetTypeText') : t('project.assetTypeImage')} ${slide.name}`, color: slide.group === 'background' ? themeColor : secondaryThemeColor });
                         }
                       }}
                       onMouseLeave={() => {

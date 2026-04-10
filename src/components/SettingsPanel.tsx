@@ -197,9 +197,9 @@ export function SettingsPanel({
     const slide = {
       id: `slide-${Date.now()}`,
       type,
-      name: type === 'text' ? `字${nextIndex}` : `图${nextIndex}`,
+      name: type === 'text' ? `${t('project.assetTypeText')}${nextIndex}` : `${t('project.assetTypeImage')}${nextIndex}`,
       image: '',
-      text: '文本',
+      text: t('project.textContent'),
       start: 0,
       end: Math.max(3, config.exportRange?.end || 3),
       fit: 'contain',
@@ -1151,10 +1151,10 @@ export function SettingsPanel({
                   </label>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => addBackgroundSlide('image')} className="text-xs flex items-center gap-1" style={{ color: secondaryThemeColor }}>
-                      <Plus size={12} /> 插入图片
+                      <Plus size={12} /> {t('project.addImageAsset')}
                     </button>
                     <button type="button" onClick={() => addBackgroundSlide('text')} className="text-xs flex items-center gap-1" style={{ color: themeColor }}>
-                      <Plus size={12} /> 插入文字
+                      <Plus size={12} /> {t('project.addTextAsset')}
                     </button>
                   </div>
                 </div>
@@ -1163,7 +1163,7 @@ export function SettingsPanel({
                   <>
                     <div className="flex overflow-x-auto custom-scrollbar pb-2 gap-2 border-b" style={{ borderColor: uiTheme.border }}>
                       {tabOrderedSlides.map((slide: any, index: number) => {
-                        const fallbackLabel = slide.type === 'text' ? `字${index + 1}` : `图${index + 1}`;
+                        const fallbackLabel = slide.type === 'text' ? `${t('project.assetTypeText')}${index + 1}` : `${t('project.assetTypeImage')}${index + 1}`;
                         const label = (slide.name || '').trim() || fallbackLabel;
                         const isActive = (currentBackgroundSlide?.id || activeBackgroundSlideTab) === slide.id;
                         return (
@@ -1195,7 +1195,7 @@ export function SettingsPanel({
                             style={isActive ? { backgroundColor: themeColor, borderColor: themeColor, color: '#ffffff' } : { backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.textMuted }}
                           >
                             <span className="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.18)' : (slide.type === 'text' ? `${secondaryThemeColor}18` : `${themeColor}18`), color: isActive ? '#ffffff' : (slide.type === 'text' ? secondaryThemeColor : themeColor) }}>
-                              {slide.type === 'text' ? '文' : '图'}
+                              {slide.type === 'text' ? t('project.assetTypeText') : t('project.assetTypeImage')}
                             </span>
                             {label}
                           </button>
@@ -1259,7 +1259,7 @@ export function SettingsPanel({
                           </div>
                         ) : (
                           <div className="space-y-1.5">
-                            <span className="text-xs opacity-70">文字内容</span>
+                            <span className="text-xs opacity-70">{t('project.textContent')}</span>
                             <textarea
                               value={currentBackgroundSlide.text || ''}
                               onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, text: e.target.value }))}
@@ -1272,7 +1272,7 @@ export function SettingsPanel({
                         <div className="space-y-1.5">
                           <button type="button" onClick={() => onEditInsertImage?.(currentBackgroundSlide.id)} className="w-full h-8 rounded-md border px-2.5 text-[11px] transition-colors inline-flex items-center justify-center gap-1.5 font-medium leading-none" style={{ borderColor: `${secondaryThemeColor}66`, backgroundColor: `${secondaryThemeColor}16`, color: uiTheme.text, boxShadow: `0 6px 16px ${secondaryThemeColor}18` }}>
                             <Pencil size={14} style={{ color: secondaryThemeColor }} />
-                            {currentBackgroundSlide.type === 'text' ? '编辑文字' : '编辑图片'}
+                            {currentBackgroundSlide.type === 'text' ? t('project.editTextAsset') : t('project.editImageAsset')}
                           </button>
                         </div>
 
@@ -1370,7 +1370,7 @@ export function SettingsPanel({
                             </select>
                           </div>
                           <div className="space-y-1.5">
-                            <span className="text-xs opacity-70">图片层级</span>
+                            <span className="text-xs opacity-70">{t('project.insertImageOrder')}</span>
                             {renderNumberInput(
                               (currentBackgroundSlide.layer || 'background') === 'overlay'
                                 ? ((currentBackgroundSlide.overlayOrder ?? 0) + 1)
@@ -1384,12 +1384,12 @@ export function SettingsPanel({
                         {currentBackgroundSlide.type === 'text' ? (
                           <>
                             <div className="space-y-1.5">
-                              <span className="text-xs opacity-70">字体</span>
+                              <span className="text-xs opacity-70">{t('project.fontFamily')}</span>
                               {renderFontFamilyFields(currentBackgroundSlide.fontFamily || 'system-ui', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, fontFamily: value })))}
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1.5">
-                                <span className="text-xs opacity-70">字重</span>
+                                <span className="text-xs opacity-70">{t('project.fontWeight')}</span>
                                 <select value={currentBackgroundSlide.fontWeight || '700'} onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, fontWeight: e.target.value }))} className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} style={inputSurfaceStyle}>
                                   <option value="normal">normal</option>
                                   <option value="bold">bold</option>
@@ -1401,39 +1401,39 @@ export function SettingsPanel({
                                 </select>
                               </div>
                               <div className="space-y-1.5">
-                                <span className="text-xs opacity-70">字号</span>
+                                <span className="text-xs opacity-70">{t('project.fontSize')}</span>
                                 {renderNumberInput(currentBackgroundSlide.fontSize ?? 96, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, fontSize: Math.max(8, value) })), { min: 8, step: 1, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
                               </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1.5">
-                                <span className="text-xs opacity-70">透明度</span>
+                                <span className="text-xs opacity-70">{t('project.assetOpacity')}</span>
                                 {renderNumberInput(currentBackgroundSlide.opacity ?? 1, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, opacity: Math.max(0, Math.min(1, Number(value.toFixed(2)))) })), { min: 0, max: 1, step: 0.05, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
                               </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1.5">
-                                <span className="text-xs opacity-70">文字颜色</span>
+                                <span className="text-xs opacity-70">{t('project.textColor')}</span>
                                 {renderColorInput(currentBackgroundSlide.textColor || '#FFFFFF', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textColor: value })))}
                               </div>
                               <div className="space-y-1.5">
-                                <span className="text-xs opacity-70">描边颜色</span>
+                                <span className="text-xs opacity-70">{t('project.textStrokeColor')}</span>
                                 {renderColorInput(currentBackgroundSlide.textStrokeColor || '#000000', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textStrokeColor: value })))}
                               </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1.5">
-                                <span className="text-xs opacity-70">描边大小</span>
+                                <span className="text-xs opacity-70">{t('project.textStrokeWidth')}</span>
                                 {renderNumberInput(currentBackgroundSlide.textStrokeWidth ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textStrokeWidth: Math.max(0, value) })), { min: 0, step: 0.5, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
                               </div>
                               <div className="space-y-1.5">
-                                <span className="text-xs opacity-70">阴影颜色</span>
+                                <span className="text-xs opacity-70">{t('project.textShadowColor')}</span>
                                 {renderColorInput(currentBackgroundSlide.textShadowColor || '#00000088', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textShadowColor: value })))}
                               </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1.5">
-                                <span className="text-xs opacity-70">阴影大小</span>
+                                <span className="text-xs opacity-70">{t('project.textShadowSize')}</span>
                                 {renderNumberInput(currentBackgroundSlide.textShadowSize ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, textShadowSize: Math.max(0, value) })), { min: 0, step: 1, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
                               </div>
                               <div />

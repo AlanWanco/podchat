@@ -14,7 +14,7 @@ import { getBubbleMotionState } from './components/chat/SharedChatBubbles';
 import { useAssSubtitle } from './hooks/useAssSubtitle';
 import { translate, type Language } from './i18n';
 import { createThemeTokens } from './theme';
-import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-react';
 import { Tooltip } from './components/ui/Tooltip';
 import type { BackgroundSlideItem } from './remotion/types';
 import './App.css';
@@ -3883,7 +3883,7 @@ const [previewScale, setPreviewScale] = useState(1);
                       });
                     }}
                     className={`p-1.5 rounded transition-colors mr-2 ${isDarkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
-                    title="切换字幕列表"
+                    title={t('project.toggleSubtitleList')}
                   >
                     {showSubtitlePanel ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
                   </button>
@@ -4377,7 +4377,7 @@ const [previewScale, setPreviewScale] = useState(1);
                       type="button"
                       className="absolute left-1/2 rounded-full border pointer-events-auto"
                       style={{ top: '-56px', width: '40px', height: '40px', transform: 'translate(-50%, -50%)', backgroundColor: isDarkMode ? '#111827' : '#ffffff', borderColor: secondaryThemeColor, boxShadow: `0 0 0 4px ${secondaryThemeColor}33`, cursor: 'grab', touchAction: 'none' }}
-                      title="旋转"
+                      title={t('project.rotate')}
                       onPointerDown={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -4441,9 +4441,9 @@ const [previewScale, setPreviewScale] = useState(1);
                       className="absolute rounded-full border pointer-events-auto inline-flex items-center justify-center font-bold"
                       style={{ top: '-28px', right: '-92px', width: '56px', height: '56px', fontSize: '38px', lineHeight: 1, backgroundColor: isDarkMode ? 'rgba(17,24,39,0.92)' : 'rgba(255,255,255,0.96)', borderColor: `${secondaryThemeColor}66`, boxShadow: `0 0 0 4px ${secondaryThemeColor}2e`, color: uiTheme.text, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                       onClick={() => setIsInsertImageEditMode(false)}
-                      title="退出编辑"
+                      title={t('project.exitEdit')}
                     >
-                      <span style={{ display: 'block', transform: 'translateY(-1px)' }}>×</span>
+                      <X size={28} strokeWidth={2.6} />
                     </button>
                   </div>
                 </div>
@@ -4581,7 +4581,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 }}
                 style={{ borderColor: uiTheme.border, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
               >
-                {isMobileBottomPanelExpanded ? '收起' : '展开'}
+                {isMobileBottomPanelExpanded ? t('common.collapse') : t('common.expand')}
               </button>
             </div>
           )}
