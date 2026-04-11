@@ -91,14 +91,14 @@ const renderSlideText = ({
 
 const renderSlideAsset = ({
   src,
-  fit,
-  position,
   blur,
   brightness,
   scale = 1,
   offsetX = 0,
   offsetY = 0,
   rotation = 0,
+  intrinsicWidth,
+  intrinsicHeight,
   animationStyle = 'none',
   animationDuration = 0.2,
   currentTime,
@@ -108,14 +108,14 @@ const renderSlideAsset = ({
   height,
 }: {
   src?: string;
-  fit?: string;
-  position?: string;
   blur: number;
   brightness: number;
   scale?: number;
   offsetX?: number;
   offsetY?: number;
   rotation?: number;
+  intrinsicWidth?: number;
+  intrinsicHeight?: number;
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
   animationDuration?: number;
   currentTime: number;
@@ -125,45 +125,41 @@ const renderSlideAsset = ({
   height: number;
 }) => {
   if (!src) return null;
-  const objectFit = fit === 'contain' || fit === 'fill' ? fit : 'cover';
-  const objectPosition = (() => {
-    switch (position) {
-      case 'top': return 'center top';
-      case 'bottom': return 'center bottom';
-      case 'left': return 'left center';
-      case 'right': return 'right center';
-      case 'top-left': return 'left top';
-      case 'top-right': return 'right top';
-      case 'bottom-left': return 'left bottom';
-      case 'bottom-right': return 'right bottom';
-      default: return 'center center';
-    }
-  })();
   const appearanceTime = Math.max(0, start - ((animationStyle || 'fade') === 'none' ? 0 : animationDuration));
   const progress = animationStyle === 'none' || animationDuration <= 0 ? 1 : Math.max(0, Math.min(1, (currentTime - appearanceTime) / animationDuration));
   const disappearProgress = typeof end === 'number' && currentTime > end && animationStyle !== 'none' && animationDuration > 0
     ? Math.max(0, Math.min(1, 1 - ((currentTime - end) / animationDuration)))
     : 1;
   const motionState = getBubbleMotionState(progress * disappearProgress, animationStyle, 'left');
+  const baseWidth = intrinsicWidth ?? width;
+  const baseHeight = intrinsicHeight ?? height;
   const style: React.CSSProperties = {
     width: '100%',
     height: '100%',
-    objectFit,
-    objectPosition,
+    objectFit: 'fill',
     filter: `blur(${blur}px) brightness(${brightness})`,
-    transform: `${objectFit === 'cover' ? 'scale(1.05) ' : ''}translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg) scale(${scale}) ${motionState.transform || ''}`.trim(),
+    transform: `translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg) scale(${scale}) ${motionState.transform || ''}`.trim(),
     transformOrigin: '50% 50%',
     opacity: motionState.opacity,
     display: 'block'
   };
+  const wrapperStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: baseWidth,
+    height: baseHeight,
+    transform: 'translate(-50%, -50%)',
+    overflow: 'visible',
+  };
 
   if (/\.gif(\?|$)/i.test(src)) {
-    return <Gif src={src} width={width} height={height} fit={objectFit as 'fill' | 'contain' | 'cover'} delayRenderTimeoutInMilliseconds={120000} style={style} />;
+    return <div style={wrapperStyle}><Gif src={src} width={baseWidth} height={baseHeight} fit="fill" delayRenderTimeoutInMilliseconds={120000} style={style} /></div>;
   }
   if (/\.(mp4|webm|mov)(\?|$)/i.test(src)) {
-    return <OffthreadVideo src={src} muted style={style} />;
+    return <div style={wrapperStyle}><OffthreadVideo src={src} muted style={style} /></div>;
   }
-  return <Img src={src} style={style} />;
+  return <div style={wrapperStyle}><Img src={src} style={style} /></div>;
 };
 
 export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
@@ -296,14 +292,14 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
             ? renderSlideText({ slide, currentTime, blur: slide.inheritBackgroundFilters === false ? 0 : (props.background?.blur ?? 0), brightness: slide.inheritBackgroundFilters === false ? 1 : (props.background?.brightness ?? 1) })
             : renderSlideAsset({
                 src: slide.image,
-                fit: slide.fit,
-                position: slide.position,
                 blur: slide.inheritBackgroundFilters === false ? 0 : (props.background?.blur ?? 0),
                 brightness: slide.inheritBackgroundFilters === false ? 1 : (props.background?.brightness ?? 1),
                 scale: slide.scale ?? 1,
                 offsetX: slide.offsetX ?? 0,
                 offsetY: slide.offsetY ?? 0,
                 rotation: slide.rotation ?? 0,
+                intrinsicWidth: slide.intrinsicWidth,
+                intrinsicHeight: slide.intrinsicHeight,
                 animationStyle: slide.animationStyle || 'fade',
                 animationDuration: slide.animationDuration ?? 0.24,
                 currentTime,
@@ -487,14 +483,14 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
             ? renderSlideText({ slide, currentTime, blur: 0, brightness: 1 })
             : renderSlideAsset({
                 src: slide.image,
-                fit: slide.fit,
-                position: slide.position,
                 blur: 0,
                 brightness: 1,
                 scale: slide.scale ?? 1,
                 offsetX: slide.offsetX ?? 0,
                 offsetY: slide.offsetY ?? 0,
                 rotation: slide.rotation ?? 0,
+                intrinsicWidth: slide.intrinsicWidth,
+                intrinsicHeight: slide.intrinsicHeight,
                 animationStyle: slide.animationStyle || 'fade',
                 animationDuration: slide.animationDuration ?? 0.24,
                 currentTime,

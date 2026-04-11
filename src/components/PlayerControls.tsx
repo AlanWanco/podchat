@@ -30,9 +30,10 @@ interface PlayerControlsProps {
   editingSub?: { id: string, start: number, end: number, text: string } | null;
   rangeSubtitle?: { id: string, start: number, end: number, text: string } | null;
   nearbySubtitles?: Array<{ id: string; start: number; end: number; text: string; speakerId?: string }>;
-  backgroundSlides?: Array<{ id: string; start: number; end: number; name?: string; type?: 'image' | 'text'; layer?: 'background' | 'overlay'; backgroundOrder?: number; overlayOrder?: number }>;
+  backgroundSlides?: Array<{ id: string; start: number; end: number; name?: string; type?: 'image' | 'text'; image?: string; text?: string; layer?: 'background' | 'overlay'; backgroundOrder?: number; overlayOrder?: number }>;
   onBackgroundSlidesChange?: (slides: Array<{ id: string; start: number; end: number }>) => void;
   onEditingSubChange?: (start: number, end: number) => void;
+  onEditInsertImage?: (id: string) => void;
   compactMobile?: boolean;
 }
 
@@ -90,6 +91,7 @@ export const PlayerControls = memo(function PlayerControls({
   backgroundSlides = [],
   onBackgroundSlidesChange,
   onEditingSubChange,
+  onEditInsertImage,
   compactMobile = false
 }: PlayerControlsProps) {
   const t = (key: string) => translate(language, key);
@@ -116,7 +118,7 @@ export const PlayerControls = memo(function PlayerControls({
   const wavesurfer = useRef<WaveSurfer | null>(null);
   const wsRegions = useRef<WaveformRegionsPlugin | null>(null);
   const hasUserAdjustedZoomRef = useRef(false);
-  const exportRangeDragRef = useRef<'start' | 'end' | null>(null);
+  const exportRangeDragRef = useRef<{ mode: 'start' | 'end' | 'move'; initialStart: number; initialEnd: number; anchorTime: number } | null>(null);
   
   const [volume, setVolume] = useState(0.8);
   const [zoomLevel, setZoomLevel] = useState(50);
@@ -125,9 +127,9 @@ export const PlayerControls = memo(function PlayerControls({
   const [displayCurrentTime, setDisplayCurrentTime] = useState(0);
   const [waveformOverlayMetrics, setWaveformOverlayMetrics] = useState({ scrollLeft: 0, wrapperWidth: 0, viewportWidth: 0 });
   const [dragPreviewRange, setDragPreviewRange] = useState<{ start: number; end: number } | null>(null);
-  const backgroundSlideDragRef = useRef<{ id: string; edge: 'start' | 'end' } | null>(null);
+  const backgroundSlideDragRef = useRef<{ id: string; edge: 'start' | 'end' | 'move'; initialStart: number; initialEnd: number; anchorTime: number } | null>(null);
   const [waveformHoverPreview, setWaveformHoverPreview] = useState<{ x: number; time: number } | null>(null);
-  const [insertImageHoverLabel, setInsertImageHoverLabel] = useState<{ x: number; label: string; color: string } | null>(null);
+  const [insertImageHoverLabel, setInsertImageHoverLabel] = useState<{ x: number; y: number; label: string; type?: 'image' | 'text'; image?: string; text?: string } | null>(null);
   const [isBackgroundSlideTrackCollapsed, setIsBackgroundSlideTrackCollapsed] = useState(true);
 
   const zoomRangeRef = useRef<HTMLInputElement>(null);
@@ -689,6 +691,14 @@ export const PlayerControls = memo(function PlayerControls({
         if (onBackgroundSlidesChange) {
           onBackgroundSlidesChange(backgroundSlides.map((slide) => {
             if (slide.id !== dragTarget.id) return slide;
+            if (dragTarget.edge === 'move') {
+              const durationSpan = Math.max(0, dragTarget.initialEnd - dragTarget.initialStart);
+              const delta = nextTime - dragTarget.anchorTime;
+              const unclampedStart = dragTarget.initialStart + delta;
+              const maxStart = Math.max(0, pointerWaveformDuration - durationSpan);
+              const start = Math.max(0, Math.min(unclampedStart, maxStart));
+              return { ...slide, start, end: start + durationSpan };
+            }
             if (dragTarget.edge === 'start') {
               return { ...slide, start: Math.min(nextTime, slide.end) };
             }
@@ -714,7 +724,14 @@ export const PlayerControls = memo(function PlayerControls({
       const clampedX = Math.max(0, Math.min(relativeX, waveformOverlayMetrics.wrapperWidth));
       const nextTime = Number(((clampedX / waveformOverlayMetrics.wrapperWidth) * pointerWaveformDuration).toFixed(2));
 
-      if (dragTarget === 'start') {
+      if (dragTarget.mode === 'move') {
+        const durationSpan = Math.max(0, dragTarget.initialEnd - dragTarget.initialStart);
+        const delta = nextTime - dragTarget.anchorTime;
+        const unclampedStart = dragTarget.initialStart + delta;
+        const maxStart = Math.max(0, pointerWaveformDuration - durationSpan);
+        const start = Math.max(0, Math.min(unclampedStart, maxStart));
+        setDragPreviewRange({ start, end: start + durationSpan });
+      } else if (dragTarget.mode === 'start') {
         setDragPreviewRange((prev) => {
           const currentEnd = prev?.end ?? exportRangeEnd;
           return {
@@ -795,6 +812,19 @@ export const PlayerControls = memo(function PlayerControls({
     const ratio = rect.width > 0 ? relativeX / rect.width : 0;
     setWaveformHoverPreview({ x: relativeX, time: ratio * waveformDuration });
   }, [waveformDuration]);
+  const getPointerTime = useCallback((clientX: number) => {
+    const viewportRect = waveformRef.current?.getBoundingClientRect();
+    const pointerWaveformDuration = Math.max(duration || 0, defaultExportEnd || 0, exportRangeEnd || 0);
+    if (!viewportRect || pointerWaveformDuration <= 0) {
+      return 0;
+    }
+    const { scrollElement } = getWaveformOverlayElements();
+    const scrollLeft = scrollElement?.scrollLeft ?? waveformOverlayMetrics.scrollLeft;
+    const relativeX = clientX - viewportRect.left + scrollLeft;
+    const contentWidth = waveformOverlayMetrics.wrapperWidth || viewportRect.width;
+    const clampedX = Math.max(0, Math.min(relativeX, contentWidth));
+    return Number(((clampedX / contentWidth) * pointerWaveformDuration).toFixed(2));
+  }, [defaultExportEnd, duration, exportRangeEnd, getWaveformOverlayElements, waveformOverlayMetrics.scrollLeft, waveformOverlayMetrics.wrapperWidth]);
   const handleRealWaveformHover = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (waveformDuration <= 0) {
       setWaveformHoverPreview(null);
@@ -854,15 +884,25 @@ export const PlayerControls = memo(function PlayerControls({
           )}
           {showWaveformContainer && insertImageHoverLabel && (
             <div
-                className="absolute bottom-full mb-2 px-2 py-1 rounded-md text-[10px] z-[66] pointer-events-none whitespace-nowrap -translate-x-1/2"
+                className="fixed px-2 py-1 rounded-md text-[10px] z-[9999] pointer-events-none whitespace-nowrap"
                 style={{
                   left: `${insertImageHoverLabel.x}px`,
-                  backgroundColor: isDarkMode ? `${insertImageHoverLabel.color}E6` : uiTheme.panelBgElevated,
-                  color: isDarkMode ? '#ffffff' : uiTheme.text,
-                  border: `1px solid ${insertImageHoverLabel.color}`,
-                  boxShadow: isDarkMode ? `0 8px 22px ${insertImageHoverLabel.color}22` : `0 8px 20px ${insertImageHoverLabel.color}1A`
+                  top: `${insertImageHoverLabel.y}px`,
+                  backgroundColor: themeColor,
+                  color: '#ffffff',
+                  border: `1px solid ${secondaryThemeColor}`,
+                  boxShadow: isDarkMode ? `0 8px 22px ${secondaryThemeColor}22` : `0 8px 20px ${secondaryThemeColor}1A`,
+                  transform: insertImageHoverLabel.type === 'text'
+                    ? 'translate(-50%, calc(-100% - 4px))'
+                    : 'translate(-50%, calc(-100% - 8px))'
                 }}
               >
+                {insertImageHoverLabel.type === 'image' && insertImageHoverLabel.image ? (
+                  <img src={insertImageHoverLabel.image} alt={insertImageHoverLabel.label} className="block w-20 h-12 object-cover rounded mb-1" />
+                ) : null}
+                {insertImageHoverLabel.type === 'text' && insertImageHoverLabel.text ? (
+                  <div className="max-w-32 text-[10px] leading-4 whitespace-pre-wrap line-clamp-2 mb-1">{insertImageHoverLabel.text}</div>
+                ) : null}
                 {insertImageHoverLabel.label}
             </div>
           )}
@@ -918,21 +958,7 @@ export const PlayerControls = memo(function PlayerControls({
 
                           return <div
                             key={slide.id}
-                            className="absolute"
-                            onMouseEnter={() => {
-                              if (!isBackgroundSlideTrackCollapsed && slide.name) {
-                                const leftPercent = Number.parseFloat(slide.left) || 0;
-                                const widthPercent = Number.parseFloat(slide.width) || 0;
-                                const centerPercent = leftPercent + widthPercent / 2;
-                                const x = (centerPercent / 100) * (waveformOverlayMetrics.viewportWidth || overlayTrackWidth || 0);
-                                setInsertImageHoverLabel({ x, label: `${slide.type === 'text' ? t('project.assetTypeText') : t('project.assetTypeImage')} ${slide.name}`, color: slide.group === 'background' ? themeColor : secondaryThemeColor });
-                              }
-                            }}
-                            onMouseLeave={() => {
-                              if (!isBackgroundSlideTrackCollapsed) {
-                                setInsertImageHoverLabel(null);
-                              }
-                            }}
+                            className="absolute group"
                             style={{
                               left: slide.left,
                               width: slide.width,
@@ -942,6 +968,36 @@ export const PlayerControls = memo(function PlayerControls({
                               opacity: isBackgroundSlideTrackCollapsed ? 0.42 : 1,
                               zIndex: isBackgroundSlideTrackCollapsed ? 20 : undefined,
                               pointerEvents: isBackgroundSlideTrackCollapsed ? 'none' : 'auto',
+                              cursor: isBackgroundSlideTrackCollapsed ? 'default' : 'grab',
+                            }}
+                            onPointerDown={(event) => {
+                              if (isBackgroundSlideTrackCollapsed) return;
+                              event.preventDefault();
+                              event.stopPropagation();
+                              backgroundSlideDragRef.current = { id: slide.id, edge: 'move', initialStart: slide.start, initialEnd: slide.end, anchorTime: getPointerTime(event.clientX) };
+                              document.body.style.userSelect = 'none';
+                              document.body.style.cursor = 'grabbing';
+                            }}
+                            onDoubleClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              onSeek(slide.start);
+                              if (onEditInsertImage) {
+                                onEditInsertImage(slide.id);
+                              }
+                            }}
+                            onMouseEnter={(event) => {
+                              if (!isBackgroundSlideTrackCollapsed && slide.name) {
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const x = rect.left + rect.width / 2;
+                                const y = rect.top;
+                                setInsertImageHoverLabel({ x, y, label: `${slide.type === 'text' ? t('project.assetTypeText') : t('project.assetTypeImage')} ${slide.name}`, type: slide.type, image: slide.image, text: slide.text });
+                              }
+                            }}
+                            onMouseLeave={() => {
+                              if (!isBackgroundSlideTrackCollapsed) {
+                                setInsertImageHoverLabel(null);
+                              }
                             }}
                           >
                           <div
@@ -969,7 +1025,7 @@ export const PlayerControls = memo(function PlayerControls({
                             onPointerDown={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
-                              backgroundSlideDragRef.current = { id: slide.id, edge: 'start' };
+                              backgroundSlideDragRef.current = { id: slide.id, edge: 'start', initialStart: slide.start, initialEnd: slide.end, anchorTime: slide.start };
                               document.body.style.userSelect = 'none';
                               document.body.style.cursor = 'ew-resize';
                             }}
@@ -991,7 +1047,7 @@ export const PlayerControls = memo(function PlayerControls({
                             onPointerDown={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
-                              backgroundSlideDragRef.current = { id: slide.id, edge: 'end' };
+                              backgroundSlideDragRef.current = { id: slide.id, edge: 'end', initialStart: slide.start, initialEnd: slide.end, anchorTime: slide.end };
                               document.body.style.userSelect = 'none';
                               document.body.style.cursor = 'ew-resize';
                             }}
@@ -1036,12 +1092,21 @@ export const PlayerControls = memo(function PlayerControls({
                 >
                   <div
                     className="absolute top-0 h-full rounded-full"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    exportRangeDragRef.current = { mode: 'move', initialStart: exportRangeStart, initialEnd: exportRangeEnd, anchorTime: getPointerTime(event.clientX) };
+                    document.body.style.userSelect = 'none';
+                    document.body.style.cursor = 'grabbing';
+                  }}
                   style={{
                     left: `${exportBarStartPercent}%`,
                     width: `${exportBarWidthPercent}%`,
                     minWidth: exportBarWidthPercent > 0 ? `${exportHandleSize}px` : 0,
                     backgroundColor: exportBarFillColor,
                     boxShadow: `0 0 0 1px ${rgba(secondaryThemeColor, isDarkMode ? 0.3 : 0.18)}, 0 3px 12px ${rgba(secondaryThemeColor, isDarkMode ? 0.26 : 0.18)}`,
+                    cursor: 'grab',
+                    pointerEvents: 'auto',
                   }}
                 >
                   <button
@@ -1067,7 +1132,7 @@ export const PlayerControls = memo(function PlayerControls({
                     onPointerDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      exportRangeDragRef.current = 'start';
+                      exportRangeDragRef.current = { mode: 'start', initialStart: exportRangeStart, initialEnd: exportRangeEnd, anchorTime: exportRangeStart };
                       document.body.style.userSelect = 'none';
                       document.body.style.cursor = 'ew-resize';
                     }}
@@ -1096,7 +1161,7 @@ export const PlayerControls = memo(function PlayerControls({
                     onPointerDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      exportRangeDragRef.current = 'end';
+                      exportRangeDragRef.current = { mode: 'end', initialStart: exportRangeStart, initialEnd: exportRangeEnd, anchorTime: exportRangeEnd };
                       document.body.style.userSelect = 'none';
                       document.body.style.cursor = 'ew-resize';
                     }}

@@ -113,6 +113,24 @@ export function SettingsPanel({
     if (path.startsWith('/') && !path.startsWith('/projects/') && !path.startsWith('/assets/')) return toFsPreviewPath(path);
     return path.startsWith('/') ? path : `/${path}`;
   };
+  const loadAssetNaturalSize = (path: string) => new Promise<{ width: number; height: number } | null>((resolve) => {
+    const previewSrc = resolveAssetSrc ? (resolveAssetSrc(path) || path) : (resolveLocalPreviewPath(path) || path);
+    if (/\.(mp4|webm|mov)(\?|$)/i.test(path)) {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        resolve({ width: video.videoWidth, height: video.videoHeight });
+      };
+      video.onerror = () => resolve(null);
+      video.src = previewSrc;
+      return;
+    }
+
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => resolve(null);
+    image.src = previewSrc;
+  });
   const [presetPromptKey, setPresetPromptKey] = useState<string | null>(null);
   const [presetPromptMode, setPresetPromptMode] = useState<'save' | 'rename'>('save');
   const [presetNameInput, setPresetNameInput] = useState("");
@@ -142,7 +160,11 @@ export function SettingsPanel({
       // Keep existing order, add new ones at end (in layer order), remove deleted ones
       const kept = prev.filter((id) => allIds.includes(id));
       const added = allIds.filter((id) => !kept.includes(id));
-      return [...kept, ...added];
+      const next = [...kept, ...added];
+      if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
+        return prev;
+      }
+      return next;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backgroundSlides.map((s: any) => s.id).join(',')]);
@@ -194,16 +216,16 @@ export function SettingsPanel({
 
   const addBackgroundSlide = (type: 'image' | 'text' = 'image') => {
     const nextIndex = backgroundSlides.length + 1;
+    const defaultStart = Math.max(0, Number(currentTime.toFixed(2)));
+    const defaultEnd = Number((defaultStart + 30).toFixed(2));
     const slide = {
       id: `slide-${Date.now()}`,
       type,
       name: type === 'text' ? `${t('project.assetTypeText')}${nextIndex}` : `${t('project.assetTypeImage')}${nextIndex}`,
       image: '',
       text: t('project.textContent'),
-      start: 0,
-      end: Math.max(3, config.exportRange?.end || 3),
-      fit: 'contain',
-      position: 'center',
+      start: defaultStart,
+      end: defaultEnd,
       scale: 1,
       offsetX: 0,
       offsetY: 0,
@@ -1246,7 +1268,13 @@ export function SettingsPanel({
                                 onClick={async () => {
                                   const path = await onSelectImage();
                                   if (path) {
-                                    updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, image: path }));
+                                    const naturalSize = await loadAssetNaturalSize(path);
+                                    updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({
+                                      ...slide,
+                                      image: path,
+                                      intrinsicWidth: naturalSize?.width,
+                                      intrinsicHeight: naturalSize?.height,
+                                    }));
                                   }
                                 }}
                                 className="px-3 border rounded-md flex items-center justify-center transition-colors"
@@ -1300,31 +1328,6 @@ export function SettingsPanel({
                             </div>
                           </div>
                         </div>
-
-                        {currentBackgroundSlide.type !== 'text' ? <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <span className="text-xs opacity-70">{t('project.backgroundFit')}</span>
-                            <select value={currentBackgroundSlide.fit || 'cover'} onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, fit: e.target.value }))} className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} style={inputSurfaceStyle}>
-                              <option value="cover">{t('project.fitCover')}</option>
-                              <option value="contain">{t('project.fitContain')}</option>
-                              <option value="fill">{t('project.fitFill')}</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <span className="text-xs opacity-70">{t('project.backgroundPosition')}</span>
-                            <select value={currentBackgroundSlide.position || 'center'} onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, position: e.target.value }))} className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`} style={inputSurfaceStyle}>
-                              <option value="center">{t('project.posCenter')}</option>
-                              <option value="top">{t('project.posTop')}</option>
-                              <option value="bottom">{t('project.posBottom')}</option>
-                              <option value="left">{t('project.posLeft')}</option>
-                              <option value="right">{t('project.posRight')}</option>
-                              <option value="top-left">{t('project.posTopLeft')}</option>
-                              <option value="top-right">{t('project.posTopRight')}</option>
-                              <option value="bottom-left">{t('project.posBottomLeft')}</option>
-                              <option value="bottom-right">{t('project.posBottomRight')}</option>
-                            </select>
-                          </div>
-                        </div> : null}
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1.5">

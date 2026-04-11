@@ -9,6 +9,8 @@ export interface BackgroundSlideItem {
   name?: string;
   image?: string;
   text?: string;
+  intrinsicWidth?: number;
+  intrinsicHeight?: number;
   start: number;
   end: number;
   fit?: 'cover' | 'contain' | 'fill';

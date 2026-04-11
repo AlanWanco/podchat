@@ -369,14 +369,16 @@ const sanitizeProjectOverrides = (value: unknown) => {
 
 function PreviewBackgroundAsset({
   src,
-  fit,
-  position,
   blur,
   brightness,
+  canvasWidth,
+  canvasHeight,
   scale = 1,
   offsetX = 0,
   offsetY = 0,
   rotation = 0,
+  intrinsicWidth,
+  intrinsicHeight,
   animationStyle = 'none',
   animationDuration = 0.2,
   currentTime,
@@ -387,16 +389,19 @@ function PreviewBackgroundAsset({
   onDoubleClick,
   editOverlay,
   onEditBoxChange,
+  onNaturalSizeChange,
 }: {
   src?: string;
-  fit?: string;
-  position?: string;
   blur: number;
   brightness: number;
+  canvasWidth: number;
+  canvasHeight: number;
   scale?: number;
   offsetX?: number;
   offsetY?: number;
   rotation?: number;
+  intrinsicWidth?: number;
+  intrinsicHeight?: number;
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
   animationDuration?: number;
   currentTime: number;
@@ -407,42 +412,18 @@ function PreviewBackgroundAsset({
   onDoubleClick?: () => void;
   editOverlay?: React.ReactNode;
   onEditBoxChange?: (box: { centerX: number; centerY: number; width: number; height: number }) => void;
+  onNaturalSizeChange?: (size: { width: number; height: number }) => void;
 }) {
   // Track container size and natural image size to compute contain-fit overlay rect
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
-  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
-
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(intrinsicWidth && intrinsicHeight ? { w: intrinsicWidth, h: intrinsicHeight } : null);
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const obs = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setContainerSize({ w: entry.contentRect.width, h: entry.contentRect.height });
-    });
-    obs.observe(el);
-    setContainerSize({ w: el.clientWidth, h: el.clientHeight });
-    return () => obs.disconnect();
-  }, []);
-
-  if (!src) {
-    return null;
-  }
-
-  const objectFit = fit === 'contain' || fit === 'fill' ? fit : 'cover';
-  const objectPosition = (() => {
-    switch (position) {
-      case 'top': return 'center top';
-      case 'bottom': return 'center bottom';
-      case 'left': return 'left center';
-      case 'right': return 'right center';
-      case 'top-left': return 'left top';
-      case 'top-right': return 'right top';
-      case 'bottom-left': return 'left bottom';
-      case 'bottom-right': return 'right bottom';
-      default: return 'center center';
+    if (intrinsicWidth && intrinsicHeight) {
+      setNaturalSize((prev) => prev?.w === intrinsicWidth && prev?.h === intrinsicHeight ? prev : { w: intrinsicWidth, h: intrinsicHeight });
+      return;
     }
-  })();
+    setNaturalSize(null);
+  }, [intrinsicHeight, intrinsicWidth, src]);
+
   const appearanceTime = Math.max(0, start - (animationStyle === 'none' ? 0 : animationDuration));
   const progress = animationStyle === 'none' || animationDuration <= 0
     ? 1
@@ -453,56 +434,48 @@ function PreviewBackgroundAsset({
   const motionState = getBubbleMotionState(progress * disappearProgress, animationStyle, 'left');
   // Transform applied to the asset (and matched by the edit overlay so controls track the image).
   // transformOrigin is always 50% 50% so rotate/scale behaves like PS Free Transform (center-based).
-  const assetTransform = `${objectFit === 'cover' ? 'scale(1.05) ' : ''}translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg) scale(${scale}) ${motionState.transform || ''}`.trim();
+  const assetTransform = `translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg) scale(${scale}) ${motionState.transform || ''}`.trim();
   const assetStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
-    objectFit,
-    objectPosition,
+    objectFit: 'fill',
     filter: `blur(${blur}px) brightness(${brightness})`,
     transform: assetTransform,
     transformOrigin: '50% 50%',
     opacity: motionState.opacity,
   };
 
-  // For contain fit, compute the actual rendered rect of the image inside the container
-  // so the edit overlay wraps exactly the image area (not the full container).
+  const effectiveNaturalSize = intrinsicWidth && intrinsicHeight
+    ? { w: intrinsicWidth, h: intrinsicHeight }
+    : naturalSize;
+
   let overlayRect: React.CSSProperties = { inset: 0 };
-  if (objectFit === 'contain' && containerSize && naturalSize && naturalSize.w > 0 && naturalSize.h > 0) {
-    const cw = containerSize.w;
-    const ch = containerSize.h;
-    const iw = naturalSize.w;
-    const ih = naturalSize.h;
-    const containerAspect = cw / ch;
-    const imageAspect = iw / ih;
-    let renderedW: number;
-    let renderedH: number;
-    if (imageAspect > containerAspect) {
-      renderedW = cw;
-      renderedH = cw / imageAspect;
-    } else {
-      renderedH = ch;
-      renderedW = ch * imageAspect;
-    }
-    const left = (cw - renderedW) / 2;
-    const top = (ch - renderedH) / 2;
-    overlayRect = { left, top, width: renderedW, height: renderedH };
+  if (effectiveNaturalSize && effectiveNaturalSize.w > 0 && effectiveNaturalSize.h > 0) {
+    const left = (canvasWidth - effectiveNaturalSize.w) / 2;
+    const top = (canvasHeight - effectiveNaturalSize.h) / 2;
+    overlayRect = { left, top, width: effectiveNaturalSize.w, height: effectiveNaturalSize.h };
   }
 
-  const overlayWidth = 'width' in overlayRect && typeof overlayRect.width === 'number' ? overlayRect.width : containerSize?.w ?? 0;
-  const overlayHeight = 'height' in overlayRect && typeof overlayRect.height === 'number' ? overlayRect.height : containerSize?.h ?? 0;
+  const overlayWidth = 'width' in overlayRect && typeof overlayRect.width === 'number' ? overlayRect.width : canvasWidth;
+  const overlayHeight = 'height' in overlayRect && typeof overlayRect.height === 'number' ? overlayRect.height : canvasHeight;
   const overlayLeft = 'left' in overlayRect && typeof overlayRect.left === 'number' ? overlayRect.left : 0;
   const overlayTop = 'top' in overlayRect && typeof overlayRect.top === 'number' ? overlayRect.top : 0;
 
   useEffect(() => {
     if (!onEditBoxChange) return;
+    if (!src) return;
+    if (overlayWidth <= 1 || overlayHeight <= 1) return;
     onEditBoxChange({
       centerX: overlayLeft + overlayWidth / 2 + offsetX,
       centerY: overlayTop + overlayHeight / 2 + offsetY,
       width: overlayWidth * scale,
       height: overlayHeight * scale,
     });
-  }, [offsetX, offsetY, onEditBoxChange, overlayHeight, overlayLeft, overlayTop, overlayWidth, scale]);
+  }, [offsetX, offsetY, onEditBoxChange, overlayHeight, overlayLeft, overlayTop, overlayWidth, scale, src]);
+  useEffect(() => {
+    if (!onNaturalSizeChange || !effectiveNaturalSize) return;
+    onNaturalSizeChange({ width: effectiveNaturalSize.w, height: effectiveNaturalSize.h });
+  }, [effectiveNaturalSize, onNaturalSizeChange]);
 
   // The edit overlay shares the same transform so controls naturally stick to the image
   const overlayStyle: React.CSSProperties = {
@@ -522,9 +495,9 @@ function PreviewBackgroundAsset({
     touchAction: draggable ? 'none' : undefined,
   };
 
-  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(src);
+  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(src || '');
   const media = isVideo
-    ? <video src={src} muted loop playsInline className="w-full h-full" style={{ ...assetStyle, pointerEvents: 'none' }} />
+    ? <video src={src} muted loop playsInline className="w-full h-full" style={{ ...assetStyle, pointerEvents: 'none' }} onLoadedMetadata={(e) => setNaturalSize({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })} />
     : (
       <img
         src={src}
@@ -540,9 +513,25 @@ function PreviewBackgroundAsset({
       />
     );
 
+  if (!src) {
+    return null;
+  }
+
+  if (!effectiveNaturalSize || overlayWidth <= 1 || overlayHeight <= 1) {
+    return (
+      <div className="w-full h-full relative" style={{ pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, opacity: 0, pointerEvents: 'none' }}>
+          {media}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div ref={containerRef} className="w-full h-full relative" style={{ pointerEvents: 'none' }}>
-      {media}
+    <div className="w-full h-full relative" style={{ pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', ...overlayRect }}>
+        {media}
+      </div>
       {(onPointerDown || onDoubleClick) && <div onPointerDown={onPointerDown} onDoubleClick={onDoubleClick} style={interactionStyle} />}
       {editOverlay && <div style={overlayStyle}>{editOverlay}</div>}
     </div>
@@ -699,6 +688,18 @@ function getPreviewSlideBounds(slide: BackgroundSlideItem, canvasWidth: number, 
     };
   }
 
+  if (slide.intrinsicWidth && slide.intrinsicHeight) {
+    const scale = slide.scale ?? 1;
+    const width = slide.intrinsicWidth * scale;
+    const height = slide.intrinsicHeight * scale;
+    return {
+      left: canvasWidth / 2 + (slide.offsetX ?? 0) - width / 2,
+      top: canvasHeight / 2 + (slide.offsetY ?? 0) - height / 2,
+      width,
+      height,
+    };
+  }
+
   const fit = slide.fit === 'contain' || slide.fit === 'fill' ? slide.fit : 'cover';
   const scale = slide.scale ?? 1;
   if (fit === 'contain') {
@@ -769,7 +770,7 @@ function App() {
 
   // Panel Widths
   const [subtitleWidth, setSubtitleWidth] = useState(320);
-  const [settingsWidth, setSettingsWidth] = useState(530);
+  const [settingsWidth, setSettingsWidth] = useState(400);
   const [activeTab, setActiveTab] = useState<'subtitle' | 'global' | 'project' | 'speakers' | 'annotation'>(
     !window.electron && window.innerWidth < 700 ? 'subtitle' : 'speakers'
   );
@@ -2626,6 +2627,9 @@ const [previewScale, setPreviewScale] = useState(1);
     return getPreviewSlideBounds(activeInsertImageSlide, canvasWidth, canvasHeight);
   }, [activeInsertImageSlide, canvasWidth, canvasHeight, slideEditBoxes]);
   const updateSlideEditBox = useCallback((slideId: string, box: { centerX: number; centerY: number; width: number; height: number }) => {
+    if (!Number.isFinite(box.width) || !Number.isFinite(box.height) || box.width <= 1 || box.height <= 1) {
+      return;
+    }
     setSlideEditBoxes((prev) => {
       const current = prev[slideId];
       if (current && current.centerX === box.centerX && current.centerY === box.centerY && current.width === box.width && current.height === box.height) {
@@ -2634,6 +2638,44 @@ const [previewScale, setPreviewScale] = useState(1);
       return { ...prev, [slideId]: box };
     });
   }, []);
+  const updateSlideIntrinsicSize = useCallback((slideId: string, width: number, height: number) => {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return;
+    }
+    setConfig((prev: any) => {
+      const slides = Array.isArray(prev?.background?.slides) ? prev.background.slides : [];
+      let changed = false;
+      const nextSlides = slides.map((slide: any) => {
+        if (slide.id !== slideId) return slide;
+        if (slide.intrinsicWidth === width && slide.intrinsicHeight === height) return slide;
+        changed = true;
+        return { ...slide, intrinsicWidth: width, intrinsicHeight: height };
+      });
+      if (!changed) return prev;
+      return {
+        ...prev,
+        background: {
+          ...(prev?.background || DEFAULT_PROJECT_CONFIG.background),
+          slides: nextSlides,
+        }
+      };
+    });
+  }, [setConfig]);
+  useEffect(() => {
+    if (!activeInsertImageSlide?.id) return;
+    setSlideEditBoxes((prev) => {
+      const current = prev[activeInsertImageSlide.id];
+      if (!current) {
+        return prev;
+      }
+      if (current.width > 1 && current.height > 1) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[activeInsertImageSlide.id];
+      return next;
+    });
+  }, [activeInsertImageSlide?.id, activeInsertImageSlide?.image]);
 
   const getBackgroundObjectPosition = (position?: string) => {
     switch (position) {
@@ -4197,8 +4239,10 @@ const [previewScale, setPreviewScale] = useState(1);
                     />
                   ) : <PreviewBackgroundAsset
                     src={resolvePath(slide.image)}
-                    fit={slide.fit}
-                    position={slide.position}
+                    canvasWidth={canvasWidth}
+                    canvasHeight={canvasHeight}
+                    intrinsicWidth={slide.intrinsicWidth}
+                    intrinsicHeight={slide.intrinsicHeight}
                     blur={slide.inheritBackgroundFilters === false ? 0 : (config.background.blur || 0)}
                     brightness={slide.inheritBackgroundFilters === false ? 1 : (config.background.brightness ?? 1)}
                     scale={slide.scale ?? 1}
@@ -4212,6 +4256,7 @@ const [previewScale, setPreviewScale] = useState(1);
                     end={slide.end}
                     draggable={activeInsertImageId === slide.id && isInsertImageEditMode}
                     onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
+                    onNaturalSizeChange={(size) => updateSlideIntrinsicSize(slide.id, size.width, size.height)}
                     onDoubleClick={undefined}
                     onPointerDown={undefined}
                     editOverlay={undefined}
@@ -4412,8 +4457,10 @@ const [previewScale, setPreviewScale] = useState(1);
                     />
                   ) : <PreviewBackgroundAsset
                     src={resolvePath(slide.image)}
-                    fit={slide.fit}
-                    position={slide.position}
+                    canvasWidth={canvasWidth}
+                    canvasHeight={canvasHeight}
+                    intrinsicWidth={slide.intrinsicWidth}
+                    intrinsicHeight={slide.intrinsicHeight}
                     blur={0}
                     brightness={1}
                     scale={slide.scale ?? 1}
@@ -4427,6 +4474,7 @@ const [previewScale, setPreviewScale] = useState(1);
                     end={slide.end}
                     draggable={activeInsertImageId === slide.id && isInsertImageEditMode}
                     onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
+                    onNaturalSizeChange={(size) => updateSlideIntrinsicSize(slide.id, size.width, size.height)}
                     onDoubleClick={() => {
                       setActiveInsertImageId(slide.id);
                       setIsInsertImageEditMode(true);
@@ -4672,6 +4720,8 @@ const [previewScale, setPreviewScale] = useState(1);
             ? translate(DEFAULT_I18N_LANGUAGE, 'defaults.textAssetName', { index: index + 1 })
             : translate(DEFAULT_I18N_LANGUAGE, 'defaults.imageAssetName', { index: index + 1 })),
           type: slide.type || 'image',
+          image: slide.image ? resolvePath(slide.image) : undefined,
+          text: slide.text,
           layer: slide.layer || 'background',
           backgroundOrder: slide.backgroundOrder ?? index,
           overlayOrder: slide.overlayOrder ?? index,
@@ -4693,6 +4743,12 @@ const [previewScale, setPreviewScale] = useState(1);
             setEditingSub({ ...editingSub, start, end });
             handleUpdateSubtitle(editingSub.id, { start, end, duration: Number((end - start).toFixed(2)) });
           }
+        }}
+        onEditInsertImage={(id) => {
+          setActiveInsertImageId(id);
+          setIsInsertImageEditMode(true);
+          setShowSettings(true);
+          setActiveTab('project');
         }}
         compactMobile={isMobileWebLayout}
       />
