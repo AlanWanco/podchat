@@ -2463,16 +2463,16 @@ const [previewScale, setPreviewScale] = useState(1);
 
     if (/^[a-zA-Z]:\//.test(normalized)) {
       const [drive, ...segments] = normalized.split('/');
-      return `/@fs/${drive}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
+      return `file:///${drive}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
     }
 
     if (normalized.startsWith('//')) {
       const [host, ...segments] = normalized.replace(/^\/\//, '').split('/');
-      return `/@fs//${host}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
+      return `file://${host}/${segments.map((segment) => encodeURIComponent(segment)).join('/')}`;
     }
 
     const segments = normalized.split('/');
-    return `/@fs${segments.map((segment, index) => (index === 0 ? segment : `/${encodeURIComponent(segment)}`)).join('')}`;
+    return `file://${segments.map((segment, index) => (index === 0 ? segment : `/${encodeURIComponent(segment)}`)).join('')}`;
   };
 
   const toFilePreviewPath = (localPath: string) => {
@@ -2980,12 +2980,10 @@ const [previewScale, setPreviewScale] = useState(1);
               }
             }));
           }
-          if (mediaInfo.hasAudio) {
-            const shouldUseVideoAudio = window.confirm(t('app.videoAudioPrompt'));
-            if (shouldUseVideoAudio) {
-              setConfig((prev: any) => ({ ...prev, audioPath: filePath }));
-              showToast(t('app.audioImported'));
-            }
+          const shouldUseVideoAudio = window.confirm(t('app.videoAudioPrompt'));
+          if (shouldUseVideoAudio) {
+            setConfig((prev: any) => ({ ...prev, audioPath: filePath }));
+            showToast(t('app.audioImported'));
           }
         }
       }
@@ -3042,12 +3040,10 @@ const [previewScale, setPreviewScale] = useState(1);
           }
         }));
 
-        if (mediaInfo.hasAudio) {
-          const shouldUseVideoAudio = window.confirm(t('app.videoAudioPrompt'));
-          if (shouldUseVideoAudio) {
-            applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: filePath }));
-            showToast(t('app.audioImported'));
-          }
+        const shouldUseVideoAudio = window.confirm(t('app.videoAudioPrompt'));
+        if (shouldUseVideoAudio) {
+          applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: filePath }));
+          showToast(t('app.audioImported'));
         }
       }
       return;
@@ -3067,7 +3063,17 @@ const [previewScale, setPreviewScale] = useState(1);
         properties: ['openFile']
       });
       if (!res.canceled && res.filePaths.length > 0) {
-        return res.filePaths[0];
+        const filePath = res.filePaths[0];
+        
+        if (/\.(mp4|webm|mov)$/i.test(filePath)) {
+          const shouldUseVideoAudio = window.confirm(t('app.videoAudioPrompt'));
+          if (shouldUseVideoAudio) {
+            applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: filePath }));
+            showToast(t('app.audioImported'));
+          }
+        }
+        
+        return filePath;
       }
     } catch (e: any) {
       alert(`${t('dialog.errorSelectImageFailed')}: ${e.message}`);
@@ -3360,12 +3366,10 @@ const [previewScale, setPreviewScale] = useState(1);
           }
         }));
 
-        if (mediaInfo.hasAudio) {
-          const shouldUseVideoAudio = window.confirm(t('app.videoAudioPrompt'));
-          if (shouldUseVideoAudio) {
-            applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: mediaObjectUrl }));
-            showToast(t('app.audioImported'));
-          }
+        const shouldUseVideoAudio = window.confirm(t('app.videoAudioPrompt'));
+        if (shouldUseVideoAudio) {
+          applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: mediaObjectUrl }));
+          showToast(t('app.audioImported'));
         }
       }
       return;

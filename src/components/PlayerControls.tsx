@@ -496,19 +496,24 @@ export const PlayerControls = memo(function PlayerControls({
   }, [audioPath, isDarkMode, onSeek, audioRef, waveformBaseColor, waveformHeight, waveformProgressColor, secondaryThemeColor]);
 
   useEffect(() => {
-    if (!isWaveformReady) {
-      setWaveformOverlayMetrics({ scrollLeft: 0, wrapperWidth: 0, viewportWidth: 0 });
-      return;
-    }
-
     const updateOverlayMetrics = () => {
       const { scrollElement, wrapperElement } = getWaveformOverlayElements();
       setWaveformOverlayMetrics({
         scrollLeft: scrollElement?.scrollLeft ?? 0,
-        wrapperWidth: wrapperElement?.clientWidth ?? 0,
+        wrapperWidth: wrapperElement?.clientWidth ?? waveformRef.current?.clientWidth ?? 0,
         viewportWidth: scrollElement?.clientWidth ?? waveformRef.current?.clientWidth ?? 0,
       });
     };
+
+    if (!isWaveformReady && !audioPath) {
+      updateOverlayMetrics();
+      return;
+    }
+
+    if (!isWaveformReady) {
+      setWaveformOverlayMetrics({ scrollLeft: 0, wrapperWidth: 0, viewportWidth: 0 });
+      return;
+    }
 
     const { scrollElement, wrapperElement } = getWaveformOverlayElements();
     const resizeObserver = typeof ResizeObserver !== 'undefined'
@@ -908,7 +913,7 @@ export const PlayerControls = memo(function PlayerControls({
                 {insertImageHoverLabel.label}
             </div>
           )}
-          {showWaveformContainer && overlayTrackWidth > 0 && waveformDuration > 0 && (
+          {showWaveformContainer && overlayTrackWidth > 0 && (
             <div className="relative w-full overflow-visible mb-0.5" style={{ height: `${Math.max(exportHandleSize + 4, 14)}px`, marginTop: backgroundSlides.length > 0 ? `${backgroundSlideTrackHeight + backgroundSlideGapToExportBar}px` : undefined }}>
               {backgroundSlideBars.length > 0 && (
                 <div
