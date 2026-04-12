@@ -69,6 +69,8 @@ export interface SpeakerStyle {
   scale?: number;
   maxWidth?: number;
   annotationPosition?: 'top' | 'bottom';
+  annotationAlign?: 'left' | 'center' | 'right';
+  annotationMarginX?: number;
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
 }
 
@@ -101,6 +103,8 @@ export interface PodchatExportInput {
   };
   chatLayout?: {
     paddingTop?: number;
+    topFadeEnabled?: boolean;
+    topFadeHeight?: number;
     paddingBottom?: number;
     paddingX?: number;
     paddingLeft?: number;

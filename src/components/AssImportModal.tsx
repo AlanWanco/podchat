@@ -70,7 +70,7 @@ type StylePreviewRow = {
 };
 
 const PREVIEW_ROWS_PER_TAB = 8;
-const buildAssPresetKey = (styleName: string) => `ASS:${styleName || 'Default'}`;
+const buildAssPresetKey = (styleName: string) => `ASS:${styleName || 'Default'}:${Math.floor(Date.now() / 1000)}`;
 
 const getPreferredStylesByName = (dialogues: ParsedAssDialogue[]) => {
   const counts = new Map<string, Map<string, number>>();
@@ -142,13 +142,15 @@ const getBaseImportedStyle = (isAnnotation: boolean, charCode: number) => ({
   fontSize: isAnnotation ? 24 : 30,
   fontWeight: 'normal',
   nameColor: '#ffffff',
-  annotationPosition: 'bottom'
+  annotationPosition: 'bottom',
+  annotationAlign: 'center',
+  annotationMarginX: 0,
 });
 
 interface AssImportModalProps {
   assPath: string;
   assContent: string;
-  onConfirm: (path: string, newSpeakers: ImportedSpeakerMap, newPresets: ImportedPresetMap) => void | Promise<void>;
+  onConfirm: (path: string, newSpeakers: ImportedSpeakerMap, newPresets: ImportedPresetMap, newAnnotationPresets: ImportedPresetMap) => void | Promise<void>;
   onCancel: () => void;
   isDarkMode: boolean;
   language: Language;
@@ -263,6 +265,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
     const preferredStylesByName = getPreferredStylesByName(latestParsedAss?.events?.dialogue || []);
     const newSpeakers: ImportedSpeakerMap = {};
     const newPresets: ImportedPresetMap = {};
+    const newAnnotationPresets: ImportedPresetMap = {};
     const createdSpeakerKeys = new Set<string>();
     const stylesBoundByNames = new Set<string>();
     let charCode = 65; // 'A'
@@ -307,11 +310,19 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
         avatar: isAnnotation ? '' : `https://api.dicebear.com/7.x/adventurer/svg?seed=${name || speakerId}`,
         side: isAnnotation ? 'center' : (charCode % 2 === 0 ? 'left' : 'right'),
         type: isAnnotation ? 'annotation' : 'speaker',
-        preset: !isAnnotation && hasSelectedStyle ? assPresetKey : undefined,
+        preset: hasSelectedStyle ? assPresetKey : undefined,
         style: {
           ...mergedStyle
         }
       };
+
+      if (hasSelectedStyle && isAnnotation && !newAnnotationPresets[assPresetKey]) {
+        newAnnotationPresets[assPresetKey] = {
+          style: mergedStyle,
+          avatar: '',
+          side: 'center'
+        };
+      }
 
       if (hasSelectedStyle) {
         stylesBoundByNames.add(matchedStyleName);
@@ -341,11 +352,19 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
         avatar: isAnnotation ? '' : `https://api.dicebear.com/7.x/adventurer/svg?seed=${styleName || speakerId}`,
         side: isAnnotation ? 'center' : (charCode % 2 === 0 ? 'left' : 'right'),
         type: isAnnotation ? 'annotation' : 'speaker',
-        preset: !isAnnotation ? assPresetKey : undefined,
+        preset: assPresetKey,
         style: {
           ...mergedStyle
         }
       };
+
+      if (isAnnotation && !newAnnotationPresets[assPresetKey]) {
+        newAnnotationPresets[assPresetKey] = {
+          style: mergedStyle,
+          avatar: '',
+          side: 'center'
+        };
+      }
     });
     
     // If nothing selected, just provide a default A
@@ -360,7 +379,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
       };
     }
     
-    await onConfirm(assPath, newSpeakers, newPresets);
+    await onConfirm(assPath, newSpeakers, newPresets, newAnnotationPresets);
   };
 
   const assStylesByName = new Map<string, ParsedAssStyle>((parsedAss?.styles?.style || []).map((style) => [style.Name, style]));

@@ -32,6 +32,8 @@ export interface SharedChatSpeakerStyle {
   nameFontWeight?: string;
   maxWidth?: number;
   annotationPosition?: 'top' | 'bottom';
+  annotationAlign?: 'left' | 'center' | 'right';
+  annotationMarginX?: number;
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
 }
 
@@ -806,6 +808,8 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
   const shadowSize = (speaker.style?.shadowSize ?? 1) * combinedScale;
   const maxWidth = (speaker.style?.maxWidth ?? 720) * combinedScale;
   const inlineImageMaxWidthPx = Math.max(80, maxWidth - (speaker.style?.paddingX ?? 24) * combinedScale * 2);
+  const annotationAlign = speaker.style?.annotationAlign ?? 'center';
+  const annotationMarginX = (speaker.style?.annotationMarginX ?? 0) * combinedScale;
   const opacity = speaker.style?.opacity ?? 0.9;
   const bgColor = speaker.style?.bgColor || '#111827';
   const textColor = speaker.style?.textColor || '#ffffff';
@@ -813,7 +817,9 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
   const finalBgColor = `${hexBg}${Math.floor(opacity * 255).toString(16).padStart(2, '0')}`;
   const bubbleArgs = {
     outerStyle: {
-      alignSelf: 'center',
+      alignSelf: annotationAlign === 'left' ? 'flex-start' : annotationAlign === 'right' ? 'flex-end' : 'center',
+      marginLeft: annotationAlign === 'left' ? `${annotationMarginX}px` : 'auto',
+      marginRight: annotationAlign === 'right' ? `${annotationMarginX}px` : 'auto',
       maxWidth: `${maxWidth}px`,
       borderRadius: `${(speaker.style?.annotationBorderRadius ?? speaker.style?.borderRadius ?? 28) * combinedScale}px`,
       backgroundColor: finalBgColor,
@@ -831,7 +837,7 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
       fontSize: `${(speaker.style?.fontSize ?? 24) * combinedScale}px`,
       fontWeight: speaker.style?.fontWeight || 'normal',
       lineHeight: 1.35,
-      textAlign: 'center' as const,
+      textAlign: annotationAlign as 'left' | 'center' | 'right',
       whiteSpace: 'pre-wrap' as const,
       color: textColor
     },

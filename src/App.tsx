@@ -115,7 +115,8 @@ const DEFAULT_UI_CONFIG = {
   settingsPosition: 'right' as 'left' | 'right',
   recentProject: null as string | null,
   playbackPositions: {} as Record<string, number>,
-  presets: {} as Record<string, any>
+  presets: {} as Record<string, any>,
+  annotationPresets: {} as Record<string, any>
 };
 
 type SubtitleFormat = 'ass' | 'srt' | 'lrc';
@@ -182,7 +183,9 @@ const DEFAULT_PROJECT_CONFIG = {
         paddingY: 12,
         maxWidth: 720,
         fontSize: 24,
-        annotationPosition: 'bottom'
+        annotationPosition: 'bottom',
+        annotationAlign: 'center',
+        annotationMarginX: 0,
       }
     }
   }
@@ -292,7 +295,8 @@ const sanitizeProjectConfig = (parsed: any) => {
       settingsPosition: parsed?.ui?.settingsPosition === 'left' ? 'left' : 'right',
       recentProject: typeof parsed?.ui?.recentProject === 'string' ? parsed.ui.recentProject : null,
       playbackPositions: parsed?.ui?.playbackPositions && typeof parsed.ui.playbackPositions === 'object' ? parsed.ui.playbackPositions : {},
-      presets: parsed?.ui?.presets && typeof parsed.ui.presets === 'object' ? parsed.ui.presets : {}
+      presets: parsed?.ui?.presets && typeof parsed.ui.presets === 'object' ? parsed.ui.presets : {},
+      annotationPresets: parsed?.ui?.annotationPresets && typeof parsed.ui.annotationPresets === 'object' ? parsed.ui.annotationPresets : {}
     }
   };
 
@@ -330,7 +334,9 @@ const createBlankProjectConfig = (projectTitle: string) => ({
         paddingY: 12,
         maxWidth: 720,
         fontSize: 24,
-        annotationPosition: 'bottom'
+        annotationPosition: 'bottom',
+        annotationAlign: 'center',
+        annotationMarginX: 0,
       }
     }
   },
@@ -804,6 +810,7 @@ function App() {
   const [persistedCustomFilename, setPersistedCustomFilename] = useState('');
   const [cachedRemoteAssets, setCachedRemoteAssets] = useState<Record<string, string>>({});
   const [presets, setPresets] = useState<Record<string, any>>(() => config.ui?.presets ?? DEFAULT_UI_CONFIG.presets);
+  const [annotationPresets, setAnnotationPresets] = useState<Record<string, any>>(() => config.ui?.annotationPresets ?? DEFAULT_UI_CONFIG.annotationPresets);
   const [webAudioObjectUrl, setWebAudioObjectUrl] = useState('');
   const [webAssContent, setWebAssContent] = useState<string | null>(null);
   const webPresetInputRef = useRef<HTMLInputElement>(null);
@@ -1275,7 +1282,9 @@ const [previewScale, setPreviewScale] = useState(1);
       const content = await window.electron.readFile(result.filePaths[0]);
       const parsed = JSON.parse(content);
       const existing = { ...presets };
+      const existingAnnotationPresets = { ...annotationPresets };
       const imported: Record<string, any> = {};
+      const importedAnnotations: Record<string, any> = {};
 
       if (parsed?.speakers && typeof parsed.speakers === 'object') {
         Object.entries(parsed.speakers).forEach(([speakerKey, speaker]: [string, any]) => {
@@ -1293,6 +1302,18 @@ const [previewScale, setPreviewScale] = useState(1);
         });
       }
 
+      if (parsed?.annotations && typeof parsed.annotations === 'object') {
+        Object.entries(parsed.annotations).forEach(([presetName, presetValue]) => {
+          let nextName = presetName;
+          let counter = 2;
+          while (existingAnnotationPresets[nextName] || importedAnnotations[nextName]) {
+            nextName = `${presetName} (${counter})`;
+            counter += 1;
+          }
+          importedAnnotations[nextName] = presetValue;
+        });
+      }
+
       if (parsed && typeof parsed === 'object' && !parsed.speakers) {
         Object.entries(parsed).forEach(([presetName, presetValue]) => {
           imported[presetName] = presetValue;
@@ -1303,16 +1324,18 @@ const [previewScale, setPreviewScale] = useState(1);
         ? Object.keys(parsed.speakers).length
         : 0;
       const presetCount = Object.keys(imported).length;
-      if (presetCount === 0) {
+      const annotationPresetCount = Object.keys(importedAnnotations).length;
+      if (presetCount === 0 && annotationPresetCount === 0) {
         return;
       }
 
-      const confirmed = window.confirm(t('app.presetsImportConfirm', { presetCount, speakerCount }));
+      const confirmed = window.confirm(t('app.presetsImportConfirm', { presetCount: presetCount + annotationPresetCount, speakerCount }));
       if (!confirmed) {
         return;
       }
 
       setPresets({ ...existing, ...imported });
+      setAnnotationPresets({ ...existingAnnotationPresets, ...importedAnnotations });
       showToast(t('app.presetsImported'));
     } catch (error) {
       console.error('Failed to import presets:', error);
@@ -1322,7 +1345,7 @@ const [previewScale, setPreviewScale] = useState(1);
   const handleExportPresets = async () => {
     if (!window.electron) {
       try {
-        const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify({ speakers: presets, annotations: annotationPresets }, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -1346,7 +1369,7 @@ const [previewScale, setPreviewScale] = useState(1);
       });
 
       if (result.canceled || !result.filePath) return;
-      await window.electron.writeFile(result.filePath, JSON.stringify(presets, null, 2));
+        await window.electron.writeFile(result.filePath, JSON.stringify({ speakers: presets, annotations: annotationPresets }, null, 2));
       showToast(t('app.presetsExported'));
     } catch (error) {
       console.error('Failed to export presets:', error);
@@ -1570,6 +1593,12 @@ const [previewScale, setPreviewScale] = useState(1);
       if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
       return next;
     });
+    setAnnotationPresets((prev: Record<string, any>) => {
+      const next = ui.annotationPresets ?? DEFAULT_UI_CONFIG.annotationPresets;
+      if (prev === next) return prev;
+      if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+      return next;
+    });
   }, [config.ui]);
 
   useEffect(() => {
@@ -1580,7 +1609,9 @@ const [previewScale, setPreviewScale] = useState(1);
     setConfig((prev: any) => {
       const prevUi = prev.ui || DEFAULT_UI_CONFIG;
       const nextPresets = presets;
+      const nextAnnotationPresets = annotationPresets;
       const samePresets = prevUi.presets === nextPresets || JSON.stringify(prevUi.presets || {}) === JSON.stringify(nextPresets || {});
+      const sameAnnotationPresets = prevUi.annotationPresets === nextAnnotationPresets || JSON.stringify(prevUi.annotationPresets || {}) === JSON.stringify(nextAnnotationPresets || {});
       if (
         prevUi.isDarkMode === isDarkMode &&
         prevUi.themeColor === (themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT)) &&
@@ -1589,7 +1620,8 @@ const [previewScale, setPreviewScale] = useState(1);
         prevUi.proxy === proxyState.trim() &&
         prevUi.settingsPosition === settingsPosition &&
         prevUi.recentProject === recentProject &&
-        samePresets
+        samePresets &&
+        sameAnnotationPresets
       ) {
         return prev;
       }
@@ -1606,10 +1638,11 @@ const [previewScale, setPreviewScale] = useState(1);
           settingsPosition,
           recentProject,
           presets: nextPresets,
+          annotationPresets: nextAnnotationPresets,
         },
       };
     });
-  }, [autoSaveProject, isDarkMode, themeColorState, secondaryThemeColorState, proxyState, settingsPosition, recentProject, presets]);
+  }, [autoSaveProject, isDarkMode, themeColorState, secondaryThemeColorState, proxyState, settingsPosition, recentProject, presets, annotationPresets]);
 
   useEffect(() => {
     if (!window.electron || !hasHydratedElectronConfigRef.current) return;
@@ -1655,6 +1688,12 @@ const [previewScale, setPreviewScale] = useState(1);
   const handlePresetsChangeTracked = useCallback((nextPresets: Record<string, any>) => {
     pushHistorySnapshot();
     setPresets(nextPresets);
+    markProjectDirty();
+  }, [markProjectDirty, pushHistorySnapshot]);
+
+  const handleAnnotationPresetsChangeTracked = useCallback((nextPresets: Record<string, any>) => {
+    pushHistorySnapshot();
+    setAnnotationPresets(nextPresets);
     markProjectDirty();
   }, [markProjectDirty, pushHistorySnapshot]);
 
@@ -2624,13 +2663,9 @@ const [previewScale, setPreviewScale] = useState(1);
   const backgroundSlides = Array.isArray(config.background?.slides) ? config.background.slides : [];
   const activeInsertImageSlide = backgroundSlides.find((slide: BackgroundSlideItem) => slide.id === activeInsertImageId) || null;
   const enterInsertImageEditMode = useCallback((id: string) => {
-    const targetSlide = backgroundSlides.find((slide: BackgroundSlideItem) => slide.id === id);
     setActiveInsertImageId(id);
     setIsInsertImageEditMode(true);
-    if (targetSlide) {
-      handleSeek(targetSlide.start);
-    }
-  }, [backgroundSlides, handleSeek]);
+  }, []);
 
   useEffect(() => {
     if (!isInsertImageEditMode || !activeInsertImageSlide) {
@@ -3231,7 +3266,9 @@ const [previewScale, setPreviewScale] = useState(1);
       const content = await file.text();
       const parsed = JSON.parse(content);
       const existing = { ...presets };
+      const existingAnnotationPresets = { ...annotationPresets };
       const imported: Record<string, any> = {};
+      const importedAnnotations: Record<string, any> = {};
 
       if (parsed?.speakers && typeof parsed.speakers === 'object') {
         Object.entries(parsed.speakers).forEach(([speakerKey, speaker]: [string, any]) => {
@@ -3249,6 +3286,18 @@ const [previewScale, setPreviewScale] = useState(1);
         });
       }
 
+      if (parsed?.annotations && typeof parsed.annotations === 'object') {
+        Object.entries(parsed.annotations).forEach(([presetName, presetValue]) => {
+          let nextName = presetName;
+          let counter = 2;
+          while (existingAnnotationPresets[nextName] || importedAnnotations[nextName]) {
+            nextName = `${presetName} (${counter})`;
+            counter += 1;
+          }
+          importedAnnotations[nextName] = presetValue;
+        });
+      }
+
       if (parsed && typeof parsed === 'object' && !parsed.speakers) {
         Object.entries(parsed).forEach(([presetName, presetValue]) => {
           imported[presetName] = presetValue;
@@ -3259,18 +3308,20 @@ const [previewScale, setPreviewScale] = useState(1);
         ? Object.keys(parsed.speakers).length
         : 0;
       const presetCount = Object.keys(imported).length;
-      if (presetCount === 0) {
+      const annotationPresetCount = Object.keys(importedAnnotations).length;
+      if (presetCount === 0 && annotationPresetCount === 0) {
         showToast(t('app.dropUnsupported'));
         return;
       }
 
-      const confirmed = window.confirm(t('app.presetsImportConfirm', { presetCount, speakerCount }));
+      const confirmed = window.confirm(t('app.presetsImportConfirm', { presetCount: presetCount + annotationPresetCount, speakerCount }));
       if (!confirmed) {
         return;
       }
 
       pushHistorySnapshot();
       setPresets({ ...existing, ...imported });
+      setAnnotationPresets({ ...existingAnnotationPresets, ...importedAnnotations });
       markProjectDirty();
       showToast(t('app.presetsImported'));
     } catch (error) {
@@ -3683,6 +3734,22 @@ const [previewScale, setPreviewScale] = useState(1);
       speakerNameSize: Math.max(12, Math.round(baseSpeakerNameSize * 0.86))
     };
   }, [config.chatLayout, isMobileWebLayout]);
+  const previewTopFadeStyle = useMemo(() => {
+    if (!(previewChatLayout?.topFadeEnabled ?? false)) {
+      return undefined;
+    }
+
+    const fadeHeight = Math.max(20, previewChatLayout?.topFadeHeight ?? 120);
+    const gradient = `linear-gradient(to bottom, transparent 0px, black ${fadeHeight}px, black 100%)`;
+    return {
+      WebkitMaskImage: gradient,
+      maskImage: gradient,
+      WebkitMaskRepeat: 'no-repeat',
+      maskRepeat: 'no-repeat',
+      WebkitMaskSize: '100% 100%',
+      maskSize: '100% 100%',
+    } as React.CSSProperties;
+  }, [previewChatLayout?.topFadeEnabled, previewChatLayout?.topFadeHeight]);
 
   const handleAppDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     if (e.dataTransfer.types.includes('application/x-pomchat-insert-image-tab')) {
@@ -3832,6 +3899,8 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                 onPresetsChange={handlePresetsChangeTracked}
+                annotationPresets={annotationPresets}
+                onAnnotationPresetsChange={handleAnnotationPresetsChangeTracked}
                 onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
                 globalOnly
                 activeTab={activeTab}
@@ -4004,6 +4073,8 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                    onPresetsChange={handlePresetsChangeTracked}
+                   annotationPresets={annotationPresets}
+                   onAnnotationPresetsChange={handleAnnotationPresetsChangeTracked}
                    onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
                    activeTab={activeTab}
                    setActiveTab={setActiveTab}
@@ -4174,6 +4245,8 @@ const [previewScale, setPreviewScale] = useState(1);
                   showToast={showToast}
                   presets={presets}
                    onPresetsChange={handlePresetsChangeTracked}
+                   annotationPresets={annotationPresets}
+                   onAnnotationPresetsChange={handleAnnotationPresetsChangeTracked}
                    onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
                    activeTab={activeTab}
                   setActiveTab={setActiveTab}
@@ -4356,6 +4429,7 @@ const [previewScale, setPreviewScale] = useState(1);
               >
                 <div
                   className="flex-1 min-h-0 overflow-hidden relative"
+                  style={previewTopFadeStyle}
                 >
                   <div
                     className="absolute left-0 right-0 flex flex-col"
@@ -4467,10 +4541,10 @@ const [previewScale, setPreviewScale] = useState(1);
                       blur={0}
                       brightness={1}
                       onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
-                      onDoubleClick={() => {
-                        enterInsertImageEditMode(slide.id);
-                      }}
-                      onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
+                    onDoubleClick={() => {
+                      enterInsertImageEditMode(slide.id);
+                    }}
+                    onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
                         event.preventDefault();
                         event.stopPropagation();
                         insertImageDragRef.current = {
@@ -4534,11 +4608,11 @@ const [previewScale, setPreviewScale] = useState(1);
 
               {visibleAnnotations.length > 0 && (
                 <div className="absolute inset-x-0 top-0 bottom-0 z-30 pointer-events-none flex flex-col justify-between" style={{ padding: '24px 32px' }}>
-                  <div className="flex flex-col items-center gap-3">
+                  <div className="flex flex-col items-stretch gap-3 w-full">
                     {visibleAnnotations.filter((item) => config.speakers[item.speakerId]?.style?.annotationPosition === 'top').map((item) => {
                       const speaker = config.speakers[item.speakerId];
                       return (
-                        <div key={item.id}>
+                        <div key={item.id} className="w-full flex flex-col">
                           <ChatAnnotationBubble
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
@@ -4551,11 +4625,11 @@ const [previewScale, setPreviewScale] = useState(1);
                       );
                     })}
                   </div>
-                  <div className="flex flex-col items-center gap-3">
+                  <div className="flex flex-col items-stretch gap-3 w-full">
                     {visibleAnnotations.filter((item) => (config.speakers[item.speakerId]?.style?.annotationPosition || 'bottom') === 'bottom').map((item) => {
                       const speaker = config.speakers[item.speakerId];
                       return (
-                        <div key={item.id}>
+                        <div key={item.id} className="w-full flex flex-col">
                           <ChatAnnotationBubble
                             item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
                             speaker={speaker}
@@ -4700,6 +4774,8 @@ const [previewScale, setPreviewScale] = useState(1);
                 showToast={showToast}
                 presets={presets}
                 onPresetsChange={handlePresetsChangeTracked}
+                annotationPresets={annotationPresets}
+                onAnnotationPresetsChange={handleAnnotationPresetsChangeTracked}
                 onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
@@ -4835,6 +4911,8 @@ const [previewScale, setPreviewScale] = useState(1);
             showToast={showToast}
             presets={presets}
             onPresetsChange={handlePresetsChangeTracked}
+            annotationPresets={annotationPresets}
+            onAnnotationPresetsChange={handleAnnotationPresetsChangeTracked}
             onRequestRemoveSpeaker={handleRequestRemoveSpeaker}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -4981,7 +5059,7 @@ const [previewScale, setPreviewScale] = useState(1);
           themeColor={themeColor}
           secondaryThemeColor={secondaryThemeColor}
           onCancel={() => setImportAssData(null)}
-          onConfirm={async (path, newSpeakers, importedPresets) => {
+          onConfirm={async (path, newSpeakers, importedPresets, importedAnnotationPresets) => {
             const sanitizedContent = sanitizeImportedAssContent(importAssData.content);
 
             pushHistorySnapshot();
@@ -5011,6 +5089,12 @@ const [previewScale, setPreviewScale] = useState(1);
               setPresets((prev: Record<string, any>) => ({
                 ...prev,
                 ...importedPresets
+              }));
+            }
+            if (importedAnnotationPresets && Object.keys(importedAnnotationPresets).length > 0) {
+              setAnnotationPresets((prev: Record<string, any>) => ({
+                ...prev,
+                ...importedAnnotationPresets
               }));
             }
             if (!window.electron) {

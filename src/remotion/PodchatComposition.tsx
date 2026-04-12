@@ -233,6 +233,17 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const horizontalPadding = (props.chatLayout?.paddingLeft ?? props.chatLayout?.paddingX ?? 48) * effectiveScale;
   const topPadding = (props.chatLayout?.paddingTop ?? 48) * effectiveScale;
   const bottomPadding = (props.chatLayout?.paddingBottom ?? 80) * effectiveScale;
+  const topFadeHeight = Math.max(20, (props.chatLayout?.topFadeHeight ?? 120) * effectiveScale);
+  const topFadeStyle = props.chatLayout?.topFadeEnabled
+    ? {
+        WebkitMaskImage: `linear-gradient(to bottom, transparent 0px, black ${topFadeHeight}px, black 100%)`,
+        maskImage: `linear-gradient(to bottom, transparent 0px, black ${topFadeHeight}px, black 100%)`,
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskSize: '100% 100%',
+        maskSize: '100% 100%',
+      } as React.CSSProperties
+    : undefined;
   const backgroundObjectFit = props.background?.fit === 'contain' || props.background?.fit === 'fill' ? props.background.fit : 'cover';
   const backgroundVideoDurationFrames = props.background?.duration
     ? Math.max(1, Math.round(props.background.duration * fps))
@@ -390,7 +401,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
           justifyContent: 'space-between'
         }}
       >
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', ...topFadeStyle }}>
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: bottomPadding, display: 'flex', flexDirection: 'column' }}>
             {visibleMessageRows.map((row, rowIndex) => {
               const isLatestRow = rowIndex === visibleMessageRows.length - 1;
@@ -504,7 +515,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
             justifyContent: 'space-between'
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 * effectiveScale, alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 * effectiveScale, alignItems: 'stretch', width: '100%' }}>
             {topAnnotations.map((item) => (
               <ChatAnnotationBubble
                 key={`top-${item.speaker}-${item.start}-${item.text}`}
@@ -520,7 +531,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
             ))}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 * effectiveScale, alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 * effectiveScale, alignItems: 'stretch', width: '100%' }}>
             {bottomAnnotations.map((item) => (
               <ChatAnnotationBubble
                 key={`bottom-${item.speaker}-${item.start}-${item.text}`}
