@@ -156,7 +156,7 @@ const renderSlideAsset = ({
   if (/\.gif(\?|$)/i.test(src)) {
     return <div style={wrapperStyle}><Gif src={src} width={baseWidth} height={baseHeight} fit="fill" delayRenderTimeoutInMilliseconds={120000} style={style} /></div>;
   }
-  if (/\.(mp4|webm|mov)(\?|$)/i.test(src)) {
+  if (/\.(mp4|webm|mov|mkv)(\?|$)/i.test(src)) {
     return <div style={wrapperStyle}><OffthreadVideo src={src} muted style={style} /></div>;
   }
   return <div style={wrapperStyle}><Img src={src} style={style} /></div>;
@@ -253,7 +253,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                 display: 'block'
               }}
             />
-          ) : /\.(mp4|webm|mov)(\?|$)/i.test(props.background.image) ? (
+          ) : /\.(mp4|webm|mov|mkv)(\?|$)/i.test(props.background.image) ? (
             <Loop durationInFrames={backgroundVideoDurationFrames || durationInFrames}>
               <OffthreadVideo
                 src={props.background.image}
@@ -403,7 +403,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                                     delayRenderTimeoutInMilliseconds={120000}
                                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
                                   />
-                                : /\.mp4(\?|$)|\.webm(\?|$)|\.mov(\?|$)/i.test(src)
+                                : /\.mp4(\?|$)|\.webm(\?|$)|\.mov(\?|$)|\.mkv(\?|$)/i.test(src)
                                   ? <OffthreadVideo src={src} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                   : <Img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                             </div>

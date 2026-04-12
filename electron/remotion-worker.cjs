@@ -321,7 +321,7 @@ const prepareInputProps = (config, mediaServer, binariesDirectory) => {
 
 const getRenderConcurrency = () => {
   const cpuCount = typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length;
-  return Math.max(2, Math.min(8, cpuCount - 1));
+  return Math.max(1, cpuCount);
 };
 
 const patchMacCompositorBinaries = () => {
@@ -530,7 +530,7 @@ const runRender = async (config) => {
         },
       });
 
-      sendProgress(0.2, 'Frame-by-frame rendering');
+      sendProgress(0.2, isMovAlpha ? 'Encoding MOV alpha (FFmpeg)' : isWebmAlpha ? 'Encoding WebM alpha (FFmpeg)' : 'Encoding video (FFmpeg)');
       const qualityOptions = strategy.hardwareAcceleration === 'disable' && !isAlphaExport
         ? {
             x264Preset: config.x264Preset || 'veryfast',
@@ -567,7 +567,7 @@ const runRender = async (config) => {
           const renderedRatio = Math.max(0, Math.min(1, (renderedFrames || 0) / totalFrames));
           const encodedRatio = Math.max(0, Math.min(1, (encodedFrames || 0) / totalFrames));
 
-          let stage = 'Frame-by-frame rendering';
+          let stage = isMovAlpha ? 'Encoding MOV alpha (FFmpeg)' : isWebmAlpha ? 'Encoding WebM alpha (FFmpeg)' : 'Encoding video (FFmpeg)';
           // Use normalized progress as baseline to avoid long stalls
           // when encodedFrames updates are sparse on some platforms.
           let weightedProgress = 0.2 + Math.max(renderedRatio, normalized * 0.55) * 0.35;

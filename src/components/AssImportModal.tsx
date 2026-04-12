@@ -135,7 +135,7 @@ const getBaseImportedStyle = (isAnnotation: boolean, charCode: number) => ({
   margin: isAnnotation ? 10 : 14,
   paddingX: isAnnotation ? 24 : 20,
   paddingY: isAnnotation ? 12 : 12,
-  shadowSize: 7,
+  shadowSize: 1,
   animationStyle: 'rise',
   animationDuration: 0.2,
   fontFamily: 'system-ui',
@@ -355,7 +355,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=A`,
         side: "left",
         style: {
-          bgColor: "#2563eb", textColor: "#ffffff", nameColor: '#ffffff', borderRadius: 28, opacity: 0.9, borderWidth: 0, avatarBorderColor: "#ffffff", borderColor: "#ffffff", borderOpacity: 1.0, margin: 14, paddingX: 20, paddingY: 12, shadowSize: 7, animationStyle: 'rise', animationDuration: 0.2, fontFamily: "system-ui", fontSize: 30, fontWeight: "normal"
+          bgColor: "#2563eb", textColor: "#ffffff", nameColor: '#ffffff', borderRadius: 28, opacity: 0.9, borderWidth: 0, avatarBorderColor: "#ffffff", borderColor: "#ffffff", borderOpacity: 1.0, margin: 14, paddingX: 20, paddingY: 12, shadowSize: 1, animationStyle: 'rise', animationDuration: 0.2, fontFamily: "system-ui", fontSize: 30, fontWeight: "normal"
         }
       };
     }

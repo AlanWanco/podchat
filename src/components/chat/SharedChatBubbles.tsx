@@ -294,10 +294,33 @@ function SvgStrokeText({
   const minY = box?.minY ?? 0;
   const rawWidth = box?.rawWidth ?? Math.max(1, text.length * fontSize * 0.62);
   const rawHeight = box?.rawHeight ?? Math.max(1, fontSize * 1.2);
+  const visualOffsetX = (width - rawWidth) / 2;
+  const visualOffsetY = (height - rawHeight) / 2;
 
   return (
-    <div style={{ display: 'inline-block', lineHeight: 0, textAlign: align, ...style }}>
-      <svg width={width} height={height} overflow="visible" style={{ display: 'block' }}>
+    <div
+      style={{
+        display: 'inline-block',
+        position: 'relative',
+        width: `${rawWidth}px`,
+        height: `${rawHeight}px`,
+        lineHeight: 0,
+        textAlign: align,
+        overflow: 'visible',
+        ...style,
+      }}
+    >
+      <svg
+        width={width}
+        height={height}
+        overflow="visible"
+        style={{
+          display: 'block',
+          position: 'absolute',
+          left: `${-visualOffsetX}px`,
+          top: `${-visualOffsetY}px`,
+        }}
+      >
         <text
           ref={textRef}
           x={width / 2 - (minX + rawWidth / 2)}
@@ -552,7 +575,7 @@ export function ChatMessageBubble({
     bottomRightRadius = radius;
   }
 
-  const shadowSize = snapPx((speaker.style?.shadowSize ?? 7) * combinedScale);
+  const shadowSize = snapPx((speaker.style?.shadowSize ?? 1) * combinedScale);
   // compactSpacing controls inter-bubble gap globally in both modes.
   const compactSpacing = chatLayout?.compactSpacing ?? 14;
   const margin = snapPx(compactSpacing * combinedScale);
@@ -843,7 +866,7 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
   const annotationMotion = annotationAnimationStyle === 'none'
     ? { opacity: 1, transform: undefined, filter: undefined }
     : getBubbleMotionState(annotationProgress, annotationAnimationStyle, speaker.side);
-  const shadowSize = (speaker.style?.shadowSize ?? 7) * combinedScale;
+  const shadowSize = (speaker.style?.shadowSize ?? 1) * combinedScale;
   const maxWidth = (speaker.style?.maxWidth ?? 720) * combinedScale;
   const opacity = speaker.style?.opacity ?? 0.9;
   const bgColor = speaker.style?.bgColor || '#111827';

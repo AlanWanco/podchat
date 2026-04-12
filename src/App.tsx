@@ -78,7 +78,7 @@ const DEFAULT_BUBBLE_STYLE = {
   margin: 14,
   paddingX: 20,
   paddingY: 12,
-  shadowSize: 2,
+  shadowSize: 1,
   fontFamily: 'system-ui',
   fontSize: 30,
   fontWeight: 'normal'
@@ -140,6 +140,7 @@ const DEFAULT_PROJECT_CONFIG = {
   exportRange: { start: 0, end: 0 },
   exportRangeCustomized: false,
   exportHardware: 'auto' as 'auto' | 'gpu' | 'cpu',
+  exportConcurrency: null as number | null,
   exportFormat: 'mp4' as 'mp4' | 'mov-alpha' | 'webm-alpha',
   exportLogEnabled: false,
   content: [] as any[],
@@ -495,7 +496,7 @@ function PreviewBackgroundAsset({
     touchAction: draggable ? 'none' : undefined,
   };
 
-  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(src || '');
+  const isVideo = /\.(mp4|webm|mov|mkv)(\?|$)/i.test(src || '');
   const media = isVideo
     ? <video src={src} muted loop playsInline className="w-full h-full" style={{ ...assetStyle, pointerEvents: 'none' }} onLoadedMetadata={(e) => setNaturalSize({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })} />
     : (
@@ -2887,7 +2888,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const isAss = normalizedPath.endsWith('.ass');
     const isSrt = normalizedPath.endsWith('.srt');
     const isLrc = normalizedPath.endsWith('.lrc');
-    const isVideo = /\.(mp4|webm|mov)$/i.test(normalizedPath);
+    const isVideo = /\.(mp4|webm|mov|mkv)$/i.test(normalizedPath);
     const isImage = /\.(png|jpg|jpeg|webp|gif)$/i.test(normalizedPath);
     const isAudio = /(\.mp3|\.wav|\.aac|\.m4a|\.flac|\.ogg|\.opus)$/i.test(normalizedPath);
 
@@ -3059,13 +3060,13 @@ const [previewScale, setPreviewScale] = useState(1);
     try {
       const res = await window.electron.showOpenDialog({
         title: t('dialog.selectImageTitle'),
-        filters: [{ name: t('dialog.filterMedia'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov'] }],
+        filters: [{ name: t('dialog.filterMedia'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'mkv'] }],
         properties: ['openFile']
       });
       if (!res.canceled && res.filePaths.length > 0) {
         const filePath = res.filePaths[0];
         
-        if (/\.(mp4|webm|mov)$/i.test(filePath)) {
+        if (/\.(mp4|webm|mov|mkv)$/i.test(filePath)) {
           const shouldUseVideoAudio = window.confirm(t('app.videoAudioPrompt'));
           if (shouldUseVideoAudio) {
             applyTrackedConfigUpdater((prev: any) => ({ ...prev, audioPath: filePath }));
@@ -3256,7 +3257,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const isAss = normalizedName.endsWith('.ass');
     const isSrt = normalizedName.endsWith('.srt');
     const isLrc = normalizedName.endsWith('.lrc');
-    const isVideo = /\.(mp4|webm|mov)$/i.test(normalizedName);
+    const isVideo = /\.(mp4|webm|mov|mkv)$/i.test(normalizedName);
     const isImage = /\.(png|jpg|jpeg|webp|gif)$/i.test(normalizedName);
     const isAudio = /\.(mp3|wav|aac|m4a|flac|ogg|opus)$/i.test(normalizedName);
 
@@ -3603,7 +3604,7 @@ const [previewScale, setPreviewScale] = useState(1);
   useEffect(() => {
     const bgVideo = previewBackgroundVideoRef.current;
     const backgroundImage = config.background?.image || '';
-    if (!bgVideo || !/\.(mp4|webm|mov)(\?|$)/i.test(backgroundImage)) {
+    if (!bgVideo || !/\.(mp4|webm|mov|mkv)(\?|$)/i.test(backgroundImage)) {
       return;
     }
 
@@ -3621,7 +3622,7 @@ const [previewScale, setPreviewScale] = useState(1);
   useEffect(() => {
     const bgVideo = previewBackgroundVideoRef.current;
     const backgroundImage = config.background?.image || '';
-    if (!bgVideo || !/\.(mp4|webm|mov)(\?|$)/i.test(backgroundImage)) {
+    if (!bgVideo || !/\.(mp4|webm|mov|mkv)(\?|$)/i.test(backgroundImage)) {
       return;
     }
 
@@ -4186,7 +4187,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 <div className="absolute inset-0 z-10 overflow-hidden">
                   {(() => {
                     const resolvedBackground = resolvePath(config.background.image) || '';
-                    const isVideoBackground = /\.(mp4|webm|mov)(\?|$)/i.test(resolvedBackground);
+                    const isVideoBackground = /\.(mp4|webm|mov|mkv)(\?|$)/i.test(resolvedBackground);
                     const objectFit = getBackgroundObjectFit(config.background?.fit);
                     const objectPosition = getBackgroundObjectPosition(config.background?.position);
                     const sharedStyle: React.CSSProperties = {

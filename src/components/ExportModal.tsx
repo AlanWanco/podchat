@@ -429,7 +429,7 @@ export function ExportModal({
                        </button>
                      ))}
                    </div>
-                    <div className="text-[11px] mt-1" style={{ color: uiTheme.textMuted }}>{t('export.hardwareHint')}</div>
+                   <div className="text-[11px] mt-1" style={{ color: uiTheme.textMuted }}>{t('export.hardwareHint')}</div>
                   </div>
 
                   <div className="mt-3">
