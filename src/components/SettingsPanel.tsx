@@ -411,6 +411,76 @@ export function SettingsPanel({
   const inputClass = 'text-sm focus:outline-none';
   const themedRangeStyle = { accentColor: themeColor } as React.CSSProperties;
   const inputSurfaceStyle = { backgroundColor: uiTheme.inputBg, borderColor: uiTheme.border, color: uiTheme.text } as React.CSSProperties;
+  const matchesAcceptedExtension = (path: string, extensions: string[]) => {
+    const normalizedPath = path.trim().replace(/^['"]|['"]$/g, '');
+    return extensions.some((extension) => normalizedPath.toLowerCase().endsWith(`.${extension.toLowerCase()}`));
+  };
+  const extractClipboardFilePath = (event: React.ClipboardEvent<HTMLInputElement>, extensions: string[]) => {
+    const clipboardItems = Array.from(event.clipboardData?.items || []);
+    const fileItem = clipboardItems.find((item) => item.kind === 'file');
+    if (fileItem) {
+      const file = fileItem.getAsFile();
+      const filePath = file && window.electron ? window.electron.getDroppedFilePath(file) : '';
+      if (filePath && matchesAcceptedExtension(filePath, extensions)) {
+        return filePath;
+      }
+    }
+
+    const text = event.clipboardData?.getData('text/plain')?.trim() || '';
+    if (text && matchesAcceptedExtension(text, extensions)) {
+      return text.replace(/^['"]|['"]$/g, '');
+    }
+
+    return '';
+  };
+  const saveClipboardImageToCache = async (event: React.ClipboardEvent<HTMLInputElement>) => {
+    if (!window.electron) {
+      return '';
+    }
+
+    const clipboardItems = Array.from(event.clipboardData?.items || []);
+    const imageItem = clipboardItems.find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    if (!imageItem) {
+      return '';
+    }
+
+    const file = imageItem.getAsFile();
+    if (!file) {
+      return '';
+    }
+
+    const directPath = window.electron.getDroppedFilePath(file) || '';
+    if (directPath) {
+      return directPath;
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    return await window.electron.saveClipboardImageToCache({
+      bytes: Array.from(new Uint8Array(arrayBuffer)),
+      contentType: file.type,
+      preferredName: file.name,
+    }) || '';
+  };
+  const createImageAwarePathPasteHandler = (extensions: string[], onPath: (path: string) => void | Promise<void>) => {
+    return (event: React.ClipboardEvent<HTMLInputElement>) => {
+      const textOrFilePath = extractClipboardFilePath(event, extensions);
+      if (textOrFilePath) {
+        event.preventDefault();
+        void onPath(textOrFilePath);
+        return;
+      }
+
+      void (async () => {
+        const cachedImagePath = await saveClipboardImageToCache(event);
+        if (!cachedImagePath) {
+          return;
+        }
+
+        event.preventDefault();
+        await onPath(cachedImagePath);
+      })();
+    };
+  };
   const THEME_COLOR_OPTIONS = [
     ['#545454', t('themeColor.pianoBlack')],
     ['#ed7e96', t('themeColor.lightPink')],
@@ -1066,6 +1136,7 @@ export function SettingsPanel({
                     type="text"
                     value={config.background?.image || ''}
                     onChange={(e) => updateBackground('image', e.target.value)}
+                    onPaste={createImageAwarePathPasteHandler(['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'mkv'], (path) => updateBackground('image', path))}
                     className={`flex-1 w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
                     style={inputSurfaceStyle}
                   />
@@ -1258,6 +1329,15 @@ export function SettingsPanel({
                               type="text"
                               value={currentBackgroundSlide.image || ''}
                               onChange={(e) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, image: e.target.value }))}
+                              onPaste={createImageAwarePathPasteHandler(['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'mkv'], async (path) => {
+                                const naturalSize = await loadAssetNaturalSize(path);
+                                updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({
+                                  ...slide,
+                                  image: path,
+                                  intrinsicWidth: naturalSize?.width,
+                                  intrinsicHeight: naturalSize?.height,
+                                }));
+                              })}
                               className={`flex-1 w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
                               style={inputSurfaceStyle}
                               placeholder={t('project.insertImagePath')}
@@ -1586,6 +1666,12 @@ export function SettingsPanel({
                                   avatar: e.target.value
                                 }));
                               }}
+                              onPaste={createImageAwarePathPasteHandler(['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'mkv'], (path) => {
+                                updateSpeaker(key, (currentSpeaker) => ({
+                                  ...currentSpeaker,
+                                  avatar: path
+                                }));
+                              })}
                               className={`flex-1 w-full border rounded px-2 py-1 text-xs focus:outline-none ${inputClass}`}
                               style={inputSurfaceStyle}
                             />

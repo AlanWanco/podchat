@@ -42,7 +42,16 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
   const searchMatches = subtitles.filter((sub) => sub.text.toLowerCase().includes(searchQuery.trim().toLowerCase()));
   const currentSearchMatchId = searchQuery.trim() && searchMatches.length > 0 ? searchMatches[searchIndex % searchMatches.length]?.id : undefined;
   const selectableSpeakers = useMemo(() => Object.entries(speakers).filter(([, speaker]) => speaker?.type !== 'annotation'), [speakers]);
+  const subtitleSpeakerOptions = useMemo(() => {
+    const presentSpeakerIds = new Set(subtitles.map((sub) => sub.speakerId));
+    return selectableSpeakers.filter(([speakerId]) => presentSpeakerIds.has(speakerId));
+  }, [selectableSpeakers, subtitles]);
+  const selectableSpeakerIds = useMemo(() => selectableSpeakers.map(([speakerId]) => speakerId), [selectableSpeakers]);
+  const subtitleSpeakerIds = useMemo(() => subtitleSpeakerOptions.map(([speakerId]) => speakerId), [subtitleSpeakerOptions]);
+  const [selectionSpeakerId, setSelectionSpeakerId] = useState('');
   const [bulkSpeakerId, setBulkSpeakerId] = useState('');
+  const [showSelectionSpeakerPicker, setShowSelectionSpeakerPicker] = useState(false);
+  const [showBulkSpeakerPicker, setShowBulkSpeakerPicker] = useState(false);
   const [pendingBulkAction, setPendingBulkAction] = useState<null | { type: 'delete' } | { type: 'speaker'; speakerId: string }>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const selectedSubtitleIdSet = useMemo(() => new Set(selectedSubtitleIds), [selectedSubtitleIds]);
@@ -53,8 +62,6 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
   const pendingSpeakerName = pendingBulkAction?.type === 'speaker'
     ? (speakers[pendingBulkAction.speakerId]?.name || pendingBulkAction.speakerId)
     : '';
-
-  const selectableSpeakerIds = useMemo(() => selectableSpeakers.map(([speakerId]) => speakerId), [selectableSpeakers]);
 
   useEffect(() => {
     if (selectableSpeakerIds.length === 0) {
@@ -67,6 +74,18 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
 
     setBulkSpeakerId((prev) => (prev === selectableSpeakerIds[0] ? prev : selectableSpeakerIds[0]));
   }, [bulkSpeakerId, selectableSpeakerIds]);
+
+  useEffect(() => {
+    if (subtitleSpeakerIds.length === 0) {
+      return;
+    }
+
+    if (selectionSpeakerId && subtitleSpeakerIds.includes(selectionSpeakerId)) {
+      return;
+    }
+
+    setSelectionSpeakerId((prev) => (prev === subtitleSpeakerIds[0] ? prev : subtitleSpeakerIds[0]));
+  }, [selectionSpeakerId, subtitleSpeakerIds]);
 
   useEffect(() => {
     setSelectedSubtitleIds((prev) => {
@@ -83,6 +102,8 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
       setSelectedSubtitleIds([]);
       setLastSelectedSubtitleId(null);
       setPendingBulkAction(null);
+      setShowSelectionSpeakerPicker(false);
+      setShowBulkSpeakerPicker(false);
     }
   }, [multiSelectMode]);
 
@@ -139,6 +160,18 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
       scrollToSubtitle(activeSubId);
     }
   }, [activeSubId, inlineEditingId]);
+
+  useEffect(() => {
+    if (!activeSubId || inlineEditingId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      scrollToSubtitle(activeSubId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [compactMode, activeSubId, inlineEditingId]);
 
   useEffect(() => {
     if (!compactMode || !compactListRef.current) {
@@ -204,6 +237,14 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
     setLastSelectedSubtitleId(subtitles[subtitles.length - 1]?.id ?? null);
   };
 
+  const handleSelectSpeaker = () => {
+    if (!selectionSpeakerId) return;
+    const matchingIds = subtitles.filter((sub) => sub.speakerId === selectionSpeakerId).map((sub) => sub.id);
+    setSelectedSubtitleIds(matchingIds);
+    setLastSelectedSubtitleId(matchingIds[matchingIds.length - 1] ?? null);
+    setShowSelectionSpeakerPicker(false);
+  };
+
   const handleClearSelection = () => {
     setSelectedSubtitleIds([]);
     setLastSelectedSubtitleId(null);
@@ -212,6 +253,7 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
   const handleApplyBulkSpeaker = () => {
     if (selectedSubtitleIds.length === 0 || !bulkSpeakerId) return;
     setPendingBulkAction({ type: 'speaker', speakerId: bulkSpeakerId });
+    setShowBulkSpeakerPicker(false);
   };
 
   const handleBulkDelete = () => {
@@ -468,25 +510,6 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
           <div className="text-[10px] font-mono min-w-[3.5rem]" style={{ color: secondaryThemeColor }}>
             {t('subtitle.multiSelectCount', { count: selectedSubtitleIds.length })}
           </div>
-          <select
-            value={bulkSpeakerId}
-            onChange={(e) => setBulkSpeakerId(e.target.value)}
-            className="px-2 py-1 rounded border text-[10px] focus:outline-none"
-            style={{ backgroundColor: uiTheme.inputBg, borderColor: `${secondaryThemeColor}44`, color: uiTheme.text }}
-          >
-            {selectableSpeakers.map(([speakerId, speaker]) => (
-              <option key={speakerId} value={speakerId}>{speaker.name || speakerId}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={selectedSubtitleIds.length === 0 || !bulkSpeakerId}
-            onClick={handleApplyBulkSpeaker}
-            className="px-2 py-1 rounded border text-[10px] disabled:opacity-40"
-            style={{ borderColor: `${secondaryThemeColor}33`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
-          >
-            {t('subtitle.bulkChangeSpeaker')}
-          </button>
           <button
             type="button"
             disabled={selectedSubtitleIds.length === 0}
@@ -496,6 +519,76 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
           >
             {t('subtitle.bulkDelete')}
           </button>
+          <button
+            type="button"
+            disabled={subtitleSpeakerOptions.length === 0}
+            onClick={() => {
+              setShowSelectionSpeakerPicker((prev) => !prev);
+              setShowBulkSpeakerPicker(false);
+            }}
+            className="px-2 py-1 rounded border text-[10px] disabled:opacity-40"
+            style={{ borderColor: `${secondaryThemeColor}33`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
+          >
+            {t('subtitle.selectSpeaker')}
+          </button>
+          <button
+            type="button"
+            disabled={selectedSubtitleIds.length === 0 || selectableSpeakers.length === 0}
+            onClick={() => {
+              setShowBulkSpeakerPicker((prev) => !prev);
+              setShowSelectionSpeakerPicker(false);
+            }}
+            className="px-2 py-1 rounded border text-[10px] disabled:opacity-40"
+            style={{ borderColor: `${secondaryThemeColor}33`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
+          >
+            {t('subtitle.bulkChangeSpeaker')}
+          </button>
+          {showSelectionSpeakerPicker ? (
+            <>
+              <select
+                value={selectionSpeakerId}
+                onChange={(e) => setSelectionSpeakerId(e.target.value)}
+                className="px-2 py-1 rounded border text-[10px] focus:outline-none"
+                style={{ backgroundColor: uiTheme.inputBg, borderColor: `${secondaryThemeColor}44`, color: uiTheme.text }}
+              >
+                {subtitleSpeakerOptions.map(([speakerId, speaker]) => (
+                  <option key={speakerId} value={speakerId}>{speaker.name || speakerId}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!selectionSpeakerId}
+                onClick={handleSelectSpeaker}
+                className="px-2 py-1 rounded border text-[10px] disabled:opacity-40"
+                style={{ borderColor: `${secondaryThemeColor}33`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
+              >
+                {t('common.confirm')}
+              </button>
+            </>
+          ) : null}
+          {showBulkSpeakerPicker ? (
+            <>
+              <select
+                value={bulkSpeakerId}
+                onChange={(e) => setBulkSpeakerId(e.target.value)}
+                className="px-2 py-1 rounded border text-[10px] focus:outline-none"
+                style={{ backgroundColor: uiTheme.inputBg, borderColor: `${secondaryThemeColor}44`, color: uiTheme.text }}
+              >
+                {selectableSpeakers.map(([speakerId, speaker]) => (
+                  <option key={speakerId} value={speakerId}>{speaker.name || speakerId}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={selectedSubtitleIds.length === 0 || !bulkSpeakerId}
+                onClick={handleApplyBulkSpeaker}
+                className="px-2 py-1 rounded border text-[10px] disabled:opacity-40"
+                style={{ borderColor: `${secondaryThemeColor}33`, color: secondaryThemeColor, backgroundColor: `${secondaryThemeColor}12` }}
+              >
+                {t('common.confirm')}
+              </button>
+            </>
+          ) : null}
         </div>}
       </div>}
       

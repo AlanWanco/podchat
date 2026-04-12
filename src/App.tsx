@@ -2623,6 +2623,25 @@ const [previewScale, setPreviewScale] = useState(1);
   const resolvedAudioPath = webAudioObjectUrl || resolvePath(config.audioPath) || '';
   const backgroundSlides = Array.isArray(config.background?.slides) ? config.background.slides : [];
   const activeInsertImageSlide = backgroundSlides.find((slide: BackgroundSlideItem) => slide.id === activeInsertImageId) || null;
+  const enterInsertImageEditMode = useCallback((id: string) => {
+    const targetSlide = backgroundSlides.find((slide: BackgroundSlideItem) => slide.id === id);
+    setActiveInsertImageId(id);
+    setIsInsertImageEditMode(true);
+    if (targetSlide) {
+      handleSeek(targetSlide.start);
+    }
+  }, [backgroundSlides, handleSeek]);
+
+  useEffect(() => {
+    if (!isInsertImageEditMode || !activeInsertImageSlide) {
+      return;
+    }
+
+    if (currentTime < activeInsertImageSlide.start || currentTime > activeInsertImageSlide.end) {
+      setIsInsertImageEditMode(false);
+    }
+  }, [activeInsertImageSlide, currentTime, isInsertImageEditMode]);
+
   const activeInsertImageBounds = useMemo(() => {
     if (!activeInsertImageSlide) {
       return null;
@@ -3993,7 +4012,7 @@ const [previewScale, setPreviewScale] = useState(1);
                    currentTime={previewRenderTime}
                    activeInsertImageId={activeInsertImageId}
                    onActiveInsertImageChange={setActiveInsertImageId}
-                   onEditInsertImage={(id) => { setActiveInsertImageId(id); setIsInsertImageEditMode(true); }}
+                    onEditInsertImage={enterInsertImageEditMode}
                    resolveAssetSrc={resolvePath}
                   />
             </div>
@@ -4302,8 +4321,7 @@ const [previewScale, setPreviewScale] = useState(1);
                       onDoubleClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        setActiveInsertImageId(slide.id);
-                        setIsInsertImageEditMode(true);
+                        enterInsertImageEditMode(slide.id);
                       }}
                       onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
                         event.preventDefault();
@@ -4450,8 +4468,7 @@ const [previewScale, setPreviewScale] = useState(1);
                       brightness={1}
                       onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
                       onDoubleClick={() => {
-                        setActiveInsertImageId(slide.id);
-                        setIsInsertImageEditMode(true);
+                        enterInsertImageEditMode(slide.id);
                       }}
                       onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
                         event.preventDefault();
@@ -4492,8 +4509,7 @@ const [previewScale, setPreviewScale] = useState(1);
                     onEditBoxChange={(box) => updateSlideEditBox(slide.id, box)}
                     onNaturalSizeChange={(size) => updateSlideIntrinsicSize(slide.id, size.width, size.height)}
                     onDoubleClick={() => {
-                      setActiveInsertImageId(slide.id);
-                      setIsInsertImageEditMode(true);
+                      enterInsertImageEditMode(slide.id);
                     }}
                     onPointerDown={activeInsertImageId === slide.id && isInsertImageEditMode ? (event) => {
                       event.preventDefault();
@@ -4692,7 +4708,7 @@ const [previewScale, setPreviewScale] = useState(1);
                 currentTime={previewRenderTime}
                 activeInsertImageId={activeInsertImageId}
                 onActiveInsertImageChange={setActiveInsertImageId}
-                onEditInsertImage={(id) => { setActiveInsertImageId(id); setIsInsertImageEditMode(true); }}
+                onEditInsertImage={enterInsertImageEditMode}
                 resolveAssetSrc={resolvePath}
               />
             </div>
@@ -4761,8 +4777,7 @@ const [previewScale, setPreviewScale] = useState(1);
           }
         }}
         onEditInsertImage={(id) => {
-          setActiveInsertImageId(id);
-          setIsInsertImageEditMode(true);
+          enterInsertImageEditMode(id);
           setShowSettings(true);
           setActiveTab('project');
         }}
