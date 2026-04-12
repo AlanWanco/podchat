@@ -157,6 +157,11 @@ const renderSlideAsset = ({
   offsetX = 0,
   offsetY = 0,
   rotation = 0,
+  opacity = 1,
+  imageBorderColor = '#FFFFFF',
+  imageBorderWidth = 0,
+  imageShadowColor = '#00000066',
+  imageShadowSize = 0,
   intrinsicWidth,
   intrinsicHeight,
   animationStyle = 'none',
@@ -174,6 +179,11 @@ const renderSlideAsset = ({
   offsetX?: number;
   offsetY?: number;
   rotation?: number;
+  opacity?: number;
+  imageBorderColor?: string;
+  imageBorderWidth?: number;
+  imageShadowColor?: string;
+  imageShadowSize?: number;
   intrinsicWidth?: number;
   intrinsicHeight?: number;
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
@@ -200,7 +210,10 @@ const renderSlideAsset = ({
     filter: `blur(${blur}px) brightness(${brightness})`,
     transform: `translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg) scale(${scale}) ${motionState.transform || ''}`.trim(),
     transformOrigin: '50% 50%',
-    opacity: motionState.opacity,
+    opacity: opacity * motionState.opacity,
+    boxSizing: 'border-box',
+    border: `${Math.max(0, imageBorderWidth)}px solid ${imageBorderColor}`,
+    boxShadow: imageShadowSize > 0 ? `0 0 ${imageShadowSize}px ${imageShadowColor}` : undefined,
     display: 'block'
   };
   const wrapperStyle: React.CSSProperties = {
@@ -369,6 +382,11 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                 offsetX: slide.offsetX ?? 0,
                 offsetY: slide.offsetY ?? 0,
                 rotation: slide.rotation ?? 0,
+                opacity: slide.opacity ?? 1,
+                imageBorderColor: slide.imageBorderColor || '#FFFFFF',
+                imageBorderWidth: slide.imageBorderWidth ?? 0,
+                imageShadowColor: slide.imageShadowColor || '#00000066',
+                imageShadowSize: slide.imageShadowSize ?? 0,
                 intrinsicWidth: slide.intrinsicWidth,
                 intrinsicHeight: slide.intrinsicHeight,
                 animationStyle: slide.animationStyle || 'fade',
@@ -560,6 +578,11 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                 offsetX: slide.offsetX ?? 0,
                 offsetY: slide.offsetY ?? 0,
                 rotation: slide.rotation ?? 0,
+                opacity: slide.opacity ?? 1,
+                imageBorderColor: slide.imageBorderColor || '#FFFFFF',
+                imageBorderWidth: slide.imageBorderWidth ?? 0,
+                imageShadowColor: slide.imageShadowColor || '#00000066',
+                imageShadowSize: slide.imageShadowSize ?? 0,
                 intrinsicWidth: slide.intrinsicWidth,
                 intrinsicHeight: slide.intrinsicHeight,
                 animationStyle: slide.animationStyle || 'fade',

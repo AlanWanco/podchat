@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Settings, Image as ImageIcon, Users, Save, Moon, Sun, Trash2, Plus, X, Check, ArrowLeftRight, LayoutTemplate, Type, Box, Layout, FolderOpen, Clock3, Pencil } from 'lucide-react';
 import { translate, type Language } from '../i18n';
 import { createThemeTokens } from '../theme';
@@ -140,6 +140,8 @@ export function SettingsPanel({
   const [activeSpeakerTab, setActiveSpeakerTab] = useState<string | null>(null);
   const [activeBackgroundSlideTab, setActiveBackgroundSlideTab] = useState<string | null>(null);
   const [draggingBackgroundSlideId, setDraggingBackgroundSlideId] = useState<string | null>(null);
+  const backgroundSlideTabsRef = useRef<HTMLDivElement | null>(null);
+  const [pendingScrollSlideId, setPendingScrollSlideId] = useState<string | null>(null);
   // Independent tab display order — decoupled from layer/backgroundOrder/overlayOrder
   const [tabOrderIds, setTabOrderIds] = useState<string[]>([]);
   const speakerKeys = Object.keys(config.speakers).filter((key) => config.speakers[key]?.type !== 'annotation');
@@ -181,6 +183,23 @@ export function SettingsPanel({
   const currentBackgroundSlide = derivedBackgroundSlideTab
     ? backgroundSlides.find((slide: any) => slide.id === derivedBackgroundSlideTab) || null
     : (tabOrderedSlides[0] || null);
+
+  useEffect(() => {
+    const targetId = pendingScrollSlideId || activeBackgroundSlideTab;
+    if (!targetId || !backgroundSlideTabsRef.current) {
+      return;
+    }
+
+    const target = backgroundSlideTabsRef.current.querySelector<HTMLElement>(`[data-slide-tab-id="${targetId}"]`);
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    if (pendingScrollSlideId === targetId) {
+      setPendingScrollSlideId(null);
+    }
+  }, [activeBackgroundSlideTab, pendingScrollSlideId, tabOrderedSlides]);
 
   useEffect(() => {
     if (globalOnly && activeTab !== 'global') {
@@ -240,6 +259,10 @@ export function SettingsPanel({
       animationStyle: 'blur',
       animationDuration: 0.01,
       opacity: 1,
+      imageBorderColor: '#FFFFFF',
+      imageBorderWidth: 0,
+      imageShadowColor: '#00000066',
+      imageShadowSize: 0,
       textColor: '#FFFFFF',
       textStrokeColor: '#000000',
       textStrokeWidth: 0,
@@ -251,6 +274,7 @@ export function SettingsPanel({
     };
     updateBackgroundSlides([...backgroundSlides, slide]);
     setActiveBackgroundSlideTab(slide.id);
+    setPendingScrollSlideId(slide.id);
     onActiveInsertImageChange?.(slide.id);
   };
 
@@ -904,13 +928,15 @@ export function SettingsPanel({
               <div className="space-y-2">
                 <span className="text-xs font-semibold flex items-center gap-1 opacity-80"><Layout size={12} /> {t('speakers.layout')}</span>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 col-span-2">
                     <span className="text-xs opacity-70">{t('project.topLimit')}</span>
                     {renderNumberInput(config.chatLayout?.paddingTop ?? 48, (value) => updateChatLayout('paddingTop', value), { className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
                     <p className="text-[11px] opacity-60 leading-relaxed">
                       {t('project.topLimit.help')}
                     </p>
-                    <div className="pt-1 grid grid-cols-2 gap-3">
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <span className="text-xs opacity-70">{t('project.topFade')}</span>
                         <button
@@ -1170,6 +1196,7 @@ export function SettingsPanel({
                     value={config.background?.image || ''}
                     onChange={(e) => updateBackground('image', e.target.value)}
                     onPaste={createImageAwarePathPasteHandler(['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'mkv'], (path) => updateBackground('image', path))}
+                    title={t('project.quickPasteFilePathTip')}
                     className={`flex-1 w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
                     style={inputSurfaceStyle}
                   />
@@ -1262,7 +1289,7 @@ export function SettingsPanel({
                     type="range"
                     min="0.1"
                     max="2.0"
-                    step="0.1"
+                    step="0.05"
                     value={config.background?.brightness ?? 1.0}
                     onChange={(e) => updateBackground('brightness', parseFloat(e.target.value))}
                     className="w-full"
@@ -1287,7 +1314,7 @@ export function SettingsPanel({
 
                 {backgroundSlides.length > 0 ? (
                   <>
-                    <div className="flex overflow-x-auto custom-scrollbar pb-2 gap-2 border-b" style={{ borderColor: uiTheme.border }}>
+                    <div ref={backgroundSlideTabsRef} className="flex overflow-x-auto custom-scrollbar pb-2 gap-2 border-b" style={{ borderColor: uiTheme.border }}>
                       {tabOrderedSlides.map((slide: any, index: number) => {
                         const fallbackLabel = slide.type === 'text' ? `${t('project.assetTypeText')}${index + 1}` : `${t('project.assetTypeImage')}${index + 1}`;
                         const label = (slide.name || '').trim() || fallbackLabel;
@@ -1295,6 +1322,7 @@ export function SettingsPanel({
                         return (
                           <button
                             key={slide.id}
+                            data-slide-tab-id={slide.id}
                             type="button"
                             draggable
                             onDragStart={(event) => {
@@ -1311,6 +1339,10 @@ export function SettingsPanel({
                             }}
                             onDragEnd={() => setDraggingBackgroundSlideId(null)}
                             onClick={() => {
+                              setActiveBackgroundSlideTab(slide.id);
+                              onActiveInsertImageChange?.(slide.id);
+                            }}
+                            onDoubleClick={() => {
                               setActiveBackgroundSlideTab(slide.id);
                               onActiveInsertImageChange?.(slide.id);
                               if (typeof slide.start === 'number' && onSeek) {
@@ -1371,6 +1403,7 @@ export function SettingsPanel({
                                   intrinsicHeight: naturalSize?.height,
                                 }));
                               })}
+                              title={t('project.quickPasteFilePathTip')}
                               className={`flex-1 w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
                               style={inputSurfaceStyle}
                               placeholder={t('project.insertImagePath')}
@@ -1496,6 +1529,31 @@ export function SettingsPanel({
                             )}
                           </div>
                         </div>
+
+                        {currentBackgroundSlide.type !== 'text' ? (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">{t('project.imageBorderColor')}</span>
+                                {renderColorInput(currentBackgroundSlide.imageBorderColor || '#FFFFFF', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, imageBorderColor: value })))}
+                              </div>
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">{t('project.imageBorderWidth')}</span>
+                                {renderNumberInput(currentBackgroundSlide.imageBorderWidth ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, imageBorderWidth: Math.max(0, value) })), { min: 0, step: 0.5, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">{t('project.imageShadowColor')}</span>
+                                {renderColorInput(currentBackgroundSlide.imageShadowColor || '#00000066', (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, imageShadowColor: value })))}
+                              </div>
+                              <div className="space-y-1.5">
+                                <span className="text-xs opacity-70">{t('project.imageShadowSize')}</span>
+                                {renderNumberInput(currentBackgroundSlide.imageShadowSize ?? 0, (value) => updateBackgroundSlide(currentBackgroundSlide.id, (slide) => ({ ...slide, imageShadowSize: Math.max(0, value) })), { min: 0, step: 1, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
 
                         {currentBackgroundSlide.type === 'text' ? (
                           <>
@@ -1705,6 +1763,7 @@ export function SettingsPanel({
                                   avatar: path
                                 }));
                               })}
+                              title={t('project.quickPasteFilePathTip')}
                               className={`flex-1 w-full border rounded px-2 py-1 text-xs focus:outline-none ${inputClass}`}
                               style={inputSurfaceStyle}
                             />

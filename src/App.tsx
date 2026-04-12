@@ -258,6 +258,10 @@ const sanitizeProjectConfig = (parsed: any) => {
             animationStyle: ['none', 'fade', 'rise', 'pop', 'slide', 'blur'].includes(slide?.animationStyle) ? slide.animationStyle : 'fade',
             animationDuration: typeof slide?.animationDuration === 'number' && Number.isFinite(slide.animationDuration) ? slide.animationDuration : 0.24,
             opacity: typeof slide?.opacity === 'number' && Number.isFinite(slide.opacity) ? slide.opacity : 1,
+            imageBorderColor: typeof slide?.imageBorderColor === 'string' ? slide.imageBorderColor : '#FFFFFF',
+            imageBorderWidth: typeof slide?.imageBorderWidth === 'number' && Number.isFinite(slide.imageBorderWidth) ? slide.imageBorderWidth : 0,
+            imageShadowColor: typeof slide?.imageShadowColor === 'string' ? slide.imageShadowColor : '#00000066',
+            imageShadowSize: typeof slide?.imageShadowSize === 'number' && Number.isFinite(slide.imageShadowSize) ? slide.imageShadowSize : 0,
             textColor: typeof slide?.textColor === 'string' ? slide.textColor : '#FFFFFF',
             textStrokeColor: typeof slide?.textStrokeColor === 'string' ? slide.textStrokeColor : '#000000',
             textStrokeWidth: typeof slide?.textStrokeWidth === 'number' && Number.isFinite(slide.textStrokeWidth) ? slide.textStrokeWidth : 0,
@@ -388,6 +392,11 @@ function PreviewBackgroundAsset({
   intrinsicHeight,
   animationStyle = 'none',
   animationDuration = 0.2,
+  opacity = 1,
+  imageBorderColor = '#FFFFFF',
+  imageBorderWidth = 0,
+  imageShadowColor = '#00000066',
+  imageShadowSize = 0,
   currentTime,
   start = 0,
   end,
@@ -411,6 +420,11 @@ function PreviewBackgroundAsset({
   intrinsicHeight?: number;
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
   animationDuration?: number;
+  opacity?: number;
+  imageBorderColor?: string;
+  imageBorderWidth?: number;
+  imageShadowColor?: string;
+  imageShadowSize?: number;
   currentTime: number;
   start?: number;
   end?: number;
@@ -449,7 +463,10 @@ function PreviewBackgroundAsset({
     filter: `blur(${blur}px) brightness(${brightness})`,
     transform: assetTransform,
     transformOrigin: '50% 50%',
-    opacity: motionState.opacity,
+    opacity: opacity * motionState.opacity,
+    boxSizing: 'border-box',
+    border: `${Math.max(0, imageBorderWidth)}px solid ${imageBorderColor}`,
+    boxShadow: imageShadowSize > 0 ? `0 0 ${imageShadowSize}px ${imageShadowColor}` : undefined,
   };
 
   const effectiveNaturalSize = intrinsicWidth && intrinsicHeight
@@ -4359,6 +4376,11 @@ const [previewScale, setPreviewScale] = useState(1);
                     rotation={slide.rotation ?? 0}
                     animationStyle={slide.animationStyle || 'fade'}
                     animationDuration={slide.animationDuration ?? 0.24}
+                    opacity={slide.opacity ?? 1}
+                    imageBorderColor={slide.imageBorderColor || '#FFFFFF'}
+                    imageBorderWidth={slide.imageBorderWidth ?? 0}
+                    imageShadowColor={slide.imageShadowColor || '#00000066'}
+                    imageShadowSize={slide.imageShadowSize ?? 0}
                     currentTime={previewRenderTime}
                     start={slide.start}
                     end={slide.end}
@@ -4576,6 +4598,11 @@ const [previewScale, setPreviewScale] = useState(1);
                     rotation={slide.rotation ?? 0}
                     animationStyle={slide.animationStyle || 'fade'}
                     animationDuration={slide.animationDuration ?? 0.24}
+                    opacity={slide.opacity ?? 1}
+                    imageBorderColor={slide.imageBorderColor || '#FFFFFF'}
+                    imageBorderWidth={slide.imageBorderWidth ?? 0}
+                    imageShadowColor={slide.imageShadowColor || '#00000066'}
+                    imageShadowSize={slide.imageShadowSize ?? 0}
                     currentTime={previewRenderTime}
                     start={slide.start}
                     end={slide.end}

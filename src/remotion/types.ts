@@ -26,6 +26,10 @@ export interface BackgroundSlideItem {
   animationStyle?: 'none' | 'fade' | 'rise' | 'pop' | 'slide' | 'blur';
   animationDuration?: number;
   opacity?: number;
+  imageBorderColor?: string;
+  imageBorderWidth?: number;
+  imageShadowColor?: string;
+  imageShadowSize?: number;
   textColor?: string;
   textStrokeColor?: string;
   textStrokeWidth?: number;
