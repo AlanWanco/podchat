@@ -823,6 +823,7 @@ function App() {
   const [projectChangeTick, setProjectChangeTick] = useState(0);
   const [speakerReplaceDialog, setSpeakerReplaceDialog] = useState<SpeakerReplaceDialogState | null>(null);
   const exportProgressActiveRef = useRef(false);
+  const hasHydratedElectronConfigRef = useRef(!isDesktopMode);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const webAudioInputRef = useRef<HTMLInputElement>(null);
@@ -1571,10 +1572,15 @@ const [previewScale, setPreviewScale] = useState(1);
     });
   }, [config.ui]);
 
-   useEffect(() => {
+  useEffect(() => {
+    if (!hasHydratedElectronConfigRef.current) {
+      return;
+    }
+
     setConfig((prev: any) => {
       const prevUi = prev.ui || DEFAULT_UI_CONFIG;
       const nextPresets = presets;
+      const samePresets = prevUi.presets === nextPresets || JSON.stringify(prevUi.presets || {}) === JSON.stringify(nextPresets || {});
       if (
         prevUi.isDarkMode === isDarkMode &&
         prevUi.themeColor === (themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT)) &&
@@ -1583,7 +1589,7 @@ const [previewScale, setPreviewScale] = useState(1);
         prevUi.proxy === proxyState.trim() &&
         prevUi.settingsPosition === settingsPosition &&
         prevUi.recentProject === recentProject &&
-        prevUi.presets === nextPresets
+        samePresets
       ) {
         return prev;
       }
@@ -1606,7 +1612,7 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [autoSaveProject, isDarkMode, themeColorState, secondaryThemeColorState, proxyState, settingsPosition, recentProject, presets]);
 
   useEffect(() => {
-    if (!window.electron) return;
+    if (!window.electron || !hasHydratedElectronConfigRef.current) return;
     window.electron.setProxy(proxyState.trim()).catch((err: any) => {
       console.error('Failed to apply proxy settings:', err);
     });
@@ -1682,10 +1688,11 @@ const [previewScale, setPreviewScale] = useState(1);
         if (electronConfig) {
           const mergedConfig = sanitizeProjectConfig(electronConfig);
           setConfig(mergedConfig);
-          // Mark that we loaded from electron to prevent re-loading
         }
       } catch (error) {
         console.error('Failed to load config from Electron:', error);
+      } finally {
+        hasHydratedElectronConfigRef.current = true;
       }
     };
     
@@ -1695,7 +1702,7 @@ const [previewScale, setPreviewScale] = useState(1);
   // Save config changes to Electron file (debounced to prevent too frequent saves)
   useEffect(() => {
     // Only save if we have substantive changes (not just on every render)
-    if (!window.electron) return;
+    if (!window.electron || !hasHydratedElectronConfigRef.current) return;
     
     // Save to file in background without blocking
     const saveTimer = setTimeout(() => {
@@ -2195,6 +2202,10 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [customFilename]);
 
   useEffect(() => {
+    if (!hasHydratedElectronConfigRef.current) {
+      return;
+    }
+
     setConfig((prev: any) => {
       const sameExportRange =
         prev.exportRange?.start === exportRange.start &&

@@ -54,11 +54,19 @@ export function SubtitlePanel({ subtitles, speakers, currentTime, isDarkMode, la
     ? (speakers[pendingBulkAction.speakerId]?.name || pendingBulkAction.speakerId)
     : '';
 
+  const selectableSpeakerIds = useMemo(() => selectableSpeakers.map(([speakerId]) => speakerId), [selectableSpeakers]);
+
   useEffect(() => {
-    if (!bulkSpeakerId && selectableSpeakers.length > 0) {
-      setBulkSpeakerId(selectableSpeakers[0][0]);
+    if (selectableSpeakerIds.length === 0) {
+      return;
     }
-  }, [bulkSpeakerId, selectableSpeakers]);
+
+    if (bulkSpeakerId && selectableSpeakerIds.includes(bulkSpeakerId)) {
+      return;
+    }
+
+    setBulkSpeakerId((prev) => (prev === selectableSpeakerIds[0] ? prev : selectableSpeakerIds[0]));
+  }, [bulkSpeakerId, selectableSpeakerIds]);
 
   useEffect(() => {
     setSelectedSubtitleIds((prev) => {

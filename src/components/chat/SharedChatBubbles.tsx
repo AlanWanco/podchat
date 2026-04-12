@@ -524,7 +524,10 @@ export function ChatMessageBubble({
   const timestampColor = chatLayout?.timestampColor || 'rgba(255,255,255,0.65)';
   const fontSize = snapPx((speaker.style?.fontSize ?? 30) * combinedScale);
   const bubbleMaxWidthPercent = Math.max(15, Math.min(95, chatLayout?.bubbleMaxWidthPercent ?? 70));
-  const bubbleMaxWidthPx = bubbleMaxWidthOverridePx ?? (canvasWidth * layoutScaleSafe * (bubbleMaxWidthPercent / 100));
+  const bubbleMaxWidthPx = typeof bubbleMaxWidthOverridePx === 'number'
+    ? bubbleMaxWidthOverridePx
+    : (canvasWidth * layoutScaleSafe * (bubbleMaxWidthPercent / 100));
+  const inlineImageMaxWidthPx = Math.max(80, bubbleMaxWidthPx - paddingX * 2);
   const speakerNameStrokeWidth = Math.max(0, Math.round((speaker.style?.nameStrokeWidth ?? 0) * combinedScale * 100) / 100);
   const speakerNameStrokeColor = speaker.style?.nameStrokeColor || '#000000';
   const opacity = speaker.style?.opacity ?? 0.9;
@@ -558,7 +561,7 @@ export function ChatMessageBubble({
           alt,
           style: {
             display: 'block',
-            maxWidth: '100%',
+            maxWidth: `${inlineImageMaxWidthPx}px`,
             maxHeight: `${Math.max(120, fontSize * 6)}px`,
             objectFit: 'contain',
             borderRadius: `${snapPx(12 * combinedScale)}px`,
@@ -566,7 +569,7 @@ export function ChatMessageBubble({
             marginBottom: `${snapPx(6 * combinedScale)}px`,
           }
         })
-      : <img key={key} src={src} alt={alt} style={{ display: 'block', maxWidth: '100%', maxHeight: `${Math.max(120, fontSize * 6)}px`, objectFit: 'contain', borderRadius: `${snapPx(12 * combinedScale)}px`, marginTop: `${snapPx(6 * combinedScale)}px`, marginBottom: `${snapPx(6 * combinedScale)}px` }} />)
+      : <img key={key} src={src} alt={alt} style={{ display: 'block', maxWidth: `${inlineImageMaxWidthPx}px`, maxHeight: `${Math.max(120, fontSize * 6)}px`, objectFit: 'contain', borderRadius: `${snapPx(12 * combinedScale)}px`, marginTop: `${snapPx(6 * combinedScale)}px`, marginBottom: `${snapPx(6 * combinedScale)}px` }} />)
   });
 
   return (
@@ -802,6 +805,7 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
     : getBubbleMotionState(annotationProgress, annotationAnimationStyle, speaker.side);
   const shadowSize = (speaker.style?.shadowSize ?? 1) * combinedScale;
   const maxWidth = (speaker.style?.maxWidth ?? 720) * combinedScale;
+  const inlineImageMaxWidthPx = Math.max(80, maxWidth - (speaker.style?.paddingX ?? 24) * combinedScale * 2);
   const opacity = speaker.style?.opacity ?? 0.9;
   const bgColor = speaker.style?.bgColor || '#111827';
   const textColor = speaker.style?.textColor || '#ffffff';
@@ -840,7 +844,7 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
             alt,
             style: {
               display: 'block',
-              maxWidth: '100%',
+              maxWidth: `${inlineImageMaxWidthPx}px`,
               maxHeight: `${Math.max(120, (speaker.style?.fontSize ?? 24) * combinedScale * 6)}px`,
               objectFit: 'contain',
               borderRadius: `${Math.max(8, 12 * combinedScale)}px`,
@@ -848,7 +852,7 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
               marginBottom: `${Math.max(4, 6 * combinedScale)}px`,
             }
           })
-        : <img key={key} src={src} alt={alt} style={{ display: 'block', maxWidth: '100%', maxHeight: `${Math.max(120, (speaker.style?.fontSize ?? 24) * combinedScale * 6)}px`, objectFit: 'contain', borderRadius: `${Math.max(8, 12 * combinedScale)}px`, marginTop: `${Math.max(4, 6 * combinedScale)}px`, marginBottom: `${Math.max(4, 6 * combinedScale)}px` }} />)
+        : <img key={key} src={src} alt={alt} style={{ display: 'block', maxWidth: `${inlineImageMaxWidthPx}px`, maxHeight: `${Math.max(120, (speaker.style?.fontSize ?? 24) * combinedScale * 6)}px`, objectFit: 'contain', borderRadius: `${Math.max(8, 12 * combinedScale)}px`, marginTop: `${Math.max(4, 6 * combinedScale)}px`, marginBottom: `${Math.max(4, 6 * combinedScale)}px` }} />)
     })
   };
 

@@ -16,6 +16,66 @@ const parseSizePx = (value: string | number | undefined, fallback: number) => {
   return Math.max(1, fallback);
 };
 
+const fitSizeWithin = ({
+  sourceWidth,
+  sourceHeight,
+  maxWidth,
+  maxHeight,
+}: {
+  sourceWidth: number;
+  sourceHeight: number;
+  maxWidth: number;
+  maxHeight: number;
+}) => {
+  const safeSourceWidth = Math.max(1, sourceWidth);
+  const safeSourceHeight = Math.max(1, sourceHeight);
+  const widthRatio = maxWidth / safeSourceWidth;
+  const heightRatio = maxHeight / safeSourceHeight;
+  const ratio = Math.min(widthRatio, heightRatio, 1);
+
+  return {
+    width: Math.max(1, Math.round(safeSourceWidth * ratio)),
+    height: Math.max(1, Math.round(safeSourceHeight * ratio)),
+  };
+};
+
+const MarkdownGif = ({
+  gifKey,
+  src,
+  style,
+}: {
+  gifKey: string;
+  src: string;
+  style: React.CSSProperties;
+}) => {
+  const maxWidth = parseSizePx(style.maxWidth as string | number | undefined, 320);
+  const maxHeight = parseSizePx(style.maxHeight as string | number | undefined, 240);
+  const [displaySize, setDisplaySize] = React.useState<{ width: number; height: number } | null>(null);
+
+  return (
+    <Gif
+      key={gifKey}
+      src={src}
+      fit="fill"
+      width={displaySize?.width ?? maxWidth}
+      height={displaySize?.height ?? maxHeight}
+      delayRenderTimeoutInMilliseconds={120000}
+      onLoad={({ width, height }) => {
+        const next = fitSizeWithin({ sourceWidth: width, sourceHeight: height, maxWidth, maxHeight });
+        setDisplaySize((prev) => (prev?.width === next.width && prev?.height === next.height ? prev : next));
+      }}
+      style={{
+        ...style,
+        display: 'block',
+        width: `${displaySize?.width ?? maxWidth}px`,
+        height: `${displaySize?.height ?? maxHeight}px`,
+        maxWidth: `${maxWidth}px`,
+        maxHeight: `${maxHeight}px`,
+      }}
+    />
+  );
+};
+
 const renderSlideText = ({
   slide,
   currentTime,
@@ -366,7 +426,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                       nextSpeakerId={nextSpeakerId}
                       isLatestVisible={isLatestRow}
                       renderInlineImage={({ src, alt, style }) => /\.gif(\?|$)/i.test(src)
-                        ? <Gif key={`${item.speaker}-${item.start}-${src}`} src={src} fit="contain" width={parseSizePx(style.maxWidth, 320)} height={parseSizePx(style.maxHeight, 240)} style={style} delayRenderTimeoutInMilliseconds={120000} />
+                        ? <MarkdownGif gifKey={`${item.speaker}-${item.start}-${src}`} src={src} style={style} />
                         : <Img key={`${item.speaker}-${item.start}-${src}`} src={src} alt={alt} style={style} />}
                       renderAvatar={({ src, alt, style }) => (
                         (() => {
@@ -454,7 +514,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                 layoutScale={layoutScale}
                 chatLayout={props.chatLayout}
                 renderInlineImage={({ src, alt, style }) => /\.gif(\?|$)/i.test(src)
-                  ? <Gif key={`top-${item.speaker}-${item.start}-${src}`} src={src} fit="contain" width={parseSizePx(style.maxWidth, 320)} height={parseSizePx(style.maxHeight, 240)} style={style} delayRenderTimeoutInMilliseconds={120000} />
+                  ? <MarkdownGif gifKey={`top-${item.speaker}-${item.start}-${src}`} src={src} style={style} />
                   : <Img key={`top-${item.speaker}-${item.start}-${src}`} src={src} alt={alt} style={style} />}
               />
             ))}
@@ -470,7 +530,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
                 layoutScale={layoutScale}
                 chatLayout={props.chatLayout}
                 renderInlineImage={({ src, alt, style }) => /\.gif(\?|$)/i.test(src)
-                  ? <Gif key={`bottom-${item.speaker}-${item.start}-${src}`} src={src} fit="contain" width={parseSizePx(style.maxWidth, 320)} height={parseSizePx(style.maxHeight, 240)} style={style} delayRenderTimeoutInMilliseconds={120000} />
+                  ? <MarkdownGif gifKey={`bottom-${item.speaker}-${item.start}-${src}`} src={src} style={style} />
                   : <Img key={`bottom-${item.speaker}-${item.start}-${src}`} src={src} alt={alt} style={style} />}
               />
             ))}
