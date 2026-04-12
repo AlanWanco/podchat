@@ -76,6 +76,12 @@ const getContentType = (filePath) => {
       return 'audio/flac';
     case '.mp4':
       return 'video/mp4';
+    case '.webm':
+      return 'video/webm';
+    case '.mov':
+      return 'video/quicktime';
+    case '.mkv':
+      return 'video/x-matroska';
     case '.png':
       return 'image/png';
     case '.jpg':
@@ -285,6 +291,17 @@ const requirePackagedModule = (packageName, fallbackEntry) => {
 };
 
 const prepareInputProps = (config, mediaServer, binariesDirectory) => {
+  const remapMarkdownImagePaths = (text) => {
+    if (typeof text !== 'string' || !text) {
+      return text;
+    }
+
+    return text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, src) => {
+      const mediaUrl = toMediaUrl((src || '').trim(), mediaServer);
+      return `![${alt}](${mediaUrl})`;
+    });
+  };
+
   const speakers = Object.fromEntries(
     Object.entries(config.speakers || {}).map(([key, speaker]) => [
       key,
@@ -304,6 +321,11 @@ const prepareInputProps = (config, mediaServer, binariesDirectory) => {
 
   return {
     ...config,
+    content: Array.isArray(config.content)
+      ? config.content.map((item) => item?.type === 'text'
+        ? { ...item, text: remapMarkdownImagePaths(item.text || '') }
+        : item)
+      : config.content,
     audioPath: toMediaUrl(config.audioPath, mediaServer),
     background: {
       ...config.background,
