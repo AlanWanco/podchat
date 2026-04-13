@@ -211,9 +211,10 @@ const renderSlideAsset = ({
     transform: `translate(${offsetX}px, ${offsetY}px) rotate(${rotation}deg) scale(${scale}) ${motionState.transform || ''}`.trim(),
     transformOrigin: '50% 50%',
     opacity: opacity * motionState.opacity,
-    boxSizing: 'border-box',
-    border: `${Math.max(0, imageBorderWidth)}px solid ${imageBorderColor}`,
-    boxShadow: imageShadowSize > 0 ? `0 0 ${imageShadowSize}px ${imageShadowColor}` : undefined,
+    boxShadow: [
+      imageBorderWidth > 0 ? `inset 0 0 0 ${imageBorderWidth}px ${imageBorderColor}` : null,
+      imageShadowSize > 0 ? `0 0 ${imageShadowSize}px ${imageShadowColor}` : null,
+    ].filter(Boolean).join(', ') || undefined,
     display: 'block'
   };
   const wrapperStyle: React.CSSProperties = {

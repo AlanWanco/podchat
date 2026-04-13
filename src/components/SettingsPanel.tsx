@@ -179,9 +179,20 @@ export function SettingsPanel({
     ? tabOrderIds.map((id) => backgroundSlides.find((s: any) => s.id === id)).filter(Boolean)
     : backgroundSlides;
 
-  const derivedBackgroundSlideTab = activeInsertImageId || activeBackgroundSlideTab;
-  const currentBackgroundSlide = derivedBackgroundSlideTab
-    ? backgroundSlides.find((slide: any) => slide.id === derivedBackgroundSlideTab) || null
+  useEffect(() => {
+    if (!activeInsertImageId) {
+      return;
+    }
+
+    if (!backgroundSlides.some((slide: any) => slide.id === activeInsertImageId)) {
+      return;
+    }
+
+    setActiveBackgroundSlideTab((prev) => (prev === activeInsertImageId ? prev : activeInsertImageId));
+  }, [activeInsertImageId, backgroundSlides]);
+
+  const currentBackgroundSlide = activeBackgroundSlideTab
+    ? backgroundSlides.find((slide: any) => slide.id === activeBackgroundSlideTab) || null
     : (tabOrderedSlides[0] || null);
 
   useEffect(() => {
