@@ -850,6 +850,7 @@ function App() {
   const [speakerReplaceDialog, setSpeakerReplaceDialog] = useState<SpeakerReplaceDialogState | null>(null);
   const exportProgressActiveRef = useRef(false);
   const hasHydratedElectronConfigRef = useRef(!isDesktopMode);
+  const lastUiSyncSnapshotRef = useRef('');
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const webAudioInputRef = useRef<HTMLInputElement>(null);
@@ -1598,6 +1599,17 @@ const [previewScale, setPreviewScale] = useState(1);
 
   useEffect(() => {
     const ui = config.ui || DEFAULT_UI_CONFIG;
+    lastUiSyncSnapshotRef.current = JSON.stringify({
+      isDarkMode: ui.isDarkMode,
+      themeColor: ui.themeColor,
+      secondaryThemeColor: ui.secondaryThemeColor,
+      autoSaveProject: Boolean(ui.autoSaveProject),
+      proxy: ui.proxy || '',
+      settingsPosition: ui.settingsPosition,
+      recentProject: ui.recentProject,
+      presets: ui.presets ?? DEFAULT_UI_CONFIG.presets,
+      annotationPresets: ui.annotationPresets ?? DEFAULT_UI_CONFIG.annotationPresets,
+    });
     setThemeColorState((prev: string) => (prev === ui.themeColor ? prev : ui.themeColor));
     setSecondaryThemeColorState((prev: string) => (prev === ui.secondaryThemeColor ? prev : ui.secondaryThemeColor));
     setAutoSaveProject((prev: boolean) => (prev === Boolean(ui.autoSaveProject) ? prev : Boolean(ui.autoSaveProject)));
@@ -1625,6 +1637,22 @@ const [previewScale, setPreviewScale] = useState(1);
       return;
     }
 
+    const nextUiSnapshot = JSON.stringify({
+      isDarkMode,
+      themeColor: themeColorState || (isDarkMode ? DARK_THEME_DEFAULT : LIGHT_THEME_DEFAULT),
+      secondaryThemeColor: secondaryThemeColorState || DEFAULT_UI_CONFIG.secondaryThemeColor,
+      autoSaveProject,
+      proxy: proxyState.trim(),
+      settingsPosition,
+      recentProject,
+      presets,
+      annotationPresets,
+    });
+
+    if (lastUiSyncSnapshotRef.current === nextUiSnapshot) {
+      return;
+    }
+
     setConfig((prev: any) => {
       const prevUi = prev.ui || DEFAULT_UI_CONFIG;
       const nextPresets = presets;
@@ -1644,6 +1672,8 @@ const [previewScale, setPreviewScale] = useState(1);
       ) {
         return prev;
       }
+
+      lastUiSyncSnapshotRef.current = nextUiSnapshot;
 
       return {
         ...prev,
@@ -2072,7 +2102,7 @@ const [previewScale, setPreviewScale] = useState(1);
     };
   };
 
-  const getExportConfig = () => {
+  const getExportConfig = (slideIntrinsicSizeOverrides?: Record<string, { width: number; height: number }>) => {
     const restConfig = getProjectConfig();
     const resolveExportAssetPath = (assetPath: string | undefined) => {
       const cachedPath = cachedRemoteAssets[assetPath || ''] || assetPath;
@@ -2101,6 +2131,8 @@ const [previewScale, setPreviewScale] = useState(1);
             slides: Array.isArray(restConfig.background.slides)
               ? restConfig.background.slides.map((slide: BackgroundSlideItem) => ({
                   ...slide,
+                  intrinsicWidth: slideIntrinsicSizeOverrides?.[slide.id]?.width ?? slide.intrinsicWidth,
+                  intrinsicHeight: slideIntrinsicSizeOverrides?.[slide.id]?.height ?? slide.intrinsicHeight,
                   image: resolveExportAssetPath(slide.image)
                 }))
               : []
@@ -2147,7 +2179,7 @@ const [previewScale, setPreviewScale] = useState(1);
     const slides = Array.isArray(config.background?.slides) ? config.background.slides : [];
     const targets = slides.filter((slide: BackgroundSlideItem) => slide.type !== 'text' && slide.image && (!slide.intrinsicWidth || !slide.intrinsicHeight));
     if (targets.length === 0) {
-      return;
+      return {} as Record<string, { width: number; height: number }>;
     }
 
     const measured = await Promise.all(targets.map(async (slide: BackgroundSlideItem) => ({
@@ -2156,8 +2188,10 @@ const [previewScale, setPreviewScale] = useState(1);
     })));
     const updates = measured.filter((item) => item.size);
     if (updates.length === 0) {
-      return;
+      return {} as Record<string, { width: number; height: number }>;
     }
+
+    const sizeMap = Object.fromEntries(updates.map((item) => [item.id, { width: item.size!.width, height: item.size!.height }])) as Record<string, { width: number; height: number }>;
 
     setConfig((prev: any) => {
       const prevSlides = Array.isArray(prev?.background?.slides) ? prev.background.slides : [];
@@ -2186,6 +2220,8 @@ const [previewScale, setPreviewScale] = useState(1);
         },
       };
     });
+
+    return sizeMap;
   }
 
 
@@ -2487,12 +2523,12 @@ const [previewScale, setPreviewScale] = useState(1);
     setExportStatusMessage(t('export.preparing'));
 
     try {
-      await ensureBackgroundSlideIntrinsicSizes();
+      const slideIntrinsicSizeOverrides = await ensureBackgroundSlideIntrinsicSizes();
       const crf = calculateCRF(exportQuality);
       const preset = calculateX264Preset(exportQuality);
       
       const res = await window.electron.exportVideo({
-        ...getExportConfig(),
+        ...getExportConfig(slideIntrinsicSizeOverrides),
         outputPath: trimmedPath,
         exportRange,
         exportQuality,
