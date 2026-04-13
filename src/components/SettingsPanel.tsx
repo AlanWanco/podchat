@@ -302,9 +302,11 @@ export function SettingsPanel({
 
   const removeBackgroundSlide = (slideId: string) => {
     const nextSlides = backgroundSlides.filter((slide: any) => slide.id !== slideId);
+    const nextOrderedIds = tabOrderIds.filter((id) => id !== slideId);
+    const fallbackId = nextOrderedIds[nextOrderedIds.length - 1] || nextSlides[nextSlides.length - 1]?.id || null;
     updateBackgroundSlides(nextSlides);
-    setActiveBackgroundSlideTab(nextSlides[0]?.id || null);
-    onActiveInsertImageChange?.(nextSlides[0]?.id || null);
+    setActiveBackgroundSlideTab(fallbackId);
+    onActiveInsertImageChange?.(fallbackId);
   };
 
   const setBackgroundSlideExplicitOrder = (slideId: string, nextOrder: number) => {
