@@ -89,7 +89,8 @@ const renderSlideText = ({
 }) => {
   const animationStyle = slide.animationStyle || 'fade';
   const animationDuration = slide.animationDuration ?? 0.24;
-  const appearanceTime = Math.max(0, slide.start - (animationStyle === 'none' ? 0 : animationDuration));
+  const instantAppearanceEpsilon = animationStyle === 'none' || animationDuration <= 0 ? (1 / 120) : 0;
+  const appearanceTime = Math.max(0, slide.start - (animationStyle === 'none' ? 0 : animationDuration) - instantAppearanceEpsilon);
   const progress = animationStyle === 'none' || animationDuration <= 0 ? 1 : Math.max(0, Math.min(1, (currentTime - appearanceTime) / animationDuration));
   const disappearProgress = typeof slide.end === 'number' && currentTime > slide.end && animationStyle !== 'none' && animationDuration > 0
     ? Math.max(0, Math.min(1, 1 - ((currentTime - slide.end) / animationDuration)))
@@ -307,7 +308,8 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const bottomAnnotations = visibleAnnotations.filter((item) => (props.speakers[item.speaker]?.style?.annotationPosition ?? 'bottom') === 'bottom');
   const visibleSlides = (props.background?.slides || []).filter((slide) => {
     const slideAnimationDuration = slide.animationDuration ?? 0.24;
-    const appearanceTime = Math.max(0, slide.start - ((slide.animationStyle || 'fade') === 'none' ? 0 : slideAnimationDuration));
+    const instantAppearanceEpsilon = (slide.animationStyle || 'fade') === 'none' || slideAnimationDuration <= 0 ? (1 / Math.max(1, fps)) : 0;
+    const appearanceTime = Math.max(0, slide.start - ((slide.animationStyle || 'fade') === 'none' ? 0 : slideAnimationDuration) - instantAppearanceEpsilon);
     return currentTime >= appearanceTime && currentTime <= slide.end + slideAnimationDuration;
   });
   const backgroundSlidesBelowChat = visibleSlides

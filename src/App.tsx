@@ -588,7 +588,8 @@ function PreviewTextAsset({
 }) {
   const animationStyle = slide.animationStyle || 'fade';
   const animationDuration = slide.animationDuration ?? 0.24;
-  const appearanceTime = Math.max(0, slide.start - (animationStyle === 'none' ? 0 : animationDuration));
+  const instantAppearanceEpsilon = animationStyle === 'none' || animationDuration <= 0 ? (1 / 120) : 0;
+  const appearanceTime = Math.max(0, slide.start - (animationStyle === 'none' ? 0 : animationDuration) - instantAppearanceEpsilon);
   const progress = animationStyle === 'none' || animationDuration <= 0 ? 1 : Math.max(0, Math.min(1, (currentTime - appearanceTime) / animationDuration));
   const disappearProgress = typeof slide.end === 'number' && currentTime > slide.end && animationStyle !== 'none' && animationDuration > 0
     ? Math.max(0, Math.min(1, 1 - ((currentTime - slide.end) / animationDuration)))
@@ -3666,7 +3667,8 @@ const [previewScale, setPreviewScale] = useState(1);
   }, [currentTime, config.fps]);
   const visibleBackgroundSlides = backgroundSlides.filter((slide: BackgroundSlideItem) => {
     const animationDuration = slide.animationDuration ?? 0.24;
-    const appearanceTime = Math.max(0, slide.start - ((slide.animationStyle || 'fade') === 'none' ? 0 : animationDuration));
+    const instantAppearanceEpsilon = (slide.animationStyle || 'fade') === 'none' || animationDuration <= 0 ? (1 / Math.max(1, config.fps || 60)) : 0;
+    const appearanceTime = Math.max(0, slide.start - ((slide.animationStyle || 'fade') === 'none' ? 0 : animationDuration) - instantAppearanceEpsilon);
     return previewRenderTime >= appearanceTime && previewRenderTime <= (slide.end + animationDuration);
   });
   const backgroundSlidesBelowChat = visibleBackgroundSlides
