@@ -243,7 +243,8 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const layoutScale = width / (props.dimensions.width || width);
   const effectiveScale = Math.max(0.35, layoutScale);
   const animationDuration = props.chatLayout?.animationDuration ?? 0.2;
-  const horizontalPadding = (props.chatLayout?.paddingLeft ?? props.chatLayout?.paddingX ?? 48) * effectiveScale;
+  const leftPadding = (props.chatLayout?.paddingLeft ?? props.chatLayout?.paddingX ?? 48) * effectiveScale;
+  const rightPadding = (props.chatLayout?.paddingRight ?? props.chatLayout?.paddingX ?? 48) * effectiveScale;
   const topPadding = (props.chatLayout?.paddingTop ?? 48) * effectiveScale;
   const bottomPadding = (props.chatLayout?.paddingBottom ?? 80) * effectiveScale;
   const topFadeHeight = Math.max(20, (props.chatLayout?.topFadeHeight ?? 120) * effectiveScale);
@@ -410,13 +411,13 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
       ) : null}
 
       <AbsoluteFill
-        style={{
-          paddingTop: topPadding,
-          paddingLeft: horizontalPadding,
-          paddingRight: horizontalPadding,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between'
+          style={{
+            paddingTop: topPadding,
+            paddingLeft: leftPadding,
+            paddingRight: rightPadding,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between'
         }}
       >
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', ...topFadeStyle }}>
@@ -526,8 +527,8 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
             pointerEvents: 'none',
             paddingTop: 24 * effectiveScale,
             paddingBottom: 24 * effectiveScale,
-            paddingLeft: 32 * effectiveScale,
-            paddingRight: 32 * effectiveScale,
+            paddingLeft: leftPadding,
+            paddingRight: rightPadding,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between'
