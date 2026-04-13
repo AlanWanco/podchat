@@ -402,7 +402,7 @@ export function SettingsPanel({
         name: `${t('speakers.add')} ${newId}`, 
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${newId}`, 
         side: "left", 
-        style: { bgColor: "#6b7280", textColor: "#ffffff", nameColor: "#ffffff", nameStrokeWidth: 0, nameStrokeColor: "#000000", borderRadius: 28, opacity: 0.9, borderWidth: 0, avatarBorderColor: "#ffffff", borderColor: "#ffffff", borderOpacity: 1.0, margin: 14, paddingX: 20, paddingY: 12, shadowSize: 1, fontFamily: 'system-ui', fontSize: 30, fontWeight: 'normal' }
+        style: { bgColor: "#6b7280", textColor: "#ffffff", nameColor: "#ffffff", nameStrokeWidth: 0, nameStrokeColor: "#000000", borderRadius: 28, opacity: 0.9, borderWidth: 0, avatarBorderColor: "#ffffff", borderColor: "#ffffff", borderOpacity: 1.0, margin: 14, paddingX: 20, paddingY: 12, shadowSize: 1, fontFamily: 'system-ui', fontSize: 30, fontWeight: 'normal', trackIndex: 1, trackPaddingLeft: 5, trackPaddingRight: 5 }
       } 
     };
     updateConfig('speakers', newSpeakers);
@@ -1054,7 +1054,9 @@ export function SettingsPanel({
                     className="w-full"
                     style={themedRangeStyle}
                     title={t('project.bubbleMaxWidth.title')}
+                    disabled={config.chatLayout?.independentTracksEnabled ?? false}
                   />
+                  {(config.chatLayout?.independentTracksEnabled ?? false) ? <div className="text-[11px] opacity-60">{t('project.trackBubbleWidthHint')}</div> : null}
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
@@ -1140,6 +1142,32 @@ export function SettingsPanel({
                       <span>{(config.chatLayout?.compactMode ?? false) ? t('common.enabled') : t('common.disabled')}</span>
                     </button>
                   </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs opacity-70">{t('project.independentTracks')}</label>
+                    <button
+                      type="button"
+                      onClick={() => updateChatLayout('independentTracksEnabled', !(config.chatLayout?.independentTracksEnabled ?? false))}
+                      className="w-full flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
+                      style={{
+                        backgroundColor: (config.chatLayout?.independentTracksEnabled ?? false) ? `${secondaryThemeColor}14` : uiTheme.panelBgSubtle,
+                        borderColor: (config.chatLayout?.independentTracksEnabled ?? false) ? `${secondaryThemeColor}55` : uiTheme.border,
+                        color: uiTheme.text,
+                      }}
+                    >
+                      <span>{(config.chatLayout?.independentTracksEnabled ?? false) ? t('common.enabled') : t('common.disabled')}</span>
+                    </button>
+                  </div>
+                  {(config.chatLayout?.independentTracksEnabled ?? false) ? (
+                    <>
+                      <div className="space-y-1.5">
+                        <span className="text-xs opacity-70">{t('project.trackCount')}</span>
+                        {renderNumberInput(config.chatLayout?.trackCount ?? 1, (value) => updateChatLayout('trackCount', Math.max(1, Math.round(value))), { min: 1, step: 1, className: `w-full border rounded-md px-3 py-2 text-sm focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                      </div>
+                      <div className="col-span-2 text-[11px] opacity-60 leading-relaxed">
+                        {t('project.trackModeHelp')}
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
@@ -1245,6 +1273,17 @@ export function SettingsPanel({
                   type="text"
                   value={config.assPath || ''}
                   readOnly
+                  className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
+                  style={inputSurfaceStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <span className="text-xs opacity-70">{t('project.audioPath')}</span>
+                <input
+                  type="text"
+                  value={config.audioPath || ''}
+                  onChange={(e) => updateConfig('audioPath', e.target.value)}
+                  title={t('project.quickPasteFilePathTip')}
                   className={`w-full border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
                   style={inputSurfaceStyle}
                 />
@@ -1968,6 +2007,22 @@ export function SettingsPanel({
                           </button>
                         </div>
                       )}
+                      {(config.chatLayout?.independentTracksEnabled ?? false) ? (
+                        <div className="grid grid-cols-3 gap-3 pt-2">
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.trackIndex')}</span>
+                            {renderNumberInput(speaker.style?.trackIndex ?? 1, (value) => updateSpeakerStyle(key, 'trackIndex', Math.max(1, Math.round(value))), { min: 1, max: Math.max(1, config.chatLayout?.trackCount ?? 1), step: 1, className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.trackPaddingLeft')}</span>
+                            {renderNumberInput(speaker.style?.trackPaddingLeft ?? 5, (value) => updateSpeakerStyle(key, 'trackPaddingLeft', Math.max(0, value)), { min: 0, step: 1, className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wider opacity-70">{t('speakers.trackPaddingRight')}</span>
+                            {renderNumberInput(speaker.style?.trackPaddingRight ?? 5, (value) => updateSpeakerStyle(key, 'trackPaddingRight', Math.max(0, value)), { min: 0, step: 1, className: `w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`, style: inputSurfaceStyle })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     <hr style={{ borderColor: uiTheme.border }} />
@@ -2347,9 +2402,9 @@ export function SettingsPanel({
                         >
                           <X size={14} />
                         </button>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-3">
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{t('annotation.position')}</span>
                         <select

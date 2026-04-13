@@ -81,7 +81,10 @@ const DEFAULT_BUBBLE_STYLE = {
   shadowSize: 1,
   fontFamily: 'system-ui',
   fontSize: 30,
-  fontWeight: 'normal'
+  fontWeight: 'normal',
+  trackIndex: 1,
+  trackPaddingLeft: 5,
+  trackPaddingRight: 5,
 };
 
 const DEFAULT_CHAT_LAYOUT = {
@@ -103,7 +106,9 @@ const DEFAULT_CHAT_LAYOUT = {
   showAvatar: true,
   showMeta: true,
   compactMode: false,
-  compactSpacing: 14
+  compactSpacing: 14,
+  independentTracksEnabled: false,
+  trackCount: 1,
 };
 
 const DEFAULT_UI_CONFIG = {
@@ -114,6 +119,7 @@ const DEFAULT_UI_CONFIG = {
   proxy: '',
   settingsPosition: 'right' as 'left' | 'right',
   recentProject: null as string | null,
+  recentProjects: [] as string[],
   playbackPositions: {} as Record<string, number>,
   presets: {} as Record<string, any>,
   annotationPresets: {} as Record<string, any>
@@ -298,6 +304,7 @@ const sanitizeProjectConfig = (parsed: any) => {
       proxy: typeof parsed?.ui?.proxy === 'string' ? parsed.ui.proxy : '',
       settingsPosition: parsed?.ui?.settingsPosition === 'left' ? 'left' : 'right',
       recentProject: typeof parsed?.ui?.recentProject === 'string' ? parsed.ui.recentProject : null,
+      recentProjects: Array.isArray(parsed?.ui?.recentProjects) ? parsed.ui.recentProjects.filter((item: unknown) => typeof item === 'string').slice(0, 10) : [],
       playbackPositions: parsed?.ui?.playbackPositions && typeof parsed.ui.playbackPositions === 'object' ? parsed.ui.playbackPositions : {},
       presets: parsed?.ui?.presets && typeof parsed.ui.presets === 'object' ? parsed.ui.presets : {},
       annotationPresets: parsed?.ui?.annotationPresets && typeof parsed.ui.annotationPresets === 'object' ? parsed.ui.annotationPresets : {}
@@ -1418,6 +1425,25 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const rememberRecentProject = useCallback((path: string | null | undefined) => {
+    if (!path) return;
+    setRecentProject(path);
+    setConfig((prev: any) => {
+      const prevUi = prev?.ui || DEFAULT_UI_CONFIG;
+      const nextRecentProjects = [path, ...(prevUi.recentProjects || []).filter((item: string) => item !== path)].slice(0, 10);
+      if (prevUi.recentProject === path && JSON.stringify(prevUi.recentProjects || []) === JSON.stringify(nextRecentProjects)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        ui: {
+          ...prevUi,
+          recentProject: path,
+          recentProjects: nextRecentProjects,
+        }
+      };
+    });
+  }, []);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
   const language = (config.language || 'zh-CN') as Language;
@@ -1548,7 +1574,7 @@ const [previewScale, setPreviewScale] = useState(1);
         setWebAssContent(null);
       }
       setProjectPath('web-demo');
-      setRecentProject(parsed?.projectTitle || 'web-demo');
+      rememberRecentProject(parsed?.projectTitle || 'web-demo');
       savedSpeakerNamesRef.current = getSpeakerNameSnapshot(normalizedRestoredConfig.speakers);
       if (requiresAudioReload) {
         showToast(t('app.projectLoadedNeedAudio'));
@@ -1572,7 +1598,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
     try {
       const parsed = JSON.parse(saved);
-      setRecentProject(parsed?.projectTitle || 'web-demo');
+      rememberRecentProject(parsed?.projectTitle || 'web-demo');
     } catch (error) {
       console.error('Failed to parse saved web project metadata:', error);
     }
@@ -2965,7 +2991,7 @@ const [previewScale, setPreviewScale] = useState(1);
         clearHistory();
         clearProjectDirty();
         setProjectPath(result.filePath);
-        setRecentProject(result.filePath);
+        rememberRecentProject(result.filePath);
         if (!window.electron) {
           localStorage.setItem(STORAGE_KEY + '_recent_project', result.filePath);
         }
@@ -3127,7 +3153,7 @@ const [previewScale, setPreviewScale] = useState(1);
       await window.electron.writeFile(result.filePath, JSON.stringify(newConfig, null, 2));
       
       setProjectPath(result.filePath);
-      setRecentProject(result.filePath);
+      rememberRecentProject(result.filePath);
       localStorage.setItem('pomchat_recent_project', result.filePath);
       setConfig((prev: any) => ({
         ...newConfig,
@@ -3299,7 +3325,7 @@ const [previewScale, setPreviewScale] = useState(1);
       const shouldUseAssSource = !window.electron && normalizedConfig.subtitleFormat === 'ass' && Boolean(normalizedConfig.assPath);
       
       setProjectPath(filePath);
-      setRecentProject(filePath);
+      rememberRecentProject(filePath);
       clearHistory();
       clearProjectDirty();
       if (!window.electron) {
@@ -3493,7 +3519,7 @@ const [previewScale, setPreviewScale] = useState(1);
           : { ...validatedConfig, subtitleFormat: validatedConfig.assPath ? 'ass' : (validatedConfig.content?.length ? 'srt' : 'ass') };
         const shouldUseAssSource = normalizedConfig.subtitleFormat === 'ass' && Boolean(normalizedConfig.assPath);
         setProjectPath('web-demo');
-        setRecentProject(file.name);
+        rememberRecentProject(file.name);
         clearHistory();
         clearProjectDirty();
         setConfig((prev: any) => ({
@@ -3605,7 +3631,7 @@ const [previewScale, setPreviewScale] = useState(1);
     if (!window.electron || !projectPath || projectPath === 'web-demo') {
       const finalConfig = getProjectConfig();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(finalConfig));
-      setRecentProject(finalConfig.projectTitle || 'web-demo');
+      rememberRecentProject(finalConfig.projectTitle || 'web-demo');
       clearProjectDirty();
       if (!options?.silent) {
         showToast(t('app.projectSaved'));
@@ -3641,7 +3667,7 @@ const [previewScale, setPreviewScale] = useState(1);
         : { ...validatedConfig, subtitleFormat: validatedConfig.assPath ? 'ass' : (validatedConfig.content?.length ? 'srt' : 'ass') };
       const shouldUseAssSource = normalizedConfig.subtitleFormat === 'ass' && Boolean(normalizedConfig.assPath);
       setProjectPath('web-demo');
-      setRecentProject(file.name);
+      rememberRecentProject(file.name);
       clearHistory();
       clearProjectDirty();
       setConfig((prev: any) => ({
@@ -3807,19 +3833,18 @@ const [previewScale, setPreviewScale] = useState(1);
     const appearanceTime = Math.max(0, item.start - (animationStyle === 'none' ? 0 : animationDuration));
     return previewRenderTime >= appearanceTime && previewRenderTime <= item.end;
   });
+  const appearedMessages = useMemo(() => subtitles.filter((item) => {
+    const speaker = config.speakers[item.speakerId];
+    if (!speaker || speaker.type === 'annotation') return false;
+    const animationStyle = config.chatLayout?.animationStyle || 'rise';
+    const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
+    const animationLeadTime = animationStyle === 'none' ? 0 : animationDuration;
+    const appearanceTime = Math.max(0, item.start - animationLeadTime);
+    return previewRenderTime >= appearanceTime;
+  }), [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, previewRenderTime]);
   const visibleMessageRows = useMemo(() => {
-    const appeared = subtitles.filter((item) => {
-      const speaker = config.speakers[item.speakerId];
-      if (!speaker || speaker.type === 'annotation') return false;
-      const animationStyle = config.chatLayout?.animationStyle || 'rise';
-      const animationDuration = config.chatLayout?.animationDuration ?? 0.2;
-      const animationLeadTime = animationStyle === 'none' ? 0 : animationDuration;
-      const appearanceTime = Math.max(0, item.start - animationLeadTime);
-      return previewRenderTime >= appearanceTime;
-    });
-
-    return computeInterruptedMessageRows(appeared, config.speakers, config.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT);
-  }, [subtitles, config.speakers, config.chatLayout?.animationStyle, config.chatLayout?.animationDuration, config.chatLayout?.maxVisibleBubbles, previewRenderTime]);
+    return computeInterruptedMessageRows(appearedMessages, config.speakers, config.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT);
+  }, [appearedMessages, config.speakers, config.chatLayout?.maxVisibleBubbles]);
   const flatVisibleMessages = useMemo(
     () => visibleMessageRows.flatMap((row) => [row.left, row.right].filter(Boolean)),
     [visibleMessageRows]
@@ -3876,6 +3901,29 @@ const [previewScale, setPreviewScale] = useState(1);
       speakerNameSize: Math.max(12, Math.round(baseSpeakerNameSize * 0.86))
     };
   }, [config.chatLayout, isMobileWebLayout]);
+  const previewChatContentWidth = Math.max(1, canvasWidth - (previewChatLayout?.paddingLeft ?? previewChatLayout?.paddingX ?? 48) - (previewChatLayout?.paddingRight ?? previewChatLayout?.paddingX ?? 48));
+  const previewTrackLayout = useMemo(() => {
+    const enabled = Boolean(previewChatLayout?.independentTracksEnabled);
+    const trackCount = Math.max(1, Math.round(previewChatLayout?.trackCount ?? 1));
+    if (!enabled || trackCount <= 1) {
+      return null;
+    }
+
+    const maxVisible = previewChatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT;
+    const tracks = Array.from({ length: trackCount }, (_, index) => ({ index, items: [] as typeof appearedMessages }));
+
+    for (let index = 0; index < trackCount; index += 1) {
+      const trackMessages = appearedMessages.filter((item) => {
+        const speaker = config.speakers[item.speakerId];
+        const trackIndex = Math.max(0, Math.min(trackCount - 1, (speaker?.style?.trackIndex ?? 1) - 1));
+        return trackIndex === index;
+      });
+
+      tracks[index].items = trackMessages.slice(-maxVisible);
+    }
+
+    return { trackCount, tracks };
+  }, [appearedMessages, config.speakers, previewChatLayout]);
   const previewTopFadeStyle = useMemo(() => {
     if (!(previewChatLayout?.topFadeEnabled ?? false)) {
       return undefined;
@@ -3892,7 +3940,6 @@ const [previewScale, setPreviewScale] = useState(1);
       maskSize: '100% 100%',
     } as React.CSSProperties;
   }, [previewChatLayout?.topFadeEnabled, previewChatLayout?.topFadeHeight]);
-
   const handleAppDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     if (e.dataTransfer.types.includes('application/x-pomchat-insert-image-tab')) {
       return;
@@ -3991,10 +4038,10 @@ const [previewScale, setPreviewScale] = useState(1);
         <WelcomeScreen 
           onNewProject={handleNewProject} 
           onOpenProject={handleOpenProject} 
-          onOpenRecent={() => {
+          onOpenRecent={(path) => {
             if (window.electron) {
-              if (recentProject) {
-                void loadProjectFromPath(recentProject);
+              if (path) {
+                void loadProjectFromPath(path);
               }
               return;
             }
@@ -4002,6 +4049,7 @@ const [previewScale, setPreviewScale] = useState(1);
           }}
           onOpenSettings={() => setShowSettings(true)}
           recentProject={recentProject}
+          recentProjects={config.ui?.recentProjects ?? DEFAULT_UI_CONFIG.recentProjects}
           isDarkMode={isDarkMode} 
           language={language}
           themeColor={themeColor}
@@ -4600,6 +4648,53 @@ const [previewScale, setPreviewScale] = useState(1);
                   >
                     {subtitlesLoading ? (
                       <div className="text-center opacity-50 my-auto">{t('app.loadSubtitle')}</div>
+                    ) : previewTrackLayout ? (
+                      <div style={{ display: 'flex', width: '100%', alignItems: 'flex-end' }}>
+                        {previewTrackLayout.tracks.map((track) => {
+                          const trackWidth = previewChatContentWidth / previewTrackLayout.trackCount;
+                          return (
+                            <div key={`track-${track.index}`} style={{ width: `${100 / previewTrackLayout.trackCount}%`, minWidth: 0, position: 'relative' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                                {track.items.map((item, itemIndex) => {
+                                  const speaker = config.speakers[item.speakerId];
+                                  if (!speaker) return null;
+                                  const prevSpeakerId = itemIndex > 0 ? track.items[itemIndex - 1]?.speakerId : undefined;
+                                  const nextSpeakerId = itemIndex < track.items.length - 1 ? track.items[itemIndex + 1]?.speakerId : undefined;
+                                  const trackPaddingLeft = speaker.style?.trackPaddingLeft ?? 5;
+                                  const trackPaddingRight = speaker.style?.trackPaddingRight ?? 5;
+                                  const bubbleWidth = Math.max(80, trackWidth - trackPaddingLeft - trackPaddingRight);
+                                  return (
+                                    <div key={item.id} style={{ display: 'flex', justifyContent: speaker.side === 'right' ? 'flex-end' : 'flex-start', paddingLeft: `${trackPaddingLeft}px`, paddingRight: `${trackPaddingRight}px` }}>
+                                      <ChatMessageBubble
+                                        item={{ key: item.id, start: item.start, end: item.end, text: item.text, speakerId: item.speakerId }}
+                                        speaker={speaker}
+                                        currentTime={previewRenderTime}
+                                        canvasWidth={trackWidth}
+                                        layoutScale={1}
+                                        chatLayout={previewChatLayout}
+                                        fallbackAvatarBorderColor={isDarkMode ? '#1f2937' : '#ffffff'}
+                                        prevSpeakerId={prevSpeakerId}
+                                        nextSpeakerId={nextSpeakerId}
+                                        isLatestVisible={itemIndex === track.items.length - 1}
+                                        bubbleMaxWidthOverridePx={bubbleWidth}
+                                        renderInlineImage={({ src, alt, style }) => <img key={`${item.id}-${src}`} src={resolvePath(src)} alt={alt} referrerPolicy="no-referrer" style={style} />}
+                                        renderAvatar={({ src, alt, style }) => {
+                                          const bubbleScale = previewChatLayout?.bubbleScale ?? 1.5;
+                                          const combinedScale = Math.max(0.1, 1) * bubbleScale;
+                                          const borderWidth = Math.max(2, Math.round(4 * combinedScale));
+                                          const borderColor = speaker.style?.avatarBorderColor || (isDarkMode ? '#1f2937' : '#ffffff');
+                                          return <img src={resolvePath(src)} alt={alt} referrerPolicy="no-referrer" className="rounded-full shrink-0 object-cover" style={{ ...style, pointerEvents: 'none', boxSizing: 'border-box', border: `${borderWidth}px solid ${borderColor}`, backgroundColor: borderColor }} />;
+                                        }}
+                                        renderBubble={({ outerStyle, contentStyle, children }) => <div style={{ ...outerStyle, pointerEvents: 'none' }}><div style={{ ...contentStyle, pointerEvents: 'none' }}>{children}</div></div>}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     ) : (
                       visibleMessageRows.map((row, rowIndex) => {
                         const isLatestRow = rowIndex === visibleMessageRows.length - 1;

@@ -249,6 +249,7 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
   const rightPadding = (props.chatLayout?.paddingRight ?? props.chatLayout?.paddingX ?? 48) * effectiveScale;
   const topPadding = (props.chatLayout?.paddingTop ?? 48) * effectiveScale;
   const bottomPadding = (props.chatLayout?.paddingBottom ?? 80) * effectiveScale;
+  const chatContentWidth = Math.max(1, width - leftPadding - rightPadding);
   const topFadeHeight = Math.max(20, (props.chatLayout?.topFadeHeight ?? 120) * effectiveScale);
   const topFadeStyle = props.chatLayout?.topFadeEnabled
     ? {
@@ -299,6 +300,28 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
     right: row.right ? { ...row.right, speaker: row.right.speakerId } : undefined,
   }));
   const flatVisibleMessages = visibleMessageRows.flatMap((row) => [row.left, row.right].filter(Boolean));
+  const trackLayout = (() => {
+    const enabled = Boolean(props.chatLayout?.independentTracksEnabled);
+    const trackCount = Math.max(1, Math.round(props.chatLayout?.trackCount ?? 1));
+    if (!enabled || trackCount <= 1) {
+      return null;
+    }
+
+    const maxVisible = props.chatLayout?.maxVisibleBubbles ?? MESSAGE_FALLBACK_COUNT;
+    const tracks = Array.from({ length: trackCount }, (_, index) => ({ index, items: [] as typeof appearedMessages }));
+
+    for (let index = 0; index < trackCount; index += 1) {
+      const trackMessages = appearedMessages.filter((item) => {
+        const speaker = props.speakers[item.speaker];
+        const trackIndex = Math.max(0, Math.min(trackCount - 1, ((speaker?.style?.trackIndex ?? 1) - 1)));
+        return trackIndex === index;
+      });
+
+      tracks[index].items = trackMessages.slice(-maxVisible);
+    }
+
+    return { trackCount, tracks };
+  })();
 
   const visibleAnnotations = sortedContent.filter((item) => {
     const speaker = props.speakers[item.speaker];
@@ -425,7 +448,18 @@ export const PodchatComposition: React.FC<PodchatExportInput> = (props) => {
       >
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', ...topFadeStyle }}>
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: bottomPadding, display: 'flex', flexDirection: 'column' }}>
-            {visibleMessageRows.map((row, rowIndex) => {
+            {trackLayout ? (
+              <div style={{ display: 'flex', width: '100%', alignItems: 'flex-end' }}>
+                {trackLayout.tracks.map((track) => {
+                  const trackWidth = chatContentWidth / trackLayout.trackCount;
+                  return (
+                    <div key={`track-${track.index}`} style={{ width: `${100 / trackLayout.trackCount}%`, minWidth: 0, position: 'relative' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>{track.items.map((item, itemIndex) => { const speaker = props.speakers[item.speaker]; if (!speaker) return null; const prevSpeakerId = itemIndex > 0 ? track.items[itemIndex - 1]?.speaker : undefined; const nextSpeakerId = itemIndex < track.items.length - 1 ? track.items[itemIndex + 1]?.speaker : undefined; const trackPaddingLeft = speaker.style?.trackPaddingLeft ?? 5; const trackPaddingRight = speaker.style?.trackPaddingRight ?? 5; const bubbleWidth = Math.max(80, trackWidth - trackPaddingLeft - trackPaddingRight); return <div key={`${item.speaker}-${item.start}-${item.text}`} style={{ display: 'flex', justifyContent: speaker.side === 'right' ? 'flex-end' : 'flex-start', paddingLeft: trackPaddingLeft, paddingRight: trackPaddingRight }}><ChatMessageBubble item={{ key: `${item.speaker}-${item.start}-${item.text}`, start: item.start, end: item.end, text: item.text, speakerId: item.speaker }} speaker={speaker} currentTime={currentTime} canvasWidth={trackWidth} layoutScale={layoutScale} chatLayout={props.chatLayout} prevSpeakerId={prevSpeakerId} nextSpeakerId={nextSpeakerId} isLatestVisible={itemIndex === track.items.length - 1} bubbleMaxWidthOverridePx={bubbleWidth} renderInlineImage={({ src, alt, style }) => /\.gif(\?|$)/i.test(src) ? <MarkdownGif gifKey={`${item.speaker}-${item.start}-${src}`} src={src} style={style} /> : <Img key={`${item.speaker}-${item.start}-${src}`} src={src} alt={alt} style={style} />} renderAvatar={({ src, alt, style }) => ((() => { const outerWidth = parseSizePx(style.width, 80); const outerHeight = parseSizePx(style.height, 80); const bubbleScale = props.chatLayout?.bubbleScale ?? 1.5; const combinedScale = Math.max(0.1, layoutScale) * bubbleScale; const borderWidth = Math.max(2, Math.round(4 * combinedScale)); const borderColor = speaker.style?.avatarBorderColor || 'rgba(255,255,255,0.12)'; const innerWidth = Math.max(1, outerWidth - borderWidth * 2); const innerHeight = Math.max(1, outerHeight - borderWidth * 2); return <div style={{ width: style.width, height: style.height, minWidth: style.minWidth, position: 'relative', borderRadius: style.borderRadius, overflow: 'hidden', boxSizing: 'border-box', backgroundColor: borderColor, boxShadow: style.boxShadow, border: `${borderWidth}px solid ${borderColor}` }}>{/\.gif(\?|$)/i.test(src) ? <Gif src={src} width={innerWidth} height={innerHeight} fit="cover" delayRenderTimeoutInMilliseconds={120000} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} /> : /\.mp4(\?|$)|\.webm(\?|$)|\.mov(\?|$)|\.mkv(\?|$)/i.test(src) ? <OffthreadVideo src={src} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>; })())} renderBubble={({ outerStyle, contentStyle, children }) => <div style={outerStyle}><div style={contentStyle}>{children}</div></div>} /></div>; })}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : visibleMessageRows.map((row, rowIndex) => {
               const isLatestRow = rowIndex === visibleMessageRows.length - 1;
 
               const renderRowBubble = (side: 'left' | 'right') => {

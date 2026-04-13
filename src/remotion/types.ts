@@ -72,6 +72,9 @@ export interface SpeakerStyle {
   nameFontWeight?: string;
   scale?: number;
   maxWidth?: number;
+  trackIndex?: number;
+  trackPaddingLeft?: number;
+  trackPaddingRight?: number;
   annotationPosition?: 'top' | 'bottom';
   annotationAlign?: 'left' | 'center' | 'right';
   annotationMarginX?: number;
@@ -124,6 +127,8 @@ export interface PodchatExportInput {
     showMeta?: boolean;
     compactMode?: boolean;
     compactSpacing?: number;
+    independentTracksEnabled?: boolean;
+    trackCount?: number;
   };
   speakers: Record<string, SpeakerConfig>;
   content: SubtitleContentItem[];

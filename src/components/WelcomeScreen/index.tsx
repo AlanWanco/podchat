@@ -12,16 +12,17 @@ type CSSVarStyle = React.CSSProperties & {
 interface WelcomeScreenProps {
   onNewProject: () => void;
   onOpenProject: () => void;
-  onOpenRecent?: () => void;
+  onOpenRecent?: (path: string) => void;
   onOpenSettings?: () => void;
   recentProject?: string | null;
+  recentProjects?: string[];
   isDarkMode: boolean;
   language: Language;
   themeColor: string;
   secondaryThemeColor: string;
 }
 
-export function WelcomeScreen({ onNewProject, onOpenProject, onOpenRecent, onOpenSettings, recentProject, isDarkMode, language, themeColor, secondaryThemeColor }: WelcomeScreenProps) {
+export function WelcomeScreen({ onNewProject, onOpenProject, onOpenRecent, onOpenSettings, recentProject, recentProjects = [], isDarkMode, language, themeColor, secondaryThemeColor }: WelcomeScreenProps) {
   const t = (key: string) => translate(language, key);
   const uiTheme = createThemeTokens(themeColor, isDarkMode);
   const [hoveredCard, setHoveredCard] = useState<'new' | 'open' | null>(null);
@@ -114,24 +115,29 @@ export function WelcomeScreen({ onNewProject, onOpenProject, onOpenRecent, onOpe
           </button>
         </div>
 
-        {recentProject && onOpenRecent && (
+        {(recentProjects.length > 0 || recentProject) && onOpenRecent && (
           <div className="mt-4">
             <h3 className={`text-sm font-medium mb-3 ml-2`} style={{ color: uiTheme.textMuted }}>{t('welcome.recent')}</h3>
-             <button 
-               onClick={onOpenRecent}
-               className="w-full flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 group shadow-sm hover:-translate-y-0.5"
-               style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated, boxShadow: `0 4px 12px ${secondaryThemeColor}14` }}
-              >
-              <div className="p-2 rounded-lg" style={{ backgroundColor: uiTheme.panelBgSubtle }}>
-                <Clock size={20} style={{ color: secondaryThemeColor }} />
-              </div>
-              <div className="flex flex-col items-start overflow-hidden flex-1">
-                <span className="font-medium text-sm">{t('welcome.resume')}</span>
-                <span style={{ color: uiTheme.textSoft }} className="text-xs truncate w-full text-left mt-0.5" title={recentProject}>
-                  {recentProject}
-                </span>
-              </div>
-            </button>
+            <div className="space-y-2">
+              {(recentProjects.length > 0 ? recentProjects : recentProject ? [recentProject] : []).slice(0, 10).map((path, index) => (
+                <button 
+                  key={`${path}-${index}`}
+                  onClick={() => onOpenRecent(path)}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 group shadow-sm hover:-translate-y-0.5"
+                  style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgElevated, boxShadow: `0 4px 12px ${secondaryThemeColor}14` }}
+                >
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: uiTheme.panelBgSubtle }}>
+                    <Clock size={20} style={{ color: secondaryThemeColor }} />
+                  </div>
+                  <div className="flex flex-col items-start overflow-hidden flex-1">
+                    <span className="font-medium text-sm">{index === 0 ? t('welcome.resume') : t('welcome.open')}</span>
+                    <span style={{ color: uiTheme.textSoft }} className="text-xs truncate w-full text-left mt-0.5" title={path}>
+                      {path}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -31,6 +31,9 @@ export interface SharedChatSpeakerStyle {
   nameFontFamily?: string;
   nameFontWeight?: string;
   maxWidth?: number;
+  trackIndex?: number;
+  trackPaddingLeft?: number;
+  trackPaddingRight?: number;
   annotationPosition?: 'top' | 'bottom';
   annotationAlign?: 'left' | 'center' | 'right';
   annotationMarginX?: number;
@@ -60,6 +63,8 @@ export interface SharedChatLayout {
   showMeta?: boolean;
   compactMode?: boolean;
   compactSpacing?: number;
+  independentTracksEnabled?: boolean;
+  trackCount?: number;
 }
 
 export interface InterruptedMessageRow<T> {
@@ -150,6 +155,7 @@ export const computeInterruptedMessageRows = <T extends { start: number; end: nu
 
   return rows.filter((row) => row.left || row.right);
 };
+
 
 export const computeInterruptedVisibleMessages = <T extends { start: number; end: number; speakerId: string }>(
   appearedMessages: T[],
