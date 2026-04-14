@@ -2062,10 +2062,10 @@ export function SettingsPanel({
                             className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
                             style={inputSurfaceStyle}
                           >
-                            <option value="normal">常规 (Normal)</option>
-                            <option value="bold">加粗 (Bold)</option>
-                            <option value="bolder">更粗 (Bolder)</option>
-                            <option value="lighter">较细 (Lighter)</option>
+                            <option value="normal">{t('fontWeight.normal')}</option>
+                            <option value="bold">{t('fontWeight.bold')}</option>
+                            <option value="bolder">{t('fontWeight.bolder')}</option>
+                            <option value="lighter">{t('fontWeight.lighter')}</option>
                             <option value="100">100</option>
                             <option value="300">300</option>
                             <option value="500">500</option>
@@ -2160,10 +2160,10 @@ export function SettingsPanel({
                             className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
                             style={inputSurfaceStyle}
                           >
-                            <option value="normal">常规 (Normal)</option>
-                            <option value="bold">加粗 (Bold)</option>
-                            <option value="bolder">更粗 (Bolder)</option>
-                            <option value="lighter">较细 (Lighter)</option>
+                            <option value="normal">{t('fontWeight.normal')}</option>
+                            <option value="bold">{t('fontWeight.bold')}</option>
+                            <option value="bolder">{t('fontWeight.bolder')}</option>
+                            <option value="lighter">{t('fontWeight.lighter')}</option>
                             <option value="100">100</option>
                             <option value="300">300</option>
                             <option value="500">500</option>
@@ -2458,10 +2458,10 @@ export function SettingsPanel({
                           className={`w-full border rounded px-2 py-1.5 text-xs focus:outline-none ${inputClass}`}
                           style={inputSurfaceStyle}
                         >
-                          <option value="normal">常规 (Normal)</option>
-                          <option value="bold">加粗 (Bold)</option>
-                          <option value="bolder">更粗 (Bolder)</option>
-                          <option value="lighter">较细 (Lighter)</option>
+                          <option value="normal">{t('fontWeight.normal')}</option>
+                          <option value="bold">{t('fontWeight.bold')}</option>
+                          <option value="bolder">{t('fontWeight.bolder')}</option>
+                          <option value="lighter">{t('fontWeight.lighter')}</option>
                           <option value="100">100</option>
                           <option value="300">300</option>
                           <option value="500">500</option>
