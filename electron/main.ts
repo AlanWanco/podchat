@@ -524,8 +524,19 @@ function createWindow() {
     win.loadFile(path.join(RENDERER_DIST, 'index.html'));
   }
 
-  win.webContents.on('console-message', (_event, level, message, lineNumber, sourceId) => {
-    console.log(`[Renderer:${level}] ${message} (at ${sourceId}:${lineNumber})`);
+  win.webContents.on('console-message', (...args: any[]) => {
+    const eventOrLevel = args[0];
+    const details = args[1] && typeof args[1] === 'object'
+      ? args[1]
+      : null;
+
+    if (details) {
+      console.log(`[Renderer:${details.level}] ${details.message} (at ${details.sourceId}:${details.lineNumber})`);
+      return;
+    }
+
+    const [, level, message, lineNumber, sourceId] = args;
+    console.log(`[Renderer:${level}] ${message} (at ${sourceId}:${lineNumber})`, eventOrLevel ? '' : '');
   });
 
   win.webContents.on('render-process-gone', (_event, details) => {
@@ -914,6 +925,11 @@ ipcMain.handle('show-item-in-folder', async (_event, filePath) => {
   if (!filePath) return false;
   shell.showItemInFolder(resolveAppFilePath(filePath));
   return true;
+});
+
+ipcMain.handle('open-export-log-dir', async () => {
+  const result = await shell.openPath(getExportLogDir());
+  return result === '';
 });
 
 ipcMain.handle('read-file', async (_event, filePath) => {

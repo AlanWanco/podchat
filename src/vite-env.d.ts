@@ -18,6 +18,7 @@ interface Window {
     saveClipboardImageToCache: (payload: { bytes: number[]; contentType?: string; preferredName?: string }) => Promise<string | null>;
     showSaveDialog: (options: any) => Promise<any>;
     showItemInFolder: (filePath: string) => Promise<boolean>;
+    openExportLogDir: () => Promise<boolean>;
     getDroppedFilePath: (file: File) => string;
     readFile: (filePath: string) => Promise<string>;
     writeFile: (filePath: string, content: string) => Promise<boolean>;

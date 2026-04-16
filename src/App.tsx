@@ -48,6 +48,23 @@ type SpeakerReplaceDialogState = {
   affectedCount: number;
 };
 
+type SpeakerImportConflictAction = 'overwrite' | 'duplicate';
+
+type SpeakerImportConflict = {
+  sourceKey: string;
+  targetKey: string;
+  sourceSpeaker: any;
+  existingSpeaker: any;
+  action: SpeakerImportConflictAction;
+  changedFields: string[];
+};
+
+type ImportProjectSettingsDialogState = {
+  sourcePath: string;
+  importedConfig: any;
+  conflicts: SpeakerImportConflict[];
+};
+
 type RenderCacheInfo = {
   remoteAssets: { path: string; files: number; bytes: number };
   remotionTemp: { path: string; entries: string[]; files: number; bytes: number };
@@ -862,6 +879,7 @@ function App() {
   const [isProjectDirty, setIsProjectDirty] = useState(false);
   const [projectChangeTick, setProjectChangeTick] = useState(0);
   const [speakerReplaceDialog, setSpeakerReplaceDialog] = useState<SpeakerReplaceDialogState | null>(null);
+  const [importProjectSettingsDialog, setImportProjectSettingsDialog] = useState<ImportProjectSettingsDialogState | null>(null);
   const exportProgressActiveRef = useRef(false);
   const hasHydratedElectronConfigRef = useRef(!isDesktopMode);
   const lastUiSyncSnapshotRef = useRef('');
@@ -1187,7 +1205,7 @@ const [previewScale, setPreviewScale] = useState(1);
   };
 
   const backupAssIfSpeakerNamesChanged = async () => {
-    if (!window.electron || !config.assPath) return;
+    if (!window.electron || !resolvedAssPath) return;
 
     const previousNames = savedSpeakerNamesRef.current;
     const currentNames = getSpeakerNameSnapshot(config.speakers);
@@ -1195,7 +1213,7 @@ const [previewScale, setPreviewScale] = useState(1);
     if (!changed) return;
 
     try {
-      await window.electron.backupAssFile(config.assPath);
+      await window.electron.backupAssFile(resolvedAssPath);
     } catch (error) {
       console.error('Failed to backup ASS before speaker rename sync:', error);
     }
@@ -1474,6 +1492,16 @@ const [previewScale, setPreviewScale] = useState(1);
     }
     window.open(url, '_blank', 'noopener,noreferrer');
   }, []);
+
+  const handleOpenExportLogDirectory = useCallback(async () => {
+    if (!window.electron) {
+      return;
+    }
+    const ok = await window.electron.openExportLogDir();
+    if (!ok) {
+      showToast(t('app.openExportLogDirFailed'));
+    }
+  }, [showToast, t]);
 
   const handleCheckForUpdates = useCallback(async () => {
     setIsCheckingUpdates(true);
@@ -2155,6 +2183,7 @@ const [previewScale, setPreviewScale] = useState(1);
     );
     return {
       ...restConfig,
+      audioPath: resolveExportAssetPath(restConfig.audioPath),
       content: Array.isArray(restConfig.content)
         ? restConfig.content.map((item: any) => item?.type === 'text' ? { ...item, text: remapMarkdownImagePaths(item.text || '') } : item)
         : restConfig.content,
@@ -2749,6 +2778,33 @@ const [previewScale, setPreviewScale] = useState(1);
     return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   };
 
+  function resolveAssetPathAgainstProject(value: string | undefined, baseProjectFilePath: string | null | undefined): string | undefined {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    if (/^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('file://')) return trimmed;
+    if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\') || (trimmed.startsWith('/') && !trimmed.startsWith('/projects/') && !trimmed.startsWith('/assets/'))) return trimmed;
+    if (!baseProjectFilePath || baseProjectFilePath === 'web-demo') return trimmed;
+
+    try {
+      const baseUrl = new URL(toFilePreviewPath(baseProjectFilePath));
+      const resolvedUrl = new URL(trimmed, baseUrl);
+      if (resolvedUrl.protocol !== 'file:') return resolvedUrl.toString();
+      const pathname = decodeURIComponent(resolvedUrl.pathname || '');
+      const normalizedPath = /^\/[a-zA-Z]:\//.test(pathname) ? pathname.slice(1) : pathname;
+      return resolvedUrl.host ? `//${resolvedUrl.host}${normalizedPath}` : normalizedPath;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  function resolveProjectAssetPath(value: string | undefined): string | undefined {
+    return resolveAssetPathAgainstProject(value, projectPath);
+  }
+
+  const resolvedAssPath = resolveProjectAssetPath(config.assPath) || config.assPath;
+
   const detectVideoMediaInfo = useCallback(async (src: string) => {
     return await new Promise<{ hasAudio: boolean; duration: number | null }>((resolve) => {
       const video = document.createElement('video');
@@ -2800,7 +2856,7 @@ const [previewScale, setPreviewScale] = useState(1);
       return resolveLocalPreviewPath(cachedRemoteAssets[trimmed]);
     }
 
-    return resolveLocalPreviewPath(trimmed);
+    return resolveLocalPreviewPath(resolveProjectAssetPath(trimmed));
   };
 
   useEffect(() => {
@@ -2975,6 +3031,180 @@ const [previewScale, setPreviewScale] = useState(1);
     // 默认值合并（兼容旧版本或缺失非必填字段的配置）
     return sanitizeProjectConfig(parsed);
   };
+
+  const speakersEqual = (left: any, right: any) => JSON.stringify(left || {}) === JSON.stringify(right || {});
+
+  const getSpeakerDiffLabels = (existingSpeaker: any, importedSpeaker: any) => {
+    const labels: string[] = [];
+    if ((existingSpeaker?.name || '') !== (importedSpeaker?.name || '')) {
+      labels.push(t('importSettings.field.name'));
+    }
+    if ((existingSpeaker?.avatar || '') !== (importedSpeaker?.avatar || '')) {
+      labels.push(t('importSettings.field.avatar'));
+    }
+    if ((existingSpeaker?.side || 'left') !== (importedSpeaker?.side || 'left')) {
+      labels.push(t('importSettings.field.side'));
+    }
+    if (JSON.stringify(existingSpeaker?.style || {}) !== JSON.stringify(importedSpeaker?.style || {})) {
+      labels.push(t('importSettings.field.style'));
+    }
+    return labels;
+  };
+
+  const getUniqueSpeakerKey = (existingSpeakers: Record<string, any>, baseKey: string) => {
+    if (!existingSpeakers[baseKey]) {
+      return baseKey;
+    }
+    let counter = 1;
+    let nextKey = `${baseKey}_${counter}`;
+    while (existingSpeakers[nextKey]) {
+      counter += 1;
+      nextKey = `${baseKey}_${counter}`;
+    }
+    return nextKey;
+  };
+
+  const getUniqueSpeakerName = (existingSpeakers: Record<string, any>, baseName: string) => {
+    const trimmedBaseName = (baseName || 'Speaker').trim() || 'Speaker';
+    const existingNames = new Set(Object.values(existingSpeakers || {}).map((speaker: any) => String(speaker?.name || '').trim()).filter(Boolean));
+    if (!existingNames.has(trimmedBaseName)) {
+      return trimmedBaseName;
+    }
+    let counter = 1;
+    let nextName = `${trimmedBaseName}(${counter})`;
+    while (existingNames.has(nextName)) {
+      counter += 1;
+      nextName = `${trimmedBaseName}(${counter})`;
+    }
+    return nextName;
+  };
+
+  const applyImportedProjectSettings = useCallback((payload: ImportProjectSettingsDialogState) => {
+    pushHistorySnapshot();
+    setConfig((prev: any) => {
+      const nextSpeakers = { ...(prev?.speakers || {}) };
+      const handledSpeakerKeys = new Set<string>();
+
+      payload.conflicts.forEach((conflict) => {
+        handledSpeakerKeys.add(conflict.sourceKey);
+        if (conflict.action === 'overwrite') {
+          nextSpeakers[conflict.targetKey] = JSON.parse(JSON.stringify(conflict.sourceSpeaker));
+          return;
+        }
+
+        const nextKey = getUniqueSpeakerKey(nextSpeakers, conflict.sourceKey || conflict.targetKey || 'S');
+        nextSpeakers[nextKey] = {
+          ...JSON.parse(JSON.stringify(conflict.sourceSpeaker)),
+          name: getUniqueSpeakerName(nextSpeakers, conflict.sourceSpeaker?.name || conflict.sourceKey || nextKey),
+        };
+      });
+
+      Object.entries(payload.importedConfig?.speakers || {}).forEach(([sourceKey, speaker]: [string, any]) => {
+        if (handledSpeakerKeys.has(sourceKey)) {
+          return;
+        }
+        const existingByKey = nextSpeakers[sourceKey];
+        const sameNameKey = Object.keys(nextSpeakers).find((key) => key !== sourceKey && String(nextSpeakers[key]?.name || '').trim() === String(speaker?.name || '').trim());
+        if ((existingByKey && speakersEqual(existingByKey, speaker)) || (sameNameKey && speakersEqual(nextSpeakers[sameNameKey], speaker))) {
+          return;
+        }
+
+        const nextKey = getUniqueSpeakerKey(nextSpeakers, sourceKey);
+        nextSpeakers[nextKey] = {
+          ...JSON.parse(JSON.stringify(speaker)),
+          name: nextKey === sourceKey ? (speaker?.name || sourceKey) : getUniqueSpeakerName(nextSpeakers, speaker?.name || sourceKey),
+        };
+      });
+
+      return {
+        ...prev,
+        fps: payload.importedConfig?.fps ?? prev?.fps,
+        dimensions: payload.importedConfig?.dimensions ?? prev?.dimensions,
+        chatLayout: payload.importedConfig?.chatLayout ?? prev?.chatLayout,
+        background: payload.importedConfig?.background
+          ? {
+              ...(prev?.background || {}),
+              ...payload.importedConfig.background,
+              slides: prev?.background?.slides || [],
+            }
+          : prev?.background,
+        speakers: nextSpeakers,
+      };
+    });
+    setImportProjectSettingsDialog(null);
+    markProjectDirty();
+    showToast(t('app.projectSettingsImported'));
+  }, [markProjectDirty, pushHistorySnapshot, showToast, t]);
+
+  const beginImportProjectSettings = useCallback((sourcePath: string, parsed: any) => {
+    const validatedConfig = validateProjectConfig(parsed);
+    const importedConfig = {
+      fps: validatedConfig.fps,
+      dimensions: JSON.parse(JSON.stringify(validatedConfig.dimensions)),
+      chatLayout: JSON.parse(JSON.stringify(validatedConfig.chatLayout)),
+      background: validatedConfig.background
+        ? {
+            ...JSON.parse(JSON.stringify(validatedConfig.background)),
+            image: resolveAssetPathAgainstProject(validatedConfig.background?.image, sourcePath),
+            slides: [],
+          }
+        : undefined,
+      speakers: Object.fromEntries(
+        Object.entries(validatedConfig.speakers || {}).map(([speakerKey, speaker]: [string, any]) => [
+          speakerKey,
+          {
+            ...JSON.parse(JSON.stringify(speaker)),
+            avatar: resolveAssetPathAgainstProject(speaker?.avatar, sourcePath) || speaker?.avatar || '',
+          },
+        ])
+      ),
+    };
+
+    const conflicts: SpeakerImportConflict[] = [];
+    Object.entries(importedConfig.speakers || {}).forEach(([sourceKey, importedSpeaker]: [string, any]) => {
+      const existingByKey = config.speakers?.[sourceKey];
+      const sameNameKey = Object.keys(config.speakers || {}).find((key) => key !== sourceKey && String(config.speakers[key]?.name || '').trim() === String(importedSpeaker?.name || '').trim());
+      const conflictTargetKey = existingByKey ? sourceKey : (sameNameKey || null);
+      if (!conflictTargetKey) {
+        return;
+      }
+      const existingSpeaker = config.speakers?.[conflictTargetKey];
+      if (speakersEqual(existingSpeaker, importedSpeaker)) {
+        return;
+      }
+      conflicts.push({
+        sourceKey,
+        targetKey: conflictTargetKey,
+        sourceSpeaker: importedSpeaker,
+        existingSpeaker,
+        action: 'overwrite',
+        changedFields: getSpeakerDiffLabels(existingSpeaker, importedSpeaker),
+      });
+    });
+
+    const hasLayoutChange = JSON.stringify(config.chatLayout || {}) !== JSON.stringify(importedConfig.chatLayout || {})
+      || JSON.stringify(config.dimensions || {}) !== JSON.stringify(importedConfig.dimensions || {})
+      || (config.fps ?? null) !== (importedConfig.fps ?? null)
+      || JSON.stringify({ ...(config.background || {}), slides: [] }) !== JSON.stringify({ ...(importedConfig.background || {}), slides: [] });
+    const hasSpeakerChange = conflicts.length > 0
+      || Object.entries(importedConfig.speakers || {}).some(([sourceKey, importedSpeaker]: [string, any]) => {
+        const existingSpeaker = config.speakers?.[sourceKey];
+        const sameNameKey = Object.keys(config.speakers || {}).find((key) => String(config.speakers[key]?.name || '').trim() === String(importedSpeaker?.name || '').trim());
+        return !existingSpeaker && !sameNameKey;
+      });
+
+    if (!hasLayoutChange && !hasSpeakerChange) {
+      showToast(t('app.projectSettingsNoChanges'));
+      return;
+    }
+
+    if (conflicts.length === 0) {
+      applyImportedProjectSettings({ sourcePath, importedConfig, conflicts: [] });
+      return;
+    }
+
+    setImportProjectSettingsDialog({ sourcePath, importedConfig, conflicts });
+  }, [applyImportedProjectSettings, config.background, config.chatLayout, config.dimensions, config.fps, config.speakers, showToast, t, validateProjectConfig]);
 
   const handleNewProject = async (initialOverrides?: any) => {
     const safeOverrides = sanitizeProjectOverrides(initialOverrides);
@@ -3393,6 +3623,30 @@ const [previewScale, setPreviewScale] = useState(1);
       }
     } catch (e: any) {
       alert(`${t('dialog.errorSelectFileFailed')}: ${e.message}`);
+    }
+  };
+
+  const handleImportProjectSettings = async () => {
+    if (!window.electron || !projectPath || projectPath === 'web-demo') {
+      return;
+    }
+
+    try {
+      const result = await window.electron.showOpenDialog({
+        title: t('dialog.importProjectSettingsTitle'),
+        filters: [{ name: t('dialog.filterProject'), extensions: ['pomchat', 'json'] }],
+        properties: ['openFile']
+      });
+
+      if (result.canceled || !result.filePaths?.[0]) {
+        return;
+      }
+
+      const sourcePath = result.filePaths[0];
+      const content = await window.electron.readFile(sourcePath);
+      beginImportProjectSettings(sourcePath, JSON.parse(content));
+    } catch (e: any) {
+      alert(`${t('dialog.errorImportSettingsFailed')}: ${e.message}`);
     }
   };
 
@@ -4158,6 +4412,7 @@ const [previewScale, setPreviewScale] = useState(1);
         secondaryThemeColor={secondaryThemeColor}
         onNewProject={handleNewProject}
         onOpenProject={handleOpenProject}
+        onImportProjectSettings={handleImportProjectSettings}
         onSaveProject={handleSaveProject}
         onSetAudio={handleSetAudio}
         onSetSubtitle={handleSetSubtitle}
@@ -5283,6 +5538,7 @@ const [previewScale, setPreviewScale] = useState(1);
          onExportParallelSegmentsChange={handleExportParallelSegmentsChange}
          onExportFormatChange={handleExportFormatChange}
          onExportLogEnabledChange={handleExportLogEnabledChange}
+         onOpenExportLogDirectory={handleOpenExportLogDirectory}
          onFilenameTemplateChange={handleFilenameTemplateChange}
          onCustomFilenameChange={handleCustomFilenameChange}
          onStartExport={handleStartExport}
@@ -5303,6 +5559,89 @@ const [previewScale, setPreviewScale] = useState(1);
         isCheckingUpdates={isCheckingUpdates}
         updateResult={updateResult}
       />
+
+      {importProjectSettingsDialog && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-xl border shadow-2xl p-4 space-y-4 max-h-[80vh] overflow-y-auto" style={{ backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.text }}>
+            <div className="space-y-1">
+              <div className="text-sm font-semibold">{t('importSettings.title')}</div>
+              <p className="text-xs" style={{ color: uiTheme.textMuted }}>{t('importSettings.description')}</p>
+              <p className="text-xs" style={{ color: secondaryThemeColor }}>{t('importSettings.layoutSummary')}</p>
+              <div className="text-[11px] font-mono break-all" style={{ color: uiTheme.textMuted }}>{importProjectSettingsDialog.sourcePath}</div>
+            </div>
+
+            {importProjectSettingsDialog.conflicts.length > 0 ? (
+              <div className="space-y-3">
+                <div className="text-xs font-medium" style={{ color: uiTheme.text }}>{t('importSettings.speakerConflicts')}</div>
+                {importProjectSettingsDialog.conflicts.map((conflict, index) => (
+                  <div key={`${conflict.sourceKey}-${conflict.targetKey}-${index}`} className="rounded-lg border p-3 space-y-2" style={{ borderColor: uiTheme.border, backgroundColor: uiTheme.panelBgSubtle }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium">{conflict.sourceSpeaker?.name || conflict.sourceKey}</div>
+                        <div className="text-[11px]" style={{ color: uiTheme.textMuted }}>
+                          {conflict.targetKey === conflict.sourceKey ? conflict.targetKey : `${conflict.targetKey} <- ${conflict.sourceKey}`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[11px]" style={{ color: uiTheme.textMuted }}>
+                      {t('importSettings.changedFields', { fields: conflict.changedFields.join(' / ') || t('importSettings.field.style') })}
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setImportProjectSettingsDialog((prev) => prev ? {
+                          ...prev,
+                          conflicts: prev.conflicts.map((item, itemIndex) => itemIndex === index ? { ...item, action: 'overwrite' } : item),
+                        } : prev)}
+                        className="px-3 py-1.5 rounded text-xs border"
+                        style={conflict.action === 'overwrite'
+                          ? { backgroundColor: secondaryThemeColor, borderColor: secondaryThemeColor, color: '#fff' }
+                          : { backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.text }}
+                      >
+                        {t('common.overwrite')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImportProjectSettingsDialog((prev) => prev ? {
+                          ...prev,
+                          conflicts: prev.conflicts.map((item, itemIndex) => itemIndex === index ? { ...item, action: 'duplicate' } : item),
+                        } : prev)}
+                        className="px-3 py-1.5 rounded text-xs border"
+                        style={conflict.action === 'duplicate'
+                          ? { backgroundColor: themeColor, borderColor: themeColor, color: '#fff' }
+                          : { backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.text }}
+                      >
+                        {t('common.duplicate')}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs" style={{ color: uiTheme.textMuted }}>{t('importSettings.noSpeakerConflicts')}</div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setImportProjectSettingsDialog(null)}
+                className="px-3 py-1.5 rounded text-sm"
+                style={{ backgroundColor: uiTheme.panelBgSubtle, color: uiTheme.textMuted }}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => applyImportedProjectSettings(importProjectSettingsDialog)}
+                className="px-3 py-1.5 rounded text-sm text-white"
+                style={{ backgroundColor: secondaryThemeColor }}
+              >
+                {t('common.import')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {speakerReplaceDialog && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">

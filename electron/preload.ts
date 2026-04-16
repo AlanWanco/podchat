@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electron', {
   saveClipboardImageToCache: (payload: { bytes: number[]; contentType?: string; preferredName?: string }) => ipcRenderer.invoke('save-clipboard-image-to-cache', payload),
   showSaveDialog: (options: any) => ipcRenderer.invoke('show-save-dialog', options),
   showItemInFolder: (filePath: string) => ipcRenderer.invoke('show-item-in-folder', filePath),
+  openExportLogDir: () => ipcRenderer.invoke('open-export-log-dir'),
   getDroppedFilePath: (file: File) => webUtils.getPathForFile(file),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) => ipcRenderer.invoke('write-file', filePath, content),

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef, type ReactNode } from 'react';
-import { Settings, Image as ImageIcon, Users, Save, Moon, Sun, Trash2, Plus, X, Check, ArrowLeftRight, LayoutTemplate, Type, Box, Layout, FolderOpen, Clock3, Pencil } from 'lucide-react';
+import { Settings, Image as ImageIcon, Users, Save, Moon, Sun, Trash2, Plus, X, Check, ArrowLeftRight, LayoutTemplate, Type, Box, Layout, FolderOpen, Clock3, Pencil, Copy } from 'lucide-react';
 import { translate, type Language } from '../i18n';
 import { createThemeTokens } from '../theme';
 import { Tooltip } from './ui/Tooltip';
@@ -307,6 +307,33 @@ export function SettingsPanel({
     updateBackgroundSlides(nextSlides);
     setActiveBackgroundSlideTab(fallbackId);
     onActiveInsertImageChange?.(fallbackId);
+  };
+
+  const duplicateBackgroundSlide = (slideId: string) => {
+    const sourceSlide = backgroundSlides.find((slide: any) => slide.id === slideId);
+    if (!sourceSlide) return;
+
+    const typeLabel = sourceSlide.type === 'text' ? t('project.assetTypeText') : t('project.assetTypeImage');
+    const namePattern = new RegExp(`^${typeLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`);
+    const sameTypeCount = backgroundSlides.filter((slide: any) => slide.type === sourceSlide.type).length;
+    const maxIndex = backgroundSlides.reduce((currentMax: number, slide: any) => {
+      if (slide.type !== sourceSlide.type) return currentMax;
+      const match = String(slide.name || '').trim().match(namePattern);
+      if (!match) return currentMax;
+      const nextValue = Number(match[1]);
+      return Number.isFinite(nextValue) ? Math.max(currentMax, nextValue) : currentMax;
+    }, sameTypeCount);
+
+    const duplicatedSlide = {
+      ...sourceSlide,
+      id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: `${typeLabel}${maxIndex + 1}`,
+    };
+
+    updateBackgroundSlides([...backgroundSlides, duplicatedSlide]);
+    setActiveBackgroundSlideTab(duplicatedSlide.id);
+    setPendingScrollSlideId(duplicatedSlide.id);
+    onActiveInsertImageChange?.(duplicatedSlide.id);
   };
 
   const setBackgroundSlideExplicitOrder = (slideId: string, nextOrder: number) => {
@@ -1477,6 +1504,9 @@ export function SettingsPanel({
                             className={`min-w-0 flex-1 border rounded-md px-3 py-2 text-xs focus:outline-none ${inputClass}`}
                             style={inputSurfaceStyle}
                           />
+                          <button type="button" onClick={() => duplicateBackgroundSlide(currentBackgroundSlide.id)} className="shrink-0 p-2 rounded border" style={{ borderColor: uiTheme.border, color: secondaryThemeColor }} title={t('project.duplicateAsset')}>
+                            <Copy size={14} />
+                          </button>
                           <button type="button" onClick={() => removeBackgroundSlide(currentBackgroundSlide.id)} className="shrink-0 p-2 rounded border" style={{ borderColor: uiTheme.border, color: '#ef4444' }}>
                             <Trash2 size={14} />
                           </button>

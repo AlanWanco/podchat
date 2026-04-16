@@ -14,6 +14,7 @@ interface MenuBarProps {
   projectName: string;
   onNewProject: () => void;
   onOpenProject: () => void;
+  onImportProjectSettings: () => void;
   onSaveProject: () => void;
   onSetAudio: () => void;
   onSetSubtitle: () => void;
@@ -43,6 +44,7 @@ export function MenuBar({
   shouldHideSidePanels,
   onNewProject,
   onOpenProject,
+  onImportProjectSettings,
   onSaveProject,
   onSetAudio,
   onSetSubtitle,
@@ -121,6 +123,9 @@ export function MenuBar({
               </button>
               <button onClick={() => executeAction(onOpenProject)} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass}`}>
                 <FolderOpen size={14} /> {t('menu.openProject')}
+              </button>
+              <button onClick={() => executeAction(onImportProjectSettings)} disabled={!projectPath || isWebMode} className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${hoverClass} ${(!projectPath || isWebMode) && 'opacity-50 cursor-not-allowed'}`}>
+                <FolderOpen size={14} /> {t('menu.importProjectSettings')}
               </button>
               <div className={`my-1 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}></div>
               <button 

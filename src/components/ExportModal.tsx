@@ -72,6 +72,7 @@ interface ExportModalProps {
   onExportParallelSegmentsChange?: (enabled: boolean) => void;
   onExportFormatChange?: (format: 'mp4' | 'mov-alpha' | 'webm-alpha') => void;
   onExportLogEnabledChange?: (enabled: boolean) => void;
+  onOpenExportLogDirectory?: () => void;
   onFilenameTemplateChange?: (template: 'default' | 'timestamp' | 'unix' | 'custom') => void;
   onCustomFilenameChange?: (filename: string) => void;
 }
@@ -177,6 +178,7 @@ export function ExportModal({
   onExportParallelSegmentsChange,
   onExportFormatChange,
   onExportLogEnabledChange,
+  onOpenExportLogDirectory,
   onFilenameTemplateChange,
   onCustomFilenameChange
 }: ExportModalProps) {
@@ -506,9 +508,15 @@ export function ExportModal({
                       <div>
                         <div className="text-xs font-medium" style={{ color: uiTheme.text }}>{t('export.logEnabled')}</div>
                         <div className="text-[11px] mt-1" style={{ color: uiTheme.textMuted }}>{t('export.logEnabledHint')}</div>
-                        <div className="text-[11px] mt-1 font-mono break-all" style={{ color: secondaryThemeColor }}>
+                        <button
+                          type="button"
+                          onClick={() => void onOpenExportLogDirectory?.()}
+                          disabled={isExporting || !window.electron}
+                          className="text-[11px] mt-1 font-mono break-all underline-offset-2 disabled:opacity-50"
+                          style={{ color: secondaryThemeColor, textDecoration: 'underline' }}
+                        >
                           {t('export.logPath')}: `~/.config/pomchat/export-logs/`
-                        </div>
+                        </button>
                       </div>
                     </label>
                   </div>
