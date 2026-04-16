@@ -2,7 +2,7 @@
 import { app, BrowserWindow, ipcMain, dialog, clipboard, shell, session } from 'electron';
 import { execFileSync, fork } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, fileURLToPath as urlToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -460,6 +460,109 @@ function resolveAppFilePath(filePath: string) {
   }
 
   return filePath;
+}
+
+function resolveProjectResourcePath(projectFilePath: string, resourcePath: string) {
+  if (!resourcePath) return resourcePath;
+  const trimmed = resourcePath.trim();
+  if (!trimmed) return trimmed;
+  if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+  if (trimmed.startsWith('file://')) {
+    try {
+      return urlToPath(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+
+  const baseDir = path.dirname(resolveAppFilePath(projectFilePath));
+  if (path.isAbsolute(trimmed) || trimmed.startsWith('\\\\')) {
+    return trimmed;
+  }
+  return path.resolve(baseDir, trimmed);
+}
+
+function toProjectRelativePath(projectFilePath: string, absolutePath: string) {
+  const baseDir = path.dirname(resolveAppFilePath(projectFilePath));
+  const relativePath = path.relative(baseDir, absolutePath);
+  return relativePath.replace(/\\/g, '/');
+}
+
+function findSiblingFileByBasename(projectFilePath: string, resourcePath: string) {
+  const baseDir = path.dirname(resolveAppFilePath(projectFilePath));
+  const targetBasename = path.basename(resourcePath);
+  if (!targetBasename || !fs.existsSync(baseDir)) {
+    return null;
+  }
+
+  for (const entry of fs.readdirSync(baseDir)) {
+    if (entry !== targetBasename) {
+      continue;
+    }
+    const candidate = path.join(baseDir, entry);
+    try {
+      const stat = fs.statSync(candidate);
+      if (stat.isFile()) {
+        return candidate;
+      }
+    } catch {
+      // Ignore race conditions while scanning sibling files.
+    }
+  }
+
+  return null;
+}
+
+async function inspectProjectResources(projectFilePath: string, resources: Array<{ id: string; value: string }>) {
+  const results: Array<{ id: string; state: 'ok' | 'updated-relative' | 'missing'; resolvedValue: string; suggestedValue?: string }> = [];
+
+  for (const resource of resources) {
+    const originalValue = String(resource.value || '').trim();
+    if (!originalValue) continue;
+
+    const resolvedValue = resolveProjectResourcePath(projectFilePath, originalValue);
+    if (/^https?:\/\//i.test(resolvedValue)) {
+      try {
+        const response = await fetch(resolvedValue, { method: 'HEAD', redirect: 'follow' });
+        if (response.ok) {
+          results.push({ id: resource.id, state: 'ok', resolvedValue });
+          continue;
+        }
+      } catch {
+        // fall through to GET retry
+      }
+
+      try {
+        const response = await fetch(resolvedValue, { method: 'GET', redirect: 'follow' });
+        results.push({ id: resource.id, state: response.ok ? 'ok' : 'missing', resolvedValue });
+      } catch {
+        results.push({ id: resource.id, state: 'missing', resolvedValue });
+      }
+      continue;
+    }
+
+    if (fs.existsSync(resolvedValue)) {
+      const suggestedValue = toProjectRelativePath(projectFilePath, resolvedValue);
+      results.push({ id: resource.id, state: suggestedValue && suggestedValue !== originalValue ? 'updated-relative' : 'ok', resolvedValue, suggestedValue });
+      continue;
+    }
+
+    const siblingMatch = findSiblingFileByBasename(projectFilePath, resolvedValue);
+    if (siblingMatch) {
+      results.push({
+        id: resource.id,
+        state: 'updated-relative',
+        resolvedValue: siblingMatch,
+        suggestedValue: toProjectRelativePath(projectFilePath, siblingMatch),
+      });
+      continue;
+    }
+
+    results.push({ id: resource.id, state: 'missing', resolvedValue });
+  }
+
+  return results;
 }
 
 function getRuntimeDirectory() {
@@ -938,6 +1041,10 @@ ipcMain.handle('read-file', async (_event, filePath) => {
   } catch (error: any) {
     throw new Error(`Failed to read file: ${error.message}`);
   }
+});
+
+ipcMain.handle('inspect-project-resources', async (_event, payload: { projectFilePath: string; resources: Array<{ id: string; value: string }> }) => {
+  return inspectProjectResources(payload.projectFilePath, payload.resources || []);
 });
 
 ipcMain.handle('write-file', async (_event, filePath, content) => {

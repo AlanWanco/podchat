@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electron', {
   openExportLogDir: () => ipcRenderer.invoke('open-export-log-dir'),
   getDroppedFilePath: (file: File) => webUtils.getPathForFile(file),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
+  inspectProjectResources: (payload: { projectFilePath: string; resources: Array<{ id: string; value: string }> }) => ipcRenderer.invoke('inspect-project-resources', payload),
   writeFile: (filePath: string, content: string) => ipcRenderer.invoke('write-file', filePath, content),
   backupAssFile: (filePath: string) => ipcRenderer.invoke('backup-ass-file', filePath),
   captureRectToClipboard: (rect: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke('capture-rect-to-clipboard', rect),

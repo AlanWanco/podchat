@@ -65,6 +65,31 @@ type ImportProjectSettingsDialogState = {
   conflicts: SpeakerImportConflict[];
 };
 
+type ProjectResourceEntry = {
+  id: string;
+  label: string;
+  value: string;
+  kind: 'file' | 'url';
+};
+
+type MissingProjectResource = ProjectResourceEntry & {
+  replacement: string;
+  resolvedValue: string;
+};
+
+type UpdatedProjectResource = ProjectResourceEntry & {
+  nextValue: string;
+};
+
+type ProjectResourceCheckDialogState = {
+  filePath: string;
+  config: any;
+  missing: MissingProjectResource[];
+  updated: UpdatedProjectResource[];
+};
+
+type ProjectResourceFileType = 'audio' | 'subtitle' | 'image' | 'video' | 'media';
+
 type RenderCacheInfo = {
   remoteAssets: { path: string; files: number; bytes: number };
   remotionTemp: { path: string; entries: string[]; files: number; bytes: number };
@@ -880,6 +905,7 @@ function App() {
   const [projectChangeTick, setProjectChangeTick] = useState(0);
   const [speakerReplaceDialog, setSpeakerReplaceDialog] = useState<SpeakerReplaceDialogState | null>(null);
   const [importProjectSettingsDialog, setImportProjectSettingsDialog] = useState<ImportProjectSettingsDialogState | null>(null);
+  const [projectResourceCheckDialog, setProjectResourceCheckDialog] = useState<ProjectResourceCheckDialogState | null>(null);
   const exportProgressActiveRef = useRef(false);
   const hasHydratedElectronConfigRef = useRef(!isDesktopMode);
   const lastUiSyncSnapshotRef = useRef('');
@@ -2855,6 +2881,97 @@ const [previewScale, setPreviewScale] = useState(1);
     return resolveAssetPathAgainstProject(value, projectPath);
   }
 
+  const collectProjectResources = useCallback((configToInspect: any): ProjectResourceEntry[] => {
+    const resources: ProjectResourceEntry[] = [];
+    const pushResource = (entry: ProjectResourceEntry | null) => {
+      if (!entry || !entry.value?.trim()) return;
+      resources.push(entry);
+    };
+
+    pushResource({ id: 'audioPath', label: t('project.audioPath'), value: configToInspect.audioPath || '', kind: /^https?:\/\//i.test(configToInspect.audioPath || '') ? 'url' : 'file' });
+    pushResource({ id: 'assPath', label: t('project.assPath'), value: configToInspect.assPath || '', kind: /^https?:\/\//i.test(configToInspect.assPath || '') ? 'url' : 'file' });
+    pushResource({ id: 'background.image', label: t('project.backgroundMedia'), value: configToInspect.background?.image || '', kind: /^https?:\/\//i.test(configToInspect.background?.image || '') ? 'url' : 'file' });
+
+    Object.entries(configToInspect.speakers || {}).forEach(([speakerKey, speaker]: [string, any]) => {
+      pushResource({
+        id: `speakers.${speakerKey}.avatar`,
+        label: `${speaker?.name || speakerKey} / ${t('speakers.avatar')}`,
+        value: speaker?.avatar || '',
+        kind: /^https?:\/\//i.test(speaker?.avatar || '') ? 'url' : 'file'
+      });
+    });
+
+    (configToInspect.background?.slides || []).forEach((slide: any, index: number) => {
+      if (slide?.type !== 'image') return;
+      pushResource({
+        id: `background.slides.${index}.image`,
+        label: `${slide?.name || `${t('project.assetTypeImage')}${index + 1}`} / ${t('project.insertImagePath')}`,
+        value: slide?.image || '',
+        kind: /^https?:\/\//i.test(slide?.image || '') ? 'url' : 'file'
+      });
+    });
+
+    return resources;
+  }, [t]);
+
+  const updateConfigValueByPath = useCallback((target: any, dottedPath: string, nextValue: string) => {
+    const segments = dottedPath.split('.');
+    const cloned = JSON.parse(JSON.stringify(target));
+    let cursor = cloned;
+    for (let index = 0; index < segments.length - 1; index += 1) {
+      const rawKey = segments[index];
+      const key = /^\d+$/.test(rawKey) ? Number(rawKey) : rawKey;
+      cursor = cursor[key as keyof typeof cursor];
+      if (!cursor) {
+        return cloned;
+      }
+    }
+    const lastRawKey = segments[segments.length - 1];
+    const lastKey = /^\d+$/.test(lastRawKey) ? Number(lastRawKey) : lastRawKey;
+    cursor[lastKey as keyof typeof cursor] = nextValue;
+    return cloned;
+  }, []);
+
+  const getProjectResourceFileType = useCallback((resourceId: string, resourceValue: string): ProjectResourceFileType => {
+    const lowerValue = (resourceValue || '').toLowerCase();
+    if (resourceId === 'audioPath' || /\.(mp3|wav|aac|m4a|flac|ogg|opus)(\?|$)/i.test(lowerValue)) {
+      return 'audio';
+    }
+    if (resourceId === 'assPath' || /\.(ass|srt|lrc)(\?|$)/i.test(lowerValue)) {
+      return 'subtitle';
+    }
+    if (resourceId === 'background.image') {
+      return /\.(mp4|webm|mov|mkv)(\?|$)/i.test(lowerValue) ? 'video' : 'media';
+    }
+    if (resourceId.includes('.avatar') || resourceId.includes('.slides.')) {
+      return /\.(mp4|webm|mov|mkv)(\?|$)/i.test(lowerValue) ? 'video' : 'image';
+    }
+    return 'media';
+  }, []);
+
+  const finalizeLoadedProject = useCallback((filePath: string, normalizedConfig: any) => {
+    const shouldUseAssSource = !window.electron && normalizedConfig.subtitleFormat === 'ass' && Boolean(normalizedConfig.assPath);
+    setProjectPath(filePath);
+    rememberRecentProject(filePath);
+    clearHistory();
+    clearProjectDirty();
+    if (!window.electron) {
+      localStorage.setItem(STORAGE_KEY + '_recent_project', filePath);
+    }
+    setConfig((prev: any) => ({
+      ...normalizedConfig,
+      ui: {
+        ...(prev?.ui || DEFAULT_UI_CONFIG),
+        recentProject: filePath
+      }
+    }));
+    setWebAssContent(shouldUseAssSource ? normalizedConfig.assPath : null);
+    setIsMobileBottomPanelExpanded(false);
+    savedSpeakerNamesRef.current = getSpeakerNameSnapshot(normalizedConfig.speakers);
+    setShowSettings(true);
+    showToast(t('app.projectLoaded'));
+  }, [rememberRecentProject, showToast, t]);
+
   const resolvedAssPath = resolveProjectAssetPath(config.assPath) || config.assPath;
 
   const detectVideoMediaInfo = useCallback(async (src: string) => {
@@ -3327,6 +3444,7 @@ const [previewScale, setPreviewScale] = useState(1);
   const handleCloseProject = () => {
     clearHistory();
     clearProjectDirty();
+    setProjectResourceCheckDialog(null);
     setProjectPath(null);
     setShowSettings(false);
     if (!window.electron) {
@@ -3442,6 +3560,8 @@ const [previewScale, setPreviewScale] = useState(1);
       showToast(t('app.projectImported'));
       return;
     }
+
+    setProjectResourceCheckDialog(null);
 
     if (!isAss && !isSrt && !isLrc && !isAudio && !isImage && !isVideo) {
       showToast(t('app.dropUnsupported'));
@@ -3629,33 +3749,47 @@ const [previewScale, setPreviewScale] = useState(1);
 
   const loadProjectFromPath = async (filePath: string) => {
     try {
+      setProjectResourceCheckDialog(null);
       const content = await window.electron.readFile(filePath);
       const parsed = JSON.parse(content);
       const validatedConfig = validateProjectConfig(parsed);
       const normalizedConfig = validatedConfig.subtitleFormat
         ? validatedConfig
         : { ...validatedConfig, subtitleFormat: validatedConfig.assPath ? 'ass' : (validatedConfig.content?.length ? 'srt' : 'ass') };
-      const shouldUseAssSource = !window.electron && normalizedConfig.subtitleFormat === 'ass' && Boolean(normalizedConfig.assPath);
-      
-      setProjectPath(filePath);
-      rememberRecentProject(filePath);
-      clearHistory();
-      clearProjectDirty();
-      if (!window.electron) {
-        localStorage.setItem(STORAGE_KEY + '_recent_project', filePath);
-      }
-      setConfig((prev: any) => ({
-        ...normalizedConfig,
-        ui: {
-          ...(prev?.ui || DEFAULT_UI_CONFIG),
-          recentProject: filePath
+      if (window.electron) {
+        const resources = collectProjectResources(normalizedConfig);
+        const inspection = await window.electron.inspectProjectResources({ projectFilePath: filePath, resources: resources.map(({ id, value }) => ({ id, value })) });
+        let checkedConfig = normalizedConfig;
+        const updated: UpdatedProjectResource[] = [];
+        const missing: MissingProjectResource[] = [];
+
+        inspection.forEach((result) => {
+          const resource = resources.find((entry) => entry.id === result.id);
+          if (!resource) return;
+          if (result.state === 'updated-relative' && result.suggestedValue) {
+            checkedConfig = updateConfigValueByPath(checkedConfig, resource.id, result.suggestedValue);
+            updated.push({ ...resource, nextValue: result.suggestedValue });
+            return;
+          }
+          if (result.state === 'missing') {
+            missing.push({ ...resource, replacement: '', resolvedValue: result.resolvedValue });
+          }
+        });
+
+        if (missing.length > 0) {
+          setProjectResourceCheckDialog({ filePath, config: checkedConfig, updated, missing });
+          showToast(t('projectResourceCheck.requiresAttention'));
+          return;
         }
-      }));
-      setWebAssContent(shouldUseAssSource ? normalizedConfig.assPath : null);
-      setIsMobileBottomPanelExpanded(false);
-      savedSpeakerNamesRef.current = getSpeakerNameSnapshot(normalizedConfig.speakers);
-      setShowSettings(true);
-      showToast(t('app.projectLoaded'));
+
+        if (updated.length > 0) {
+          showToast(t('projectResourceCheck.updatedRelativeAuto', { count: updated.length }));
+        }
+        finalizeLoadedProject(filePath, checkedConfig);
+        return;
+      }
+
+      finalizeLoadedProject(filePath, normalizedConfig);
     } catch (e: any) {
       alert(`${t('dialog.errorLoadFailed')}: ${e.message}`);
       if (filePath === recentProject) {
@@ -3687,6 +3821,61 @@ const [previewScale, setPreviewScale] = useState(1);
       alert(`${t('dialog.errorSelectFileFailed')}: ${e.message}`);
     }
   };
+
+  const handleProjectResourceReplacementChange = useCallback((resourceId: string, replacement: string) => {
+    setProjectResourceCheckDialog((prev) => prev ? {
+      ...prev,
+      missing: prev.missing.map((item) => item.id === resourceId ? { ...item, replacement } : item)
+    } : prev);
+  }, []);
+
+  const handleApplyProjectResourceCheck = useCallback(() => {
+    if (!projectResourceCheckDialog) {
+      return;
+    }
+
+    let nextConfig = projectResourceCheckDialog.config;
+    projectResourceCheckDialog.missing.forEach((item) => {
+      const replacement = item.replacement.trim();
+      if (!replacement) {
+        return;
+      }
+      nextConfig = updateConfigValueByPath(nextConfig, item.id, replacement);
+    });
+
+    setProjectResourceCheckDialog(null);
+    finalizeLoadedProject(projectResourceCheckDialog.filePath, nextConfig);
+  }, [finalizeLoadedProject, projectResourceCheckDialog, updateConfigValueByPath]);
+
+  const handleBrowseProjectResourceReplacement = useCallback(async (resourceId: string) => {
+    if (!window.electron) {
+      return;
+    }
+    try {
+      const targetResource = projectResourceCheckDialog?.missing.find((item) => item.id === resourceId);
+      const fileType = getProjectResourceFileType(resourceId, targetResource?.value || '');
+      const filters = fileType === 'audio'
+        ? [{ name: t('dialog.filterAudio'), extensions: ['mp3', 'wav', 'aac', 'm4a', 'flac', 'ogg', 'opus'] }]
+        : fileType === 'subtitle'
+          ? [{ name: t('dialog.filterSubtitle'), extensions: ['ass', 'srt', 'lrc'] }]
+          : fileType === 'image'
+            ? [{ name: t('dialog.filterImage'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] }]
+            : fileType === 'video'
+              ? [{ name: t('dialog.filterVideo'), extensions: ['mp4', 'webm', 'mov', 'mkv'] }]
+              : [{ name: t('dialog.filterMedia'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'mp4', 'webm', 'mov', 'mkv'] }];
+      const result = await window.electron.showOpenDialog({
+        title: t('dialog.selectReplacementResourceTitle'),
+        properties: ['openFile'],
+        filters
+      });
+      if (result.canceled || !result.filePaths?.[0]) {
+        return;
+      }
+      handleProjectResourceReplacementChange(resourceId, result.filePaths[0]);
+    } catch (error: any) {
+      alert(`${t('dialog.errorSelectFileFailed')}: ${error.message}`);
+    }
+  }, [getProjectResourceFileType, handleProjectResourceReplacementChange, projectResourceCheckDialog?.missing, t]);
 
   const handleImportProjectSettings = async () => {
     if (!window.electron || !projectPath || projectPath === 'web-demo') {
@@ -4342,6 +4531,80 @@ const [previewScale, setPreviewScale] = useState(1);
     showToast(t('app.dropUnsupported'));
   };
 
+  const projectResourceCheckModal = projectResourceCheckDialog ? (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="w-full max-w-4xl rounded-xl border shadow-2xl p-4 space-y-4 max-h-[82vh] overflow-y-auto" style={{ backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.text }}>
+        <div className="space-y-1">
+          <div className="text-sm font-semibold">{t('projectResourceCheck.title')}</div>
+          <p className="text-xs" style={{ color: uiTheme.textMuted }}>{t('projectResourceCheck.description')}</p>
+          <div className="text-[11px] font-mono break-all" style={{ color: uiTheme.textMuted }}>{projectResourceCheckDialog.filePath}</div>
+        </div>
+
+        {projectResourceCheckDialog.updated.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs font-medium" style={{ color: uiTheme.text }}>{t('projectResourceCheck.updatedRelative')}</div>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: uiTheme.border }}>
+              {projectResourceCheckDialog.updated.map((item) => (
+                <div key={item.id} className="grid grid-cols-[180px_1fr_1fr] gap-3 px-3 py-2 text-xs border-t first:border-t-0" style={{ borderColor: uiTheme.border }}>
+                  <div style={{ color: uiTheme.text }}>{item.label}</div>
+                  <div className="font-mono break-all" style={{ color: uiTheme.textMuted }}>{item.value}</div>
+                  <div className="font-mono break-all" style={{ color: secondaryThemeColor }}>{item.nextValue}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {projectResourceCheckDialog.missing.length > 0 ? (
+          <div className="space-y-2">
+            <div className="text-xs font-medium" style={{ color: uiTheme.text }}>{t('projectResourceCheck.missingResources')}</div>
+            <div className="rounded-lg border overflow-hidden" style={{ borderColor: uiTheme.border }}>
+              <div className="grid grid-cols-[180px_1fr_1fr_72px] gap-3 px-3 py-2 text-[11px] font-medium" style={{ backgroundColor: uiTheme.panelBgSubtle, color: uiTheme.textMuted }}>
+                <div>{t('projectResourceCheck.columnResource')}</div>
+                <div>{t('projectResourceCheck.columnCurrent')}</div>
+                <div>{t('projectResourceCheck.columnReplacement')}</div>
+                <div>{t('projectResourceCheck.columnBrowse')}</div>
+              </div>
+              {projectResourceCheckDialog.missing.map((item) => (
+                <div key={item.id} className="grid grid-cols-[180px_1fr_1fr_72px] gap-3 px-3 py-2 text-xs border-t items-start" style={{ borderColor: uiTheme.border }}>
+                  <div style={{ color: uiTheme.text }}>{item.label}</div>
+                  <div className="font-mono break-all" style={{ color: '#ef4444' }}>{item.value}</div>
+                  <input
+                    type="text"
+                    value={item.replacement}
+                    onChange={(event) => handleProjectResourceReplacementChange(item.id, event.target.value)}
+                    placeholder={item.kind === 'url' ? t('projectResourceCheck.urlPlaceholder') : t('projectResourceCheck.filePlaceholder')}
+                    className="w-full rounded border px-2 py-1.5 text-xs focus:outline-none"
+                    style={{ backgroundColor: uiTheme.inputBg, borderColor: uiTheme.border, color: uiTheme.text }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleBrowseProjectResourceReplacement(item.id)}
+                    className="px-2 py-1.5 rounded border text-xs"
+                    style={{ borderColor: uiTheme.border, color: uiTheme.text, backgroundColor: uiTheme.panelBgSubtle }}
+                  >
+                    {t('projectResourceCheck.browse')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs" style={{ color: uiTheme.textMuted }}>{t('projectResourceCheck.noMissingResources')}</div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={() => setProjectResourceCheckDialog(null)} className="px-3 py-1.5 rounded text-sm" style={{ backgroundColor: uiTheme.panelBgSubtle, color: uiTheme.textMuted }}>
+            {t('common.cancel')}
+          </button>
+          <button type="button" onClick={handleApplyProjectResourceCheck} className="px-3 py-1.5 rounded text-sm text-white" style={{ backgroundColor: secondaryThemeColor }}>
+            {t('projectResourceCheck.confirmSkipOrApply')}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (!projectPath) {
     return (
       <div className="relative w-full h-[100dvh]" style={{ background: appBackground, color: uiTheme.text, ['--pomchat-scrollbar-thumb' as any]: `${secondaryThemeColor}77`, ['--pomchat-scrollbar-thumb-hover' as any]: `${secondaryThemeColor}AA`, ['--pomchat-number-spin-color' as any]: secondaryThemeColor }} onDragOver={handleAppDragOver} onDragLeave={handleAppDragLeave} onDrop={handleAppDrop}>
@@ -4452,6 +4715,7 @@ const [previewScale, setPreviewScale] = useState(1);
             </div>
           </div>
         )}
+        {projectResourceCheckModal}
       </div>
     );
   }
@@ -5627,6 +5891,8 @@ const [previewScale, setPreviewScale] = useState(1);
         isCheckingUpdates={isCheckingUpdates}
         updateResult={updateResult}
       />
+
+      {projectResourceCheckModal}
 
       {importProjectSettingsDialog && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">

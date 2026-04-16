@@ -316,12 +316,16 @@ type MarkdownToken =
   | { type: 'text'; value: string }
   | { type: 'bold' | 'italic' | 'strike'; children: MarkdownToken[] }
   | { type: 'color'; color: string; children: MarkdownToken[] }
+  | { type: 'size'; size: string; children: MarkdownToken[] }
+  | { type: 'font'; font: string; children: MarkdownToken[] }
   | { type: 'image'; src: string; alt: string }
   | { type: 'linebreak' };
 
 const MARKDOWN_PATTERNS = {
   image: /!\[([^\]]*)\]\(([^)]+)\)/,
   color: /<color=([^>]+)>([\s\S]*?)<\/color>/,
+  size: /<size=([^>]+)>([\s\S]*?)<\/size>/,
+  font: /<font=([^>]+)>([\s\S]*?)<\/font>/,
   bold: /\*\*([^*][\s\S]*?)\*\*/,
   strike: /~~([^~][\s\S]*?)~~/,
   italic: /(^|[^*])\*([^*][\s\S]*?)\*/,
@@ -335,6 +339,8 @@ const tokenizeMarkdownInline = (input: string): MarkdownToken[] => {
     const candidates = [
       { type: 'image' as const, match: rest.match(MARKDOWN_PATTERNS.image) },
       { type: 'color' as const, match: rest.match(MARKDOWN_PATTERNS.color) },
+      { type: 'size' as const, match: rest.match(MARKDOWN_PATTERNS.size) },
+      { type: 'font' as const, match: rest.match(MARKDOWN_PATTERNS.font) },
       { type: 'bold' as const, match: rest.match(MARKDOWN_PATTERNS.bold) },
       { type: 'strike' as const, match: rest.match(MARKDOWN_PATTERNS.strike) },
       { type: 'italic' as const, match: rest.match(MARKDOWN_PATTERNS.italic) },
@@ -361,6 +367,18 @@ const tokenizeMarkdownInline = (input: string): MarkdownToken[] => {
 
     if (next.type === 'color') {
       tokens.push({ type: 'color', color: next.match[1].trim(), children: tokenizeMarkdownInline(next.match[2] || '') });
+      rest = rest.slice(matchIndex + next.match[0].length);
+      continue;
+    }
+
+    if (next.type === 'size') {
+      tokens.push({ type: 'size', size: next.match[1].trim(), children: tokenizeMarkdownInline(next.match[2] || '') });
+      rest = rest.slice(matchIndex + next.match[0].length);
+      continue;
+    }
+
+    if (next.type === 'font') {
+      tokens.push({ type: 'font', font: next.match[1].trim(), children: tokenizeMarkdownInline(next.match[2] || '') });
       rest = rest.slice(matchIndex + next.match[0].length);
       continue;
     }
@@ -393,11 +411,13 @@ const tokenizeMarkdown = (input: string): MarkdownToken[] => {
 const renderMarkdownTokens = ({
   tokens,
   textColor,
+  baseFontSize,
   renderInlineImage,
   keyPrefix,
 }: {
   tokens: MarkdownToken[];
   textColor: string;
+  baseFontSize: number;
   renderInlineImage: (args: { src: string; alt: string; key: string }) => React.ReactNode;
   keyPrefix: string;
 }): React.ReactNode[] => tokens.map((token, index) => {
@@ -408,13 +428,24 @@ const renderMarkdownTokens = ({
     case 'linebreak':
       return <br key={key} />;
     case 'bold':
-      return <strong key={key}>{renderMarkdownTokens({ tokens: token.children, textColor, renderInlineImage, keyPrefix: key })}</strong>;
+      return <strong key={key}>{renderMarkdownTokens({ tokens: token.children, textColor, baseFontSize, renderInlineImage, keyPrefix: key })}</strong>;
     case 'italic':
-      return <em key={key}>{renderMarkdownTokens({ tokens: token.children, textColor, renderInlineImage, keyPrefix: key })}</em>;
+      return <em key={key}>{renderMarkdownTokens({ tokens: token.children, textColor, baseFontSize, renderInlineImage, keyPrefix: key })}</em>;
     case 'strike':
-      return <del key={key}>{renderMarkdownTokens({ tokens: token.children, textColor, renderInlineImage, keyPrefix: key })}</del>;
+      return <del key={key}>{renderMarkdownTokens({ tokens: token.children, textColor, baseFontSize, renderInlineImage, keyPrefix: key })}</del>;
     case 'color':
-      return <span key={key} style={{ color: token.color || textColor }}>{renderMarkdownTokens({ tokens: token.children, textColor: token.color || textColor, renderInlineImage, keyPrefix: key })}</span>;
+      return <span key={key} style={{ color: token.color || textColor }}>{renderMarkdownTokens({ tokens: token.children, textColor: token.color || textColor, baseFontSize, renderInlineImage, keyPrefix: key })}</span>;
+    case 'size': {
+      const normalized = token.size.trim();
+      const cssSize = /^\d+(\.\d+)?$/.test(normalized)
+        ? `${normalized}px`
+        : /^(\d+(\.\d+)?)(px|em|rem|%)$/.test(normalized)
+          ? normalized
+          : `${baseFontSize}px`;
+      return <span key={key} style={{ fontSize: cssSize }}>{renderMarkdownTokens({ tokens: token.children, textColor, baseFontSize, renderInlineImage, keyPrefix: key })}</span>;
+    }
+    case 'font':
+      return <span key={key} style={{ fontFamily: token.font || undefined }}>{renderMarkdownTokens({ tokens: token.children, textColor, baseFontSize, renderInlineImage, keyPrefix: key })}</span>;
     case 'image':
       return renderInlineImage({ src: token.src, alt: token.alt, key });
     default:
@@ -425,14 +456,17 @@ const renderMarkdownTokens = ({
 const renderMarkdownContent = ({
   text,
   textColor,
+  baseFontSize,
   renderInlineImage,
 }: {
   text: string;
   textColor: string;
+  baseFontSize: number;
   renderInlineImage: (args: { src: string; alt: string; key: string }) => React.ReactNode;
 }) => renderMarkdownTokens({
   tokens: tokenizeMarkdown(text),
   textColor,
+  baseFontSize,
   renderInlineImage,
   keyPrefix: 'md',
 });
@@ -584,6 +618,7 @@ export function ChatMessageBubble({
   const markdownContent = renderMarkdownContent({
     text: item.text,
     textColor,
+    baseFontSize: fontSize,
     renderInlineImage: ({ src, alt, key }) => (renderInlineImage
       ? renderInlineImage({
           src,
@@ -873,6 +908,7 @@ export function ChatAnnotationBubble({ item, speaker, currentTime, layoutScale, 
     children: renderMarkdownContent({
       text: item.text,
       textColor,
+      baseFontSize: (speaker.style?.fontSize ?? 24) * combinedScale,
       renderInlineImage: ({ src, alt, key }) => (renderInlineImage
         ? renderInlineImage({
             src,

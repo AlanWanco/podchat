@@ -21,6 +21,7 @@ interface Window {
     openExportLogDir: () => Promise<boolean>;
     getDroppedFilePath: (file: File) => string;
     readFile: (filePath: string) => Promise<string>;
+    inspectProjectResources: (payload: { projectFilePath: string; resources: Array<{ id: string; value: string }> }) => Promise<Array<{ id: string; state: 'ok' | 'updated-relative' | 'missing'; resolvedValue: string; suggestedValue?: string }>>;
     writeFile: (filePath: string, content: string) => Promise<boolean>;
     backupAssFile: (filePath: string) => Promise<string | null>;
     captureRectToClipboard: (rect: { x: number; y: number; width: number; height: number }) => Promise<boolean>;
