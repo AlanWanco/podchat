@@ -103,6 +103,31 @@ const getPreferredStylesByName = (dialogues: ParsedAssDialogue[]) => {
   return preferred;
 };
 
+const getStylesByName = (dialogues: ParsedAssDialogue[]) => {
+  const stylesByName = new Map<string, string[]>();
+
+  dialogues.forEach((dialogue) => {
+    if (!dialogue?.Name || !dialogue?.Style) {
+      return;
+    }
+
+    const existing = stylesByName.get(dialogue.Name) || [];
+    if (!existing.includes(dialogue.Style)) {
+      existing.push(dialogue.Style);
+    }
+    stylesByName.set(dialogue.Name, existing);
+  });
+
+  return stylesByName;
+};
+
+const formatImportedSpeakerName = (language: Language, name: string, styleName: string, includeStyle: boolean) => {
+  if (!includeStyle || !styleName || styleName === name) {
+    return name;
+  }
+  return language === 'zh-CN' ? `${name}（${styleName}）` : `${name} (${styleName})`;
+};
+
 const getImportedSpeakerStyle = (assStyle: ParsedAssStyle | undefined, isAnnotation: boolean) => {
   const primaryColor = parseAssColor(assStyle?.PrimaryColour);
   const outlineColor = parseAssColor(assStyle?.OutlineColour);
@@ -224,6 +249,7 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
   }, [selectedNames, selectedStyles]);
 
   const preferredStylesByName = getPreferredStylesByName(parsedAss?.events?.dialogue || []);
+  const stylesByName = getStylesByName(parsedAss?.events?.dialogue || []);
 
   const toggleName = (name: string) => {
     const nextNames = new Set(selectedNames);
@@ -289,44 +315,52 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
     });
 
     Array.from(selectedNames).forEach((name) => {
-      const matchedStyleName = preferredStylesByName.get(name) || name;
       const isAnnotation = /注释/.test(name);
-      const hasSelectedStyle = selectedStyles.has(matchedStyleName);
-      const assPresetKey = buildAssPresetKey(matchedStyleName || name || 'Default');
-      const baseStyle = getBaseImportedStyle(isAnnotation, charCode);
-      const importedStyle = getImportedSpeakerStyle(assStylesByName.get(matchedStyleName), isAnnotation);
-      const mergedStyle = hasSelectedStyle ? { ...baseStyle, ...importedStyle } : baseStyle;
+      const candidateStyles = (stylesByName.get(name) || []).filter((styleName) => selectedStyles.has(styleName));
+      const fallbackStyle = preferredStylesByName.get(name) || name;
+      const styleVariants = candidateStyles.length > 0 ? candidateStyles : [fallbackStyle];
+      const shouldIncludeStyleInName = styleVariants.length > 1;
 
-      const normalizedSpeakerName = (name || '').trim().toLowerCase();
-      const speakerUniqueKey = isAnnotation ? 'annotation' : normalizedSpeakerName;
-      if (createdSpeakerKeys.has(speakerUniqueKey)) {
-        return;
-      }
-      createdSpeakerKeys.add(speakerUniqueKey);
-
-      const speakerId = isAnnotation ? 'ANNOTATION' : String.fromCharCode(charCode++);
-      newSpeakers[speakerId] = {
-        name: isAnnotation ? '注释' : (name || `角色${speakerId}`),
-        avatar: isAnnotation ? '' : `https://api.dicebear.com/7.x/adventurer/svg?seed=${name || speakerId}`,
-        side: isAnnotation ? 'center' : (charCode % 2 === 0 ? 'left' : 'right'),
-        type: isAnnotation ? 'annotation' : 'speaker',
-        preset: hasSelectedStyle ? assPresetKey : undefined,
-        style: {
-          ...mergedStyle
+      styleVariants.forEach((styleName) => {
+        const hasSelectedStyle = selectedStyles.has(styleName);
+        const assPresetKey = buildAssPresetKey(styleName || name || 'Default');
+        const baseStyle = getBaseImportedStyle(isAnnotation, charCode);
+        const importedStyle = getImportedSpeakerStyle(assStylesByName.get(styleName), isAnnotation);
+        const mergedStyle = hasSelectedStyle ? { ...baseStyle, ...importedStyle } : baseStyle;
+        const displayName = isAnnotation
+          ? '注释'
+          : formatImportedSpeakerName(language, name || `角色${String.fromCharCode(charCode)}`, styleName, shouldIncludeStyleInName);
+        const normalizedSpeakerName = displayName.trim().toLowerCase();
+        const speakerUniqueKey = isAnnotation ? `annotation:${styleName || 'default'}` : normalizedSpeakerName;
+        if (createdSpeakerKeys.has(speakerUniqueKey)) {
+          return;
         }
-      };
+        createdSpeakerKeys.add(speakerUniqueKey);
 
-      if (hasSelectedStyle && isAnnotation && !newAnnotationPresets[assPresetKey]) {
-        newAnnotationPresets[assPresetKey] = {
-          style: mergedStyle,
-          avatar: '',
-          side: 'center'
+        const speakerId = isAnnotation ? (styleVariants.length > 1 ? `ANNOTATION_${styleName}` : 'ANNOTATION') : String.fromCharCode(charCode++);
+        newSpeakers[speakerId] = {
+          name: displayName,
+          avatar: isAnnotation ? '' : `https://api.dicebear.com/7.x/adventurer/svg?seed=${displayName || speakerId}`,
+          side: isAnnotation ? 'center' : (charCode % 2 === 0 ? 'left' : 'right'),
+          type: isAnnotation ? 'annotation' : 'speaker',
+          preset: hasSelectedStyle ? assPresetKey : undefined,
+          style: {
+            ...mergedStyle
+          }
         };
-      }
 
-      if (hasSelectedStyle) {
-        stylesBoundByNames.add(matchedStyleName);
-      }
+        if (hasSelectedStyle && isAnnotation && !newAnnotationPresets[assPresetKey]) {
+          newAnnotationPresets[assPresetKey] = {
+            style: mergedStyle,
+            avatar: '',
+            side: 'center'
+          };
+        }
+
+        if (hasSelectedStyle) {
+          stylesBoundByNames.add(styleName);
+        }
+      });
     });
 
     Array.from(selectedStyles).forEach((styleName) => {
@@ -384,20 +418,26 @@ export function AssImportModal({ assPath, assContent, onConfirm, onCancel, isDar
 
   const assStylesByName = new Map<string, ParsedAssStyle>((parsedAss?.styles?.style || []).map((style) => [style.Name, style]));
   const previewRows: StylePreviewRow[] = [
-    ...Array.from(selectedNames).map((name) => {
-      const matchedStyleName = preferredStylesByName.get(name) || name;
-      const matchedStyle = selectedStyles.has(matchedStyleName) ? assStylesByName.get(matchedStyleName) : undefined;
-      const outlineWidth = Number(matchedStyle?.Outline);
-      return {
-        id: `name:${name}`,
-        speakerLabel: name || t('import.empty'),
-        matchedStyleName: selectedStyles.has(matchedStyleName) ? matchedStyleName : '--',
-        bubbleColor: parseAssColor(matchedStyle?.OutlineColour),
-        borderColor: parseAssColor(matchedStyle?.BackColour),
-        textColor: parseAssColor(matchedStyle?.PrimaryColour),
-        borderWidth: Number.isFinite(outlineWidth) ? Math.max(0, Math.round(outlineWidth)) : null,
-        fontName: matchedStyle?.Fontname
-      };
+    ...Array.from(selectedNames).flatMap((name) => {
+      const candidateStyles = (stylesByName.get(name) || []).filter((styleName) => selectedStyles.has(styleName));
+      const fallbackStyle = preferredStylesByName.get(name) || name;
+      const styleVariants = candidateStyles.length > 0 ? candidateStyles : [fallbackStyle];
+      const shouldIncludeStyleInName = styleVariants.length > 1;
+
+      return styleVariants.map((matchedStyleName) => {
+        const matchedStyle = selectedStyles.has(matchedStyleName) ? assStylesByName.get(matchedStyleName) : undefined;
+        const outlineWidth = Number(matchedStyle?.Outline);
+        return {
+          id: `name:${name}:${matchedStyleName}`,
+          speakerLabel: formatImportedSpeakerName(language, name || t('import.empty'), matchedStyleName, shouldIncludeStyleInName),
+          matchedStyleName: selectedStyles.has(matchedStyleName) ? matchedStyleName : '--',
+          bubbleColor: parseAssColor(matchedStyle?.OutlineColour),
+          borderColor: parseAssColor(matchedStyle?.BackColour),
+          textColor: parseAssColor(matchedStyle?.PrimaryColour),
+          borderWidth: Number.isFinite(outlineWidth) ? Math.max(0, Math.round(outlineWidth)) : null,
+          fontName: matchedStyle?.Fontname
+        };
+      });
     }),
     ...Array.from(selectedStyles)
       .filter((styleName) => !Array.from(selectedNames).some((name) => (preferredStylesByName.get(name) || name) === styleName))

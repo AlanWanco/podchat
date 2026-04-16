@@ -48,7 +48,7 @@ type SpeakerReplaceDialogState = {
   affectedCount: number;
 };
 
-type SpeakerImportConflictAction = 'overwrite' | 'duplicate';
+type SpeakerImportConflictAction = 'overwrite' | 'duplicate' | 'skip';
 
 type SpeakerImportConflict = {
   sourceKey: string;
@@ -3121,13 +3121,6 @@ const [previewScale, setPreviewScale] = useState(1);
         fps: payload.importedConfig?.fps ?? prev?.fps,
         dimensions: payload.importedConfig?.dimensions ?? prev?.dimensions,
         chatLayout: payload.importedConfig?.chatLayout ?? prev?.chatLayout,
-        background: payload.importedConfig?.background
-          ? {
-              ...(prev?.background || {}),
-              ...payload.importedConfig.background,
-              slides: prev?.background?.slides || [],
-            }
-          : prev?.background,
         speakers: nextSpeakers,
       };
     });
@@ -3142,13 +3135,6 @@ const [previewScale, setPreviewScale] = useState(1);
       fps: validatedConfig.fps,
       dimensions: JSON.parse(JSON.stringify(validatedConfig.dimensions)),
       chatLayout: JSON.parse(JSON.stringify(validatedConfig.chatLayout)),
-      background: validatedConfig.background
-        ? {
-            ...JSON.parse(JSON.stringify(validatedConfig.background)),
-            image: resolveAssetPathAgainstProject(validatedConfig.background?.image, sourcePath),
-            slides: [],
-          }
-        : undefined,
       speakers: Object.fromEntries(
         Object.entries(validatedConfig.speakers || {}).map(([speakerKey, speaker]: [string, any]) => [
           speakerKey,
@@ -3164,7 +3150,7 @@ const [previewScale, setPreviewScale] = useState(1);
     Object.entries(importedConfig.speakers || {}).forEach(([sourceKey, importedSpeaker]: [string, any]) => {
       const existingByKey = config.speakers?.[sourceKey];
       const sameNameKey = Object.keys(config.speakers || {}).find((key) => key !== sourceKey && String(config.speakers[key]?.name || '').trim() === String(importedSpeaker?.name || '').trim());
-      const conflictTargetKey = existingByKey ? sourceKey : (sameNameKey || null);
+      const conflictTargetKey = sameNameKey || (existingByKey ? sourceKey : null);
       if (!conflictTargetKey) {
         return;
       }
@@ -3184,8 +3170,7 @@ const [previewScale, setPreviewScale] = useState(1);
 
     const hasLayoutChange = JSON.stringify(config.chatLayout || {}) !== JSON.stringify(importedConfig.chatLayout || {})
       || JSON.stringify(config.dimensions || {}) !== JSON.stringify(importedConfig.dimensions || {})
-      || (config.fps ?? null) !== (importedConfig.fps ?? null)
-      || JSON.stringify({ ...(config.background || {}), slides: [] }) !== JSON.stringify({ ...(importedConfig.background || {}), slides: [] });
+      || (config.fps ?? null) !== (importedConfig.fps ?? null);
     const hasSpeakerChange = conflicts.length > 0
       || Object.entries(importedConfig.speakers || {}).some(([sourceKey, importedSpeaker]: [string, any]) => {
         const existingSpeaker = config.speakers?.[sourceKey];
@@ -5579,7 +5564,7 @@ const [previewScale, setPreviewScale] = useState(1);
                       <div>
                         <div className="text-sm font-medium">{conflict.sourceSpeaker?.name || conflict.sourceKey}</div>
                         <div className="text-[11px]" style={{ color: uiTheme.textMuted }}>
-                          {conflict.targetKey === conflict.sourceKey ? conflict.targetKey : `${conflict.targetKey} <- ${conflict.sourceKey}`}
+                          {(conflict.existingSpeaker?.name || conflict.targetKey)} {'<-'} {(conflict.sourceSpeaker?.name || conflict.sourceKey)}
                         </div>
                       </div>
                     </div>
@@ -5612,6 +5597,19 @@ const [previewScale, setPreviewScale] = useState(1);
                           : { backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.text }}
                       >
                         {t('common.duplicate')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImportProjectSettingsDialog((prev) => prev ? {
+                          ...prev,
+                          conflicts: prev.conflicts.map((item, itemIndex) => itemIndex === index ? { ...item, action: 'skip' } : item),
+                        } : prev)}
+                        className="px-3 py-1.5 rounded text-xs border"
+                        style={conflict.action === 'skip'
+                          ? { backgroundColor: uiTheme.panelBgElevated, borderColor: uiTheme.border, color: secondaryThemeColor }
+                          : { backgroundColor: uiTheme.panelBg, borderColor: uiTheme.border, color: uiTheme.text }}
+                      >
+                        {t('common.skipSpeaker')}
                       </button>
                     </div>
                   </div>
